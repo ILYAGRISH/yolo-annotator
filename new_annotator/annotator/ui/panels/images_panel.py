@@ -1,0 +1,140 @@
+from pathlib import Path
+
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QColor
+from PyQt6.QtWidgets import (QLabel, QListWidget, QListWidgetItem, QMenu,
+                              QVBoxLayout, QWidget)
+
+from annotator.domain.project import Project
+
+_SPLIT_COLORS = {
+    "train": None,          # default text color
+    "val":   "#55AAFF",
+    "test":  "#FF9944",
+}
+
+
+class ImagesPanel(QWidget):
+    """Shows the image inventory of the current project."""
+
+    image_selected = pyqtSignal(str)   # absolute image path
+    split_changed  = pyqtSignal()      # any ImageRecord.split was modified
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._project: Project | None = None
+        self._setup_ui()
+
+    def _setup_ui(self):
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(4, 4, 4, 4)
+        lay.setSpacing(4)
+
+        self._header = QLabel("Images")
+        lay.addWidget(self._header)
+
+        self._list = QListWidget()
+        self._list.currentRowChanged.connect(self._on_row)
+        self._list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._list.customContextMenuRequested.connect(self._on_context_menu)
+        lay.addWidget(self._list)
+
+        hint = QLabel("A / D — prev / next   RMB — set split")
+        hint.setStyleSheet("color:#666;font-size:10px;")
+        lay.addWidget(hint)
+
+    # ── public API ────────────────────────────────────────────────────────────
+
+    def load_project(self, project: Project):
+        self._project = project
+        self._refresh()
+
+    def mark_annotated(self, image_path: str):
+        if not self._project:
+            return
+        for i, rec in enumerate(self._project.images):
+            if rec.path == image_path:
+                item = self._list.item(i)
+                if item:
+                    item.setForeground(QColor("#55CC55"))
+                break
+
+    def select_next(self):
+        r = self._list.currentRow()
+        if r + 1 < self._list.count():
+            self._list.setCurrentRow(r + 1)
+
+    def select_prev(self):
+        r = self._list.currentRow()
+        if r > 0:
+            self._list.setCurrentRow(r - 1)
+
+    def select_by_path(self, image_path: str):
+        if not self._project:
+            return
+        for i, rec in enumerate(self._project.images):
+            if rec.path == image_path:
+                self._list.setCurrentRow(i)
+                return
+
+    # ── internal ──────────────────────────────────────────────────────────────
+
+    def _refresh(self):
+        self._list.clear()
+        if not self._project:
+            return
+        self._header.setText(f"Images ({len(self._project.images)})")
+        for i, rec in enumerate(self._project.images):
+            self._list.addItem(self._make_item(rec))
+
+    def _make_item(self, rec) -> QListWidgetItem:
+        split = rec.split or "train"
+        tag = f" [{split}]" if split != "train" else ""
+        item = QListWidgetItem(Path(rec.path).name + tag)
+        item.setToolTip(f"{rec.path}\nSplit: {split}")
+        color = _SPLIT_COLORS.get(split)
+        if color:
+            item.setForeground(QColor(color))
+        return item
+
+    def _refresh_item(self, row: int):
+        if not self._project or row >= len(self._project.images):
+            return
+        new_item = self._make_item(self._project.images[row])
+        old = self._list.item(row)
+        if old:
+            old.setText(new_item.text())
+            old.setToolTip(new_item.toolTip())
+            old.setForeground(new_item.foreground())
+
+    def _on_row(self, row: int):
+        if self._project and 0 <= row < len(self._project.images):
+            self.image_selected.emit(self._project.images[row].path)
+
+    # ── context menu (split assignment) ───────────────────────────────────────
+
+    def _on_context_menu(self, pos):
+        item = self._list.itemAt(pos)
+        if item is None or not self._project:
+            return
+        row = self._list.row(item)
+        if row < 0 or row >= len(self._project.images):
+            return
+        rec = self._project.images[row]
+
+        menu = QMenu(self)
+        menu.addAction("Set split:").setEnabled(False)
+        for split in ("train", "val", "test"):
+            act = menu.addAction(f"  {split}")
+            act.setCheckable(True)
+            act.setChecked((rec.split or "train") == split)
+            act.triggered.connect(
+                lambda _checked, r=row, s=split: self._set_split(r, s))
+        menu.exec(self._list.viewport().mapToGlobal(pos))
+
+    def _set_split(self, row: int, split: str):
+        if not self._project or row >= len(self._project.images):
+            return
+        self._project.images[row].split = split
+        self._refresh_item(row)
+        self.split_changed.emit()
