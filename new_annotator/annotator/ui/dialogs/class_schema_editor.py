@@ -20,7 +20,8 @@ from PyQt6.QtWidgets import (
 )
 
 from annotator.domain.label_class import (
-    ANNOTATION_TYPE_TOOLS, ANNOTATION_TYPES, ClassAttribute, DisplayStyle, LabelClass,
+    ANNOTATION_TYPE_TOOLS, ANNOTATION_TYPES, ClassAttribute, DisplayStyle,
+    LabelClass, SkeletonKeypoint,
 )
 
 
@@ -184,6 +185,31 @@ class ClassSchemaEditorDialog(QDialog):
         al.addLayout(attr_btns)
         rl.addWidget(attr_box)
 
+        # Skeleton (keypoints type only)
+        self._skel_box = QGroupBox("Skeleton  (keypoints order)")
+        skel_l = QVBoxLayout(self._skel_box)
+        self._kp_list = QListWidget()
+        self._kp_list.setMaximumHeight(100)
+        skel_l.addWidget(self._kp_list)
+        kp_btns = QHBoxLayout()
+        b_kp_add = QPushButton("+ Add keypoint")
+        b_kp_add.setFixedHeight(22)
+        b_kp_add.clicked.connect(self._add_keypoint)
+        b_kp_rm = QPushButton("− Remove last")
+        b_kp_rm.setFixedHeight(22)
+        b_kp_rm.clicked.connect(self._remove_keypoint)
+        kp_btns.addWidget(b_kp_add)
+        kp_btns.addWidget(b_kp_rm)
+        kp_btns.addStretch()
+        skel_l.addLayout(kp_btns)
+        edges_form = QFormLayout()
+        self._edges_edit = QLineEdit()
+        self._edges_edit.setPlaceholderText('e.g. "0-1, 1-2, 1-5"')
+        self._edges_edit.editingFinished.connect(self._sync_skeleton)
+        edges_form.addRow("Edges (i-j pairs):", self._edges_edit)
+        skel_l.addLayout(edges_form)
+        rl.addWidget(self._skel_box)
+
         # Display style
         style_box = QGroupBox("Display style")
         sty_l = QFormLayout(style_box)
@@ -210,6 +236,7 @@ class ClassSchemaEditorDialog(QDialog):
         bb.rejected.connect(self.reject)
         root.addWidget(bb)
 
+        self._skel_box.setVisible(False)
         self._set_form_enabled(False)
 
     # ── list management ───────────────────────────────────────────────────────
@@ -267,7 +294,8 @@ class ClassSchemaEditorDialog(QDialog):
     def _set_form_enabled(self, enabled: bool):
         for w in [self._name_edit, self._color_btn,
                   self._sub_list, self._attr_table,
-                  self._opacity_spin, self._lw_spin]:
+                  self._opacity_spin, self._lw_spin,
+                  self._kp_list, self._edges_edit]:
             w.setEnabled(enabled)
         self._type_combo.setEnabled(enabled)
         self._type_label.setEnabled(enabled)
@@ -317,11 +345,14 @@ class ClassSchemaEditorDialog(QDialog):
         self._lw_spin.setValue(c.display_style.line_width)
         self._lw_spin.blockSignals(False)
 
+        self._load_skeleton_ui(c)
+
     def _update_tools_visibility(self, annotation_type: str):
         compatible = ANNOTATION_TYPE_TOOLS.get(annotation_type, [])
         for tool_name, cb in self._tool_checks.items():
             cb.setVisible(tool_name in compatible)
         self._no_tools_label.setVisible(not compatible)
+        self._skel_box.setVisible(annotation_type == "keypoints")
 
     def _current_class(self) -> LabelClass | None:
         if self._selected_idx < 0:
@@ -373,6 +404,84 @@ class ClassSchemaEditorDialog(QDialog):
             return
         c.display_style.opacity = self._opacity_spin.value()
         c.display_style.line_width = self._lw_spin.value()
+
+    # ── skeleton ──────────────────────────────────────────────────────────────
+
+    def _load_skeleton_ui(self, c: LabelClass):
+        """Populate skeleton list + edges field from class.skeleton."""
+        self._kp_list.clear()
+        for i, kp in enumerate(c.skeleton):
+            self._kp_list.addItem(f"{i}: {kp.name}")
+        edges = self._collect_edges(c.skeleton)
+        self._edges_edit.blockSignals(True)
+        self._edges_edit.setText(", ".join(f"{a}-{b}" for a, b in edges))
+        self._edges_edit.blockSignals(False)
+
+    @staticmethod
+    def _collect_edges(skeleton: list) -> list[tuple[int, int]]:
+        pairs: set[tuple[int, int]] = set()
+        for i, kp in enumerate(skeleton):
+            for j in kp.edges:
+                if 0 <= j < len(skeleton) and i != j:
+                    pairs.add((min(i, j), max(i, j)))
+        return sorted(pairs)
+
+    def _sync_skeleton(self):
+        c = self._current_class()
+        if c is None:
+            return
+        n = len(c.skeleton)
+        pairs = self._parse_edges(self._edges_edit.text(), n)
+        # Reset all edges, then apply parsed pairs
+        for kp in c.skeleton:
+            kp.edges = []
+        for a, b in pairs:
+            if a < n:
+                c.skeleton[a].edges.append(b)
+            if b < n:
+                c.skeleton[b].edges.append(a)
+
+    @staticmethod
+    def _parse_edges(text: str, n_kp: int) -> list[tuple[int, int]]:
+        pairs: list[tuple[int, int]] = []
+        seen: set[tuple[int, int]] = set()
+        for part in text.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                a_s, b_s = part.split("-")
+                a, b = int(a_s.strip()), int(b_s.strip())
+                if 0 <= a < n_kp and 0 <= b < n_kp and a != b:
+                    p = (min(a, b), max(a, b))
+                    if p not in seen:
+                        seen.add(p)
+                        pairs.append(p)
+            except (ValueError, AttributeError):
+                pass
+        return pairs
+
+    def _add_keypoint(self):
+        c = self._current_class()
+        if c is None:
+            return
+        name, ok = QInputDialog.getText(
+            self, "Add keypoint", f"Name for keypoint {len(c.skeleton)}:")
+        if ok and name.strip():
+            kp = SkeletonKeypoint(name=name.strip())
+            c.skeleton.append(kp)
+            self._kp_list.addItem(f"{len(c.skeleton)-1}: {kp.name}")
+
+    def _remove_keypoint(self):
+        c = self._current_class()
+        if c is None or not c.skeleton:
+            return
+        last_idx = len(c.skeleton) - 1
+        c.skeleton.pop()
+        # Remove any edges referencing the removed index
+        for kp in c.skeleton:
+            kp.edges = [e for e in kp.edges if e != last_idx]
+        self._load_skeleton_ui(c)
 
     # ── subclasses ────────────────────────────────────────────────────────────
 

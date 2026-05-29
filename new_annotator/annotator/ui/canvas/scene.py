@@ -104,8 +104,10 @@ class AnnotationScene(QGraphicsScene):
         from annotator.ui.canvas.items.bbox_item import BBoxAnnotationItem
         from annotator.ui.canvas.items.obb_item import OBBAnnotationItem
         from annotator.ui.canvas.items.polygon_item import PolygonAnnotationItem
+        from annotator.ui.canvas.items.pose_item import PoseAnnotationItem
 
         color, label = "#AAAAAA", str(ann.class_id)
+        cls = None
         if project:
             cls = project.get_class(ann.class_id)
             if cls:
@@ -135,6 +137,18 @@ class AnnotationScene(QGraphicsScene):
                 d.get("angle_deg", 0.0),
                 color, label,
             )
+
+        if ann.ann_type == AnnotationType.POSE:
+            kps = [(x * w, y * h, v) for x, y, v in ann.data.get("keypoints", [])]
+            edges: list[tuple[int, int]] = []
+            if cls and cls.skeleton:
+                edge_set: set[tuple[int, int]] = set()
+                for i, kp in enumerate(cls.skeleton):
+                    for j in kp.edges:
+                        if 0 <= j < len(cls.skeleton) and i != j:
+                            edge_set.add((min(i, j), max(i, j)))
+                edges = sorted(edge_set)
+            return PoseAnnotationItem(ann.id, kps, edges, color, label)
 
         return None  # other types silently skipped
 

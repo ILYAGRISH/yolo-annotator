@@ -17,6 +17,7 @@ from annotator.tools.bbox_tool import BBoxTool
 from annotator.tools.crack_tool import CrackTool
 from annotator.tools.obb_tool import OBBTool
 from annotator.tools.polygon_tool import PolygonTool, PolylineTool
+from annotator.tools.pose_tool import PoseTool
 from annotator.tools.select_tool import SelectTool
 from annotator.ui.canvas.scene import AnnotationScene
 from annotator.ui.canvas.view import AnnotationView
@@ -125,6 +126,7 @@ class MainWindow(QMainWindow):
         self._menu_tool_acts["bbox"]     = self._add_action(tools_m, "BBox  [B]",     lambda: self._activate_tool("bbox"),     "B")
         self._menu_tool_acts["obb"]       = self._add_action(tools_m, "OBB  [O]",       lambda: self._activate_tool("obb"),       "O")
         self._menu_tool_acts["crack_tool"] = self._add_action(tools_m, "Crack  [C]",    lambda: self._activate_tool("crack_tool"), "C")
+        self._menu_tool_acts["pose"]      = self._add_action(tools_m, "Pose  [K]",     lambda: self._activate_tool("pose"),      "K")
 
         # Export (populated in File menu via Ctrl+E, this menu kept as alias)
         mb.addMenu("&Export")
@@ -180,6 +182,7 @@ class MainWindow(QMainWindow):
         self._act_bbox       = _tool_action("▭ BBox",     "bbox",       "B")
         self._act_obb        = _tool_action("⬡ OBB",      "obb",        "O")
         self._act_crack      = _tool_action("⌇ Crack",    "crack_tool", "C")
+        self._act_pose       = _tool_action("✿ Pose",     "pose",       "K")
 
         tb.addSeparator()
         act_fit = QAction("⊞ Fit  [F]", self)
@@ -188,7 +191,7 @@ class MainWindow(QMainWindow):
 
         tb.addSeparator()
         hint = QLabel(
-            "  Polygon/Polyline/Crack: click=add · RMB=undo · dbl-click or Enter=finish · Esc=cancel   "
+            "  Polygon/Polyline/Crack/Pose: click=add · RMB=undo · dbl-click or Enter=finish · Esc=cancel   "
             "BBox/OBB: drag   Select: click=pick · drag handle=move vertex · Del=delete   "
             "Wheel=zoom · MMB=pan   A/D=prev/next")
         hint.setStyleSheet("color:#777;font-size:11px;")
@@ -201,6 +204,7 @@ class MainWindow(QMainWindow):
             "bbox":       self._act_bbox,
             "obb":        self._act_obb,
             "crack_tool": self._act_crack,
+            "pose":       self._act_pose,
         }
 
     # ── shortcuts ─────────────────────────────────────────────────────────────
@@ -254,6 +258,7 @@ class MainWindow(QMainWindow):
             "bbox":       BBoxTool(),
             "obb":        OBBTool(),
             "crack_tool": CrackTool(),
+            "pose":       PoseTool(),
         }
 
     def _activate_tool(self, name: str):
@@ -323,6 +328,10 @@ class MainWindow(QMainWindow):
         if self._ctrl.project:
             lc = next((c for c in self._ctrl.project.classes if c.id == class_id), None)
         self._enforce_class_tool(lc)
+        # Reload skeleton in PoseTool whenever the class changes (skeleton may differ)
+        pose = self._tools.get("pose")
+        if pose is not None and hasattr(pose, "_load_skeleton"):
+            pose._load_skeleton()
 
     def _current_tool_name(self) -> str | None:
         active = self._scene.active_tool

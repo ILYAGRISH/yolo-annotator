@@ -21,9 +21,23 @@ ANNOTATION_TYPE_DEFAULT_TOOL: dict[str, str | None] = {
     "polygon":        "polygon",
     "polyline":       "polyline",
     "obb":            "obb",
-    "keypoints":      None,   # not yet implemented
+    "keypoints":      "pose",
     "classification": None,   # no drawing tool
 }
+
+@dataclass
+class SkeletonKeypoint:
+    """One keypoint in a pose skeleton. edges = indices of adjacent keypoints."""
+    name: str
+    edges: list[int] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {"name": self.name, "edges": list(self.edges)}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "SkeletonKeypoint":
+        return cls(name=d["name"], edges=list(d.get("edges", [])))
+
 
 _COLORS = [
     "#FF4444", "#44DD44", "#4488FF", "#FFDD00",
@@ -92,6 +106,7 @@ class LabelClass:
     subclasses: list[str] = field(default_factory=list)
     attributes: list[ClassAttribute] = field(default_factory=list)
     display_style: DisplayStyle = field(default_factory=DisplayStyle)
+    skeleton: list[SkeletonKeypoint] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -103,6 +118,7 @@ class LabelClass:
             "subclasses": self.subclasses,
             "attributes": [a.to_dict() for a in self.attributes],
             "display_style": self.display_style.to_dict(),
+            "skeleton": [kp.to_dict() for kp in self.skeleton],
         }
 
     @classmethod
@@ -117,6 +133,7 @@ class LabelClass:
             subclasses=d.get("subclasses", []),
             attributes=[ClassAttribute.from_dict(a) for a in d.get("attributes", [])],
             display_style=DisplayStyle.from_dict(ds) if ds else DisplayStyle(),
+            skeleton=[SkeletonKeypoint.from_dict(k) for k in d.get("skeleton", [])],
         )
 
     @staticmethod

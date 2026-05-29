@@ -11,6 +11,7 @@ _FORMATS = [
     ("YOLO Detect  (bbox → cx cy w h)",          "yolo_detect"),
     ("YOLO Segment  (polygon / polyline)",         "yolo_seg"),
     ("YOLO OBB  (oriented bbox → 4 corners)",      "yolo_obb"),
+    ("YOLO Pose  (keypoints → bbox + kpoints)",    "yolo_pose"),
     ("COCO Instances  (JSON with attributes)",     "coco"),
 ]
 
