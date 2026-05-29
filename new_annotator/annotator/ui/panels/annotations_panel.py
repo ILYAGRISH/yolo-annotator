@@ -16,8 +16,9 @@ def _icon(color: str) -> QIcon:
 class AnnotationsPanel(QWidget):
     """Shows annotations for the currently selected image."""
 
-    select_requested = pyqtSignal(str)   # annotation id
-    delete_requested = pyqtSignal(str)   # annotation id
+    select_requested = pyqtSignal(str)       # annotation id
+    delete_requested = pyqtSignal(str)       # annotation id
+    edit_source_requested = pyqtSignal(str)  # annotation id (crack source edit)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -37,8 +38,14 @@ class AnnotationsPanel(QWidget):
         lay.addWidget(self._list)
 
         row = QHBoxLayout()
+        self._btn_edit_src = QPushButton("Edit source")
+        self._btn_edit_src.setEnabled(False)
+        self._btn_edit_src.setToolTip(
+            "Edit the source polyline of a crack annotation")
+        self._btn_edit_src.clicked.connect(self._edit_source)
         btn_del = QPushButton("Delete")
         btn_del.clicked.connect(self._delete)
+        row.addWidget(self._btn_edit_src)
         row.addWidget(btn_del)
         lay.addLayout(row)
 
@@ -76,7 +83,16 @@ class AnnotationsPanel(QWidget):
 
     def _on_row(self, row: int):
         if 0 <= row < len(self._annotations):
-            self.select_requested.emit(self._annotations[row].id)
+            ann = self._annotations[row]
+            self.select_requested.emit(ann.id)
+            self._btn_edit_src.setEnabled("source_geometry" in ann.data)
+        else:
+            self._btn_edit_src.setEnabled(False)
+
+    def _edit_source(self):
+        r = self._list.currentRow()
+        if 0 <= r < len(self._annotations):
+            self.edit_source_requested.emit(self._annotations[r].id)
 
     def _delete(self):
         r = self._list.currentRow()

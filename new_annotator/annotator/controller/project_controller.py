@@ -396,6 +396,9 @@ class ProjectController(QObject):
         elif format_name == "yolo_obb":
             from annotator.exporters.yolo_obb import YoloObbExporter
             exp = YoloObbExporter()
+        elif format_name == "coco":
+            from annotator.exporters.coco import CocoExporter
+            exp = CocoExporter()
         else:
             raise ValueError(f"Unknown export format: {format_name!r}")
 

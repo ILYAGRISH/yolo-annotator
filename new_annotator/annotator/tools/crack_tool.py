@@ -94,6 +94,7 @@ class CrackTool(BaseTool):
             "join_style": "round",
             "simplify": 0.001,
         }
+        self._edit_ann = None   # Annotation being edited (None = create mode)
 
     @property
     def name(self) -> str:
@@ -145,6 +146,33 @@ class CrackTool(BaseTool):
     def set_class(self, class_id: int):
         self._class_id = class_id
 
+    @property
+    def is_editing(self) -> bool:
+        """True when editing an existing annotation's source polyline."""
+        return self._edit_ann is not None
+
+    def start_edit(self, ann) -> None:
+        """
+        Load an existing crack annotation for source-line editing.
+        Must be called after activate(). The user edits the source polyline
+        in place; Enter/double-click recomputes the buffer and updates the
+        annotation via update_annotation_data (undo-able).
+        """
+        if not self._scene:
+            return
+        src = ann.data.get("source_geometry", {})
+        norm_pts = src.get("points", [])
+        if not norm_pts:
+            return
+        w, h = self._scene.image_size
+        self._edit_ann = ann
+        self._points = [QPointF(x * w, y * h) for x, y in norm_pts]
+        # Restore tool params from the annotation so preview matches original
+        stored = ann.data.get("tool_params", {})
+        if stored:
+            self._params.update(stored)
+        self._refresh_preview(None)
+
     # ── event handlers ────────────────────────────────────────────────────────
 
     def on_press(self, pos, modifiers, button):
@@ -190,6 +218,7 @@ class CrackTool(BaseTool):
     def _cancel(self):
         self._points.clear()
         self._cursor_pos = None
+        self._edit_ann = None
         self._clear_preview()
 
     def _commit(self):
@@ -205,18 +234,31 @@ class CrackTool(BaseTool):
             self._cancel()
             return
 
-        ann = Annotation.new(
-            self._class_id,
-            AnnotationType.SEGMENT,
-            {
+        if self._edit_ann is not None:
+            # Update existing annotation (undo-able)
+            new_data = {
+                **self._edit_ann.data,
                 "points": poly_pts,
                 "source_geometry": {"type": "polyline", "points": norm_src},
                 "tool_params": dict(self._params),
-            },
-            tool="crack_tool",
-        )
-        self._cancel()
-        self._ctrl.add_annotation(ann)
+            }
+            edit_id = self._edit_ann.id
+            self._cancel()
+            self._ctrl.update_annotation_data(
+                edit_id, new_data, "Edit crack source")
+        else:
+            ann = Annotation.new(
+                self._class_id,
+                AnnotationType.SEGMENT,
+                {
+                    "points": poly_pts,
+                    "source_geometry": {"type": "polyline", "points": norm_src},
+                    "tool_params": dict(self._params),
+                },
+                tool="crack_tool",
+            )
+            self._cancel()
+            self._ctrl.add_annotation(ann)
 
     def _clear_preview(self):
         if not self._scene:

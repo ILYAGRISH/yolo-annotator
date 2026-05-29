@@ -40,12 +40,14 @@ class MainWindow(QMainWindow):
         self.resize(1400, 880)
         self._ctrl = ProjectController(self)
         self._tools = self._build_tools()
+        self._plugin_tool_names: set[str] = set()
         self._setup_ui()
         self._setup_menu()
         self._setup_toolbar()
         self._setup_shortcuts()
         self._connect_signals()
         self._setup_autosave()
+        self._load_plugins()
         self._activate_tool("select")
 
     # ── layout ────────────────────────────────────────────────────────────────
@@ -114,7 +116,8 @@ class MainWindow(QMainWindow):
         edit_m.addAction(redo_act)
 
         # Tools
-        tools_m = mb.addMenu("&Tools")
+        self._tools_menu = mb.addMenu("&Tools")
+        tools_m = self._tools_menu
         self._menu_tool_acts: dict[str, QAction] = {}
         self._menu_tool_acts["select"]   = self._add_action(tools_m, "Select  [V]",   lambda: self._activate_tool("select"),   "V")
         self._menu_tool_acts["polygon"]  = self._add_action(tools_m, "Polygon  [P]",  lambda: self._activate_tool("polygon"),  "P")
@@ -228,6 +231,8 @@ class MainWindow(QMainWindow):
         self._classes_panel.open_schema_editor.connect(self._open_schema_editor)
         self._annotations_panel.select_requested.connect(self._on_ann_panel_select)
         self._annotations_panel.delete_requested.connect(self._ctrl.delete_annotation)
+        self._annotations_panel.edit_source_requested.connect(
+            self._on_edit_crack_source)
         self._qc_panel.validate_requested.connect(self._run_validation)
         self._qc_panel.navigate_requested.connect(self._on_qc_navigate)
         self._tool_props.params_changed.connect(self._on_tool_params_changed)
@@ -337,12 +342,46 @@ class MainWindow(QMainWindow):
                 self._activate_tool(default_tool)
 
         for tool_name, act in self._tool_act_map.items():
+            if tool_name in self._plugin_tool_names:
+                continue  # plugin tools are not filtered by class type
             act.setEnabled(tool_name == "select" or lc is None or tool_name in compatible)
         for tool_name, act in self._menu_tool_acts.items():
+            if tool_name in self._plugin_tool_names:
+                continue
             act.setEnabled(tool_name == "select" or lc is None or tool_name in compatible)
 
     def _on_ann_panel_select(self, ann_id: str):
         self._ctrl.select_annotation(ann_id)
+
+    def _on_edit_crack_source(self, ann_id: str):
+        ann = self._ctrl.get_annotation(ann_id)
+        if ann is None or "source_geometry" not in ann.data:
+            return
+        self._activate_tool("crack_tool")
+        crack = self._tools.get("crack_tool")
+        if crack is not None and hasattr(crack, "start_edit"):
+            crack.start_edit(ann)
+
+    # ── plugin loader ─────────────────────────────────────────────────────────
+
+    def _load_plugins(self):
+        from annotator.plugins.loader import load_plugins
+        plugins_dir = Path(__file__).resolve().parent.parent.parent / "plugins"
+        plugin_tools = load_plugins(plugins_dir)
+        if not plugin_tools:
+            return
+        self._tools_menu.addSeparator()
+        for tool in plugin_tools:
+            if tool.name in self._tools:
+                continue
+            self._tools[tool.name] = tool
+            self._plugin_tool_names.add(tool.name)
+            act = self._add_action(
+                self._tools_menu,
+                f"Plugin: {tool.name}",
+                lambda tn=tool.name: self._activate_tool(tn),
+            )
+            self._tool_act_map[tool.name] = act
 
     # ── schema actions ────────────────────────────────────────────────────────
 

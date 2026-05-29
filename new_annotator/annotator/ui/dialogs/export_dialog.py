@@ -11,6 +11,7 @@ _FORMATS = [
     ("YOLO Detect  (bbox → cx cy w h)",          "yolo_detect"),
     ("YOLO Segment  (polygon / polyline)",         "yolo_seg"),
     ("YOLO OBB  (oriented bbox → 4 corners)",      "yolo_obb"),
+    ("COCO Instances  (JSON with attributes)",     "coco"),
 ]
 
 
@@ -117,8 +118,9 @@ class ExportDatasetDialog(QDialog):
             return
         self._out_dir = folder
         if any(cls.attributes for cls in self._project.classes):
-            QMessageBox.information(
-                self, "Attributes not exported",
-                "Class attributes will not be included in the YOLO export.\n"
-                "They are preserved in the project file (.annproj).")
+            if self.format_name != "coco":
+                QMessageBox.information(
+                    self, "Attributes not exported",
+                    "Class attributes will not be included in the YOLO export.\n"
+                    "They are preserved in the project file (.annproj).")
         self.accept()
