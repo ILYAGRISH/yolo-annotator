@@ -237,6 +237,8 @@ class MainWindow(QMainWindow):
         self._annotations_panel.delete_requested.connect(self._ctrl.delete_annotation)
         self._annotations_panel.edit_source_requested.connect(
             self._on_edit_crack_source)
+        self._annotations_panel.classify_image_requested.connect(
+            self._on_classify_image)
         self._qc_panel.validate_requested.connect(self._run_validation)
         self._qc_panel.navigate_requested.connect(self._on_qc_navigate)
         self._tool_props.params_changed.connect(self._on_tool_params_changed)
@@ -332,6 +334,8 @@ class MainWindow(QMainWindow):
         pose = self._tools.get("pose")
         if pose is not None and hasattr(pose, "_load_skeleton"):
             pose._load_skeleton()
+        # Notify annotations panel (for Classify button visibility)
+        self._annotations_panel.set_active_class(lc)
 
     def _current_tool_name(self) -> str | None:
         active = self._scene.active_tool
@@ -345,10 +349,15 @@ class MainWindow(QMainWindow):
         compatible: list[str] = ANNOTATION_TYPE_TOOLS.get(lc.annotation_type, []) if lc else []
 
         if lc is not None:
-            default_tool = ANNOTATION_TYPE_DEFAULT_TOOL.get(lc.annotation_type)
-            cur = self._current_tool_name()
-            if default_tool and cur != "select" and cur not in compatible:
-                self._activate_tool(default_tool)
+            if lc.annotation_type == "classification":
+                # Image-level labels have no drawing tool — always switch to Select
+                if self._current_tool_name() != "select":
+                    self._activate_tool("select")
+            else:
+                default_tool = ANNOTATION_TYPE_DEFAULT_TOOL.get(lc.annotation_type)
+                cur = self._current_tool_name()
+                if default_tool and cur != "select" and cur not in compatible:
+                    self._activate_tool(default_tool)
 
         for tool_name, act in self._tool_act_map.items():
             if tool_name in self._plugin_tool_names:
@@ -361,6 +370,23 @@ class MainWindow(QMainWindow):
 
     def _on_ann_panel_select(self, ann_id: str):
         self._ctrl.select_annotation(ann_id)
+
+    def _on_classify_image(self, class_id: int):
+        if not self._ctrl.current_image:
+            return
+        from annotator.domain.annotation import Annotation, AnnotationType
+        # Prevent duplicate label for the same class on this image
+        for ann in self._ctrl.current_annotations:
+            if ann.ann_type == AnnotationType.CLASSIFY and ann.class_id == class_id:
+                cls = (self._ctrl.project.get_class(class_id)
+                       if self._ctrl.project else None)
+                name = cls.name if cls else str(class_id)
+                QMessageBox.information(
+                    self, "Already labeled",
+                    f'This image is already labeled as "{name}".')
+                return
+        ann = Annotation.new(class_id, AnnotationType.CLASSIFY, {})
+        self._ctrl.add_annotation(ann)
 
     def _on_edit_crack_source(self, ann_id: str):
         ann = self._ctrl.get_annotation(ann_id)

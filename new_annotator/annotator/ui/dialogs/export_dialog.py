@@ -8,11 +8,12 @@ from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox,
 from annotator.domain.project import Project
 
 _FORMATS = [
-    ("YOLO Detect  (bbox → cx cy w h)",          "yolo_detect"),
-    ("YOLO Segment  (polygon / polyline)",         "yolo_seg"),
-    ("YOLO OBB  (oriented bbox → 4 corners)",      "yolo_obb"),
-    ("YOLO Pose  (keypoints → bbox + kpoints)",    "yolo_pose"),
-    ("COCO Instances  (JSON with attributes)",     "coco"),
+    ("YOLO Detect  (bbox → cx cy w h)",              "yolo_detect"),
+    ("YOLO Segment  (polygon / polyline)",            "yolo_seg"),
+    ("YOLO OBB  (oriented bbox → 4 corners)",         "yolo_obb"),
+    ("YOLO Pose  (keypoints → bbox + kpoints)",       "yolo_pose"),
+    ("YOLO Classify  (image-level classification)",   "yolo_classify"),
+    ("COCO Instances  (JSON with attributes)",        "coco"),
 ]
 
 

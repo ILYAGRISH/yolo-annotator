@@ -399,6 +399,9 @@ class ProjectController(QObject):
         elif format_name == "yolo_pose":
             from annotator.exporters.yolo_pose import YoloPoseExporter
             exp = YoloPoseExporter()
+        elif format_name == "yolo_classify":
+            from annotator.exporters.yolo_classify import YoloClassifyExporter
+            exp = YoloClassifyExporter()
         elif format_name == "coco":
             from annotator.exporters.coco import CocoExporter
             exp = CocoExporter()
