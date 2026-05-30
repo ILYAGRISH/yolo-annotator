@@ -76,4 +76,31 @@ annotator/
 
 ---
 
+---
+
+## Задача 2 — Close Project (закрытие проекта)
+
+### Проблема
+Отсутствовал пункт "Close Project" в меню File.
+
+### Решение
+
+**`annotator/controller/project_controller.py`**
+- `is_dirty: bool` — property, возвращает `True` если есть несохранённые аннотации
+- `close_project()` — очищает состояние, сбрасывает `_project = None`, эмитит `project_changed(None)`
+
+**`annotator/ui/main_window.py`**
+- File → "Close Project" (после Save Project, до разделителя)
+- `_close_project()`: если `is_dirty` → диалог Save / Discard / Cancel; затем `ctrl.close_project()`
+- `_on_project_changed(None)`: очищает канвас, сбрасывает заголовок окна, показывает стартовый статус
+
+### Поведение
+| Состояние | Действие |
+|-----------|----------|
+| Проект сохранён | Закрывается без вопросов |
+| Есть несохранённые аннотации | Диалог: Save / Discard / Cancel |
+| Save | `save_project()` → `close_project()` |
+| Discard | `close_project()` без сохранения |
+| Cancel | Проект остаётся открытым |
+
 <!-- Следующие задачи будут добавлены ниже -->
