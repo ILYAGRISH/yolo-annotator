@@ -282,8 +282,6 @@ class ClassSchemaEditorDialog(QDialog):
             w.setEnabled(enabled)
         self._type_combo.setEnabled(enabled)
         self._type_label.setEnabled(enabled)
-        for cb in self._tool_checks.values():
-            cb.setEnabled(enabled)
 
     def _load_class(self, c: LabelClass):
         self._name_edit.blockSignals(True)
