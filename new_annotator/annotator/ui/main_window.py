@@ -434,12 +434,17 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "No project",
                                     "Open or create a project first.")
             return
-        dlg = ClassSchemaEditorDialog(self._ctrl.project.classes, self)
+        dlg = ClassSchemaEditorDialog(
+            self._ctrl.project.classes, self,
+            count_fn=self._ctrl.count_annotations_for_class)
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         self._ctrl.project.classes = dlg.result_classes
-        self._ctrl.save_project()
-        self._ctrl.project_changed.emit(self._ctrl.project)
+        for class_id, reassign_to in dlg.pending_deletions:
+            self._ctrl.delete_class(class_id, reassign_to)
+        if not dlg.pending_deletions:
+            self._ctrl.save_project()
+            self._ctrl.project_changed.emit(self._ctrl.project)
 
     def _export_schema(self):
         if not self._ctrl.project:

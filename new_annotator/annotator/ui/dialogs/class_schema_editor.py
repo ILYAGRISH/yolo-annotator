@@ -39,7 +39,7 @@ class ClassSchemaEditorDialog(QDialog):
     if accepted.
     """
 
-    def __init__(self, classes: list[LabelClass], parent=None):
+    def __init__(self, classes: list[LabelClass], parent=None, count_fn=None):
         super().__init__(parent)
         self.setWindowTitle("Class Schema Editor")
         self.resize(820, 580)
@@ -51,6 +51,14 @@ class ClassSchemaEditorDialog(QDialog):
         # IDs created during this editor session — annotation_type stays editable for them
         self._new_class_ids: set[int] = set()
         self.result_classes: list[LabelClass] = []
+        # count_fn(class_id) -> int  — provided by main_window
+        self._count_fn = count_fn
+        # (class_id, reassign_to | None) — applied by main_window after accept
+        self._pending_deletions: list[tuple[int, int | None]] = []
+
+    @property
+    def pending_deletions(self) -> list[tuple[int, int | None]]:
+        return list(self._pending_deletions)
 
         self._build_ui()
         self._refresh_list()
@@ -83,6 +91,11 @@ class ClassSchemaEditorDialog(QDialog):
             b.setFixedHeight(24)
             b.clicked.connect(slot)
             btn_row.addWidget(b)
+        b_del = QPushButton("− Delete")
+        b_del.setFixedHeight(24)
+        b_del.setStyleSheet("color:#c0392b;")
+        b_del.clicked.connect(self._delete_class)
+        btn_row.addWidget(b_del)
         btn_row.addStretch()
         ll.addLayout(btn_row)
         left.setMaximumWidth(220)
@@ -271,6 +284,38 @@ class ClassSchemaEditorDialog(QDialog):
         self._classes[r], self._classes[r + 1] = self._classes[r + 1], self._classes[r]
         self._refresh_list()
         self._class_list.setCurrentRow(r + 1)
+
+    def _delete_class(self):
+        r = self._class_list.currentRow()
+        if r < 0 or r >= len(self._classes):
+            return
+        if len(self._classes) == 1:
+            QMessageBox.warning(self, "Cannot delete",
+                                "At least one class must remain in the schema.")
+            return
+        target = self._classes[r]
+
+        if target.id in self._new_class_ids:
+            # Never saved — remove silently, no annotation impact
+            self._classes.pop(r)
+            self._new_class_ids.discard(target.id)
+        else:
+            count = self._count_fn(target.id) if self._count_fn else 0
+            others = [c for c in self._classes if c.id != target.id]
+            from annotator.ui.dialogs.class_delete_dialog import ClassDeleteDialog
+            dlg = ClassDeleteDialog(target, count, others, self)
+            if dlg.exec() != QDialog.DialogCode.Accepted:
+                return
+            reassign_to = dlg.reassign_to if dlg.action == "reassign" else None
+            self._pending_deletions.append((target.id, reassign_to))
+            self._classes.pop(r)
+
+        self._refresh_list()
+        new_row = min(r, len(self._classes) - 1)
+        if new_row >= 0:
+            self._class_list.setCurrentRow(new_row)
+        else:
+            self._set_form_enabled(False)
 
     # ── form ──────────────────────────────────────────────────────────────────
 
