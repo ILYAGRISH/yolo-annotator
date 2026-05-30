@@ -183,4 +183,34 @@ Quit              Ctrl+Q
 | Cancel в диалоге | Класс остаётся, Cancel отменяет только это действие |
 | Cancel в Schema Editor | Все изменения включая pending_deletions откатываются |
 
+---
+
+## Задача 5 — Редактирование атрибута класса
+
+### Проблема
+Атрибуты класса можно было добавить и удалить, но не отредактировать. При опечатке в имени или необходимости изменить тип/опции приходилось удалять атрибут и создавать заново.
+
+### Решение
+
+**`annotator/ui/dialogs/class_schema_editor.py`**
+- `_AttributeDialog.__init__` — добавлен параметр `attr: ClassAttribute | None = None`:
+  - если передан — заголовок меняется на `"Edit attribute"`, поля предзаполняются текущими значениями
+  - предзаполнение: name, type (setCurrentIndex), options (для select), default value
+- `ClassSchemaEditorDialog._build_ui` — подключён сигнал `cellDoubleClicked` таблицы атрибутов → `_edit_attribute`
+- Новый метод `_edit_attribute(row, col)`:
+  - открывает `_AttributeDialog(attr=attr)` с предзаполнением
+  - после OK обновляет поля атрибута в модели (`name`, `attr_type`, `options`, `default_value`)
+  - UUID атрибута не меняется — существующие аннотационные данные не затрагиваются
+  - обновляет строку в таблице без перестройки всей таблицы
+
+### Баг-фикс (в том же коммите)
+`__init__` вызовы `_build_ui()`, `_refresh_list()`, `setCurrentRow(0)` оказались внутри тела property `pending_deletions` (мёртвый код после `return`) — окно открывалось пустым. Перенесены в конец `__init__`.
+
+### Workflow редактирования атрибута
+1. **Schema → Edit Class Schema**
+2. Выбрать класс в левом списке
+3. Дважды кликнуть по строке атрибута в таблице Attributes
+4. Изменить name / type / options / default → OK
+5. Строка обновляется немедленно; изменения применяются после OK в Schema Editor
+
 <!-- Следующие задачи будут добавлены ниже -->

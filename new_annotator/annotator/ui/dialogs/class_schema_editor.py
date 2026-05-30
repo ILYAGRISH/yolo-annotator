@@ -56,14 +56,14 @@ class ClassSchemaEditorDialog(QDialog):
         # (class_id, reassign_to | None) — applied by main_window after accept
         self._pending_deletions: list[tuple[int, int | None]] = []
 
-    @property
-    def pending_deletions(self) -> list[tuple[int, int | None]]:
-        return list(self._pending_deletions)
-
         self._build_ui()
         self._refresh_list()
         if self._classes:
             self._class_list.setCurrentRow(0)
+
+    @property
+    def pending_deletions(self) -> list[tuple[int, int | None]]:
+        return list(self._pending_deletions)
 
     # ── UI construction ───────────────────────────────────────────────────────
 
@@ -168,6 +168,7 @@ class ClassSchemaEditorDialog(QDialog):
             QTableWidget.SelectionBehavior.SelectRows)
         self._attr_table.setMaximumHeight(130)
         al.addWidget(self._attr_table)
+        self._attr_table.cellDoubleClicked.connect(self._edit_attribute)
         attr_btns = QHBoxLayout()
         b_attr_add = QPushButton("+ Add attribute")
         b_attr_add.setFixedHeight(22)
@@ -540,6 +541,23 @@ class ClassSchemaEditorDialog(QDialog):
             c.attributes.append(attr)
             self._append_attr_row(attr)
 
+    def _edit_attribute(self, row: int, col: int):
+        c = self._current_class()
+        if c is None or row < 0 or row >= len(c.attributes):
+            return
+        attr = c.attributes[row]
+        dlg = _AttributeDialog(self, attr=attr)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            attr.name = dlg.attr_name
+            attr.attr_type = dlg.attr_type
+            attr.options = dlg.options
+            attr.default_value = dlg.default_value
+            self._attr_table.item(row, 0).setText(attr.name)
+            self._attr_table.item(row, 1).setText(attr.attr_type)
+            opts = (", ".join(attr.options) if attr.options
+                    else (str(attr.default_value) if attr.default_value is not None else ""))
+            self._attr_table.item(row, 2).setText(opts)
+
     def _remove_attribute(self):
         c = self._current_class()
         if c is None:
@@ -603,9 +621,11 @@ class _NewClassDialog(QDialog):
 # ── Attribute dialog ──────────────────────────────────────────────────────────
 
 class _AttributeDialog(QDialog):
-    def __init__(self, parent=None):
+    _TYPES = ["text", "number", "bool", "select"]
+
+    def __init__(self, parent=None, attr: "ClassAttribute | None" = None):
         super().__init__(parent)
-        self.setWindowTitle("Add attribute")
+        self.setWindowTitle("Edit attribute" if attr else "Add attribute")
         self.setFixedWidth(320)
         self.attr_name = ""
         self.attr_type = "text"
@@ -618,7 +638,7 @@ class _AttributeDialog(QDialog):
         lay.addRow("Name:", self._name)
 
         self._type = QComboBox()
-        self._type.addItems(["text", "number", "bool", "select"])
+        self._type.addItems(self._TYPES)
         self._type.currentTextChanged.connect(self._on_type)
         lay.addRow("Type:", self._type)
 
@@ -637,6 +657,16 @@ class _AttributeDialog(QDialog):
         bb.accepted.connect(self._ok)
         bb.rejected.connect(self.reject)
         lay.addRow(bb)
+
+        if attr is not None:
+            self._name.setText(attr.name)
+            idx = self._TYPES.index(attr.attr_type) if attr.attr_type in self._TYPES else 0
+            self._type.setCurrentIndex(idx)
+            self._on_type(attr.attr_type)
+            if attr.options:
+                self._opts_edit.setText(", ".join(attr.options))
+            if attr.default_value is not None:
+                self._default_edit.setText(str(attr.default_value))
 
     def _on_type(self, t: str):
         show_opts = t == "select"
