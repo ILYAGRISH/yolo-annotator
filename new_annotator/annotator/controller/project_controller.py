@@ -64,6 +64,10 @@ class ProjectController(QObject):
     def undo_stack(self) -> QUndoStack:
         return self._undo_stack
 
+    @property
+    def is_dirty(self) -> bool:
+        return bool(self._dirty_images)
+
     # ── project management ────────────────────────────────────────────────────
 
     def create_project(self, name: str, project_dir: Path) -> Project:
@@ -80,6 +84,14 @@ class ProjectController(QObject):
         self._activate_project(project)
         self.status_message.emit(f"Opened: {project_dir}")
         return project
+
+    def close_project(self):
+        self._project = None
+        self._current_image = None
+        self._annotations = []
+        self._undo_stack.clear()
+        self._dirty_images.clear()
+        self.project_changed.emit(None)
 
     def save_project(self):
         if not self._project or not self._project.project_path:

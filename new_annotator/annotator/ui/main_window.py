@@ -100,6 +100,7 @@ class MainWindow(QMainWindow):
         self._add_action(file_m, "&New Project…",   self._new_project, "Ctrl+N")
         self._add_action(file_m, "&Open Project…",  self._open_project, "Ctrl+O")
         self._add_action(file_m, "&Save Project",   self._ctrl.save_project, "Ctrl+S")
+        self._add_action(file_m, "&Close Project",  self._close_project)
         file_m.addSeparator()
         self._add_action(file_m, "Add Images from Folder…", self._add_images)
         file_m.addSeparator()
@@ -295,11 +296,17 @@ class MainWindow(QMainWindow):
         self._classes_panel.load_project(project)
         self._annotations_panel.load_project(project)
         self._annotations_panel.refresh([])
+        self._annotations_panel.set_active_class(None)
         self._qc_panel.set_project_loaded(project is not None)
-        self.setWindowTitle(f"Annotator  —  {project.name}")
-        self._status.showMessage(
-            f"{project.name}  ·  {len(project.images)} images  "
-            f"·  {len(project.classes)} classes")
+        if project is not None:
+            self.setWindowTitle(f"Annotator  —  {project.name}")
+            self._status.showMessage(
+                f"{project.name}  ·  {len(project.images)} images  "
+                f"·  {len(project.classes)} classes")
+        else:
+            self.setWindowTitle("Annotator  —  no project")
+            self._scene.clear_image()
+            self._status.showMessage("Ready  —  File › New Project to get started")
 
     def _on_image_changed(self, path: str, annotations: list):
         self._scene.load_image(path)
@@ -544,6 +551,23 @@ class MainWindow(QMainWindow):
             self._ctrl.create_project(dlg.project_name, Path(dlg.project_dir))
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
+
+    def _close_project(self):
+        if not self._ctrl.project:
+            return
+        if self._ctrl.is_dirty:
+            ret = QMessageBox.question(
+                self, "Unsaved changes",
+                "The project has unsaved changes. Save before closing?",
+                QMessageBox.StandardButton.Save |
+                QMessageBox.StandardButton.Discard |
+                QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Save)
+            if ret == QMessageBox.StandardButton.Cancel:
+                return
+            if ret == QMessageBox.StandardButton.Save:
+                self._ctrl.save_project()
+        self._ctrl.close_project()
 
     def _open_project(self):
         folder = QFileDialog.getExistingDirectory(self, "Open .annproj folder")
