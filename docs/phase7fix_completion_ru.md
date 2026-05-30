@@ -144,4 +144,43 @@ Export Dataset…   Ctrl+E
 Quit              Ctrl+Q
 ```
 
+---
+
+## Задача 4 — Удаление класса (Delete class в Schema Editor)
+
+### Проблема
+`ClassDeleteDialog` был реализован в Phase 3, но нигде не вызывался. Удалить класс из проекта было невозможно.
+
+### Решение
+
+**`annotator/ui/dialogs/class_schema_editor.py`**
+- Конструктор принимает опциональный `count_fn(class_id) -> int` — функцию подсчёта аннотаций
+- Новая красная кнопка **`− Delete`** в левой панели (рядом с `+ Add`, `↑`, `↓`)
+- `_pending_deletions: list[tuple[int, int|None]]` — список удалений, применяемых после OK
+- `property pending_deletions` — доступ из main_window
+- Метод `_delete_class()`:
+  - Новый класс (создан в этой сессии, не сохранён) — удаляется молча, без диалога
+  - Сохранённый класс — открывается `ClassDeleteDialog` с количеством аннотаций и выбором действия
+  - Последний класс — блокируется с предупреждением (схема не может быть пустой)
+
+**`annotator/ui/main_window.py`**
+- `_open_schema_editor` передаёт `count_fn=self._ctrl.count_annotations_for_class`
+- После OK: `self._ctrl.delete_class(class_id, reassign_to)` для каждого элемента `pending_deletions`
+- `delete_class` сам вызывает `save_project()` и `project_changed.emit()`, поэтому дублирования нет
+
+### Workflow удаления класса
+1. **Schema → Edit Class Schema**
+2. Выбрать класс в левом списке
+3. Нажать **`− Delete`**
+4. Диалог: показывает количество аннотаций → выбор **Reassign to…** / **Delete all annotations** / **Cancel**
+5. Нажать **OK** в Schema Editor — удаление применяется к файлам аннотаций
+
+### Защиты
+| Ситуация | Поведение |
+|----------|-----------|
+| Последний класс | Предупреждение, удаление заблокировано |
+| Класс только что создан (не сохранён) | Молчаливое удаление из списка |
+| Cancel в диалоге | Класс остаётся, Cancel отменяет только это действие |
+| Cancel в Schema Editor | Все изменения включая pending_deletions откатываются |
+
 <!-- Следующие задачи будут добавлены ниже -->
