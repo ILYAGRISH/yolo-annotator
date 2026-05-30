@@ -26,6 +26,7 @@ from annotator.ui.dialogs.class_import_dialog import ClassImportDialog
 from annotator.ui.dialogs.class_schema_editor import ClassSchemaEditorDialog
 from annotator.ui.dialogs.export_dialog import ExportDatasetDialog
 from annotator.ui.dialogs.new_project_dialog import NewProjectDialog
+from annotator.ui.dialogs.project_settings_dialog import ProjectSettingsDialog
 from annotator.ui.panels.annotations_panel import AnnotationsPanel
 from annotator.ui.panels.classes_panel import ClassesPanel
 from annotator.ui.panels.images_panel import ImagesPanel
@@ -100,7 +101,8 @@ class MainWindow(QMainWindow):
         self._add_action(file_m, "&New Project…",   self._new_project, "Ctrl+N")
         self._add_action(file_m, "&Open Project…",  self._open_project, "Ctrl+O")
         self._add_action(file_m, "&Save Project",   self._ctrl.save_project, "Ctrl+S")
-        self._add_action(file_m, "&Close Project",  self._close_project)
+        self._add_action(file_m, "&Close Project",    self._close_project)
+        self._add_action(file_m, "Project Settings…", self._open_project_settings)
         file_m.addSeparator()
         self._add_action(file_m, "Add Images from Folder…", self._add_images)
         file_m.addSeparator()
@@ -568,6 +570,21 @@ class MainWindow(QMainWindow):
             if ret == QMessageBox.StandardButton.Save:
                 self._ctrl.save_project()
         self._ctrl.close_project()
+
+    def _open_project_settings(self):
+        if not self._ctrl.project:
+            QMessageBox.information(self, "No project",
+                                    "Open or create a project first.")
+            return
+        dlg = ProjectSettingsDialog(self._ctrl.project, self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        name = dlg.project_name
+        if not name:
+            return
+        self._ctrl.update_project_settings(name, dlg.result_settings)
+        # Apply new autosave interval immediately
+        self._autosave_timer.setInterval(dlg.result_settings.autosave_interval_sec * 1000)
 
     def _open_project(self):
         folder = QFileDialog.getExistingDirectory(self, "Open .annproj folder")

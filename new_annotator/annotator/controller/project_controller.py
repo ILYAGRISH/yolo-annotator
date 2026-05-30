@@ -85,6 +85,14 @@ class ProjectController(QObject):
         self.status_message.emit(f"Opened: {project_dir}")
         return project
 
+    def update_project_settings(self, name: str, settings) -> None:
+        if not self._project:
+            return
+        self._project.name = name
+        self._project.settings = settings
+        self.save_project()
+        self.project_changed.emit(self._project)
+
     def close_project(self):
         self._project = None
         self._current_image = None
