@@ -12,7 +12,7 @@ import uuid
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QIcon, QPixmap
 from PyQt6.QtWidgets import (
-    QCheckBox, QColorDialog, QDialog, QDialogButtonBox,
+    QColorDialog, QDialog, QDialogButtonBox,
     QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout,
     QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem,
     QMessageBox, QPushButton, QSpinBox, QSplitter,
@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
 )
 
 from annotator.domain.label_class import (
-    ANNOTATION_TYPE_TOOLS, ANNOTATION_TYPES, ClassAttribute, DisplayStyle,
+    ANNOTATION_TYPES, ClassAttribute, DisplayStyle,
     LabelClass, SkeletonKeypoint,
 )
 
@@ -32,8 +32,6 @@ def _color_icon(color: str) -> QIcon:
 
 
 # All drawing tools — "select" excluded (it is a navigation tool, not an annotation tool)
-_ALL_TOOLS = ["bbox", "polygon", "polyline", "obb", "pose"]
-
 
 class ClassSchemaEditorDialog(QDialog):
     """
@@ -127,21 +125,6 @@ class ClassSchemaEditorDialog(QDialog):
         form.addRow("Annotation type:", type_container)
 
         rl.addLayout(form)
-
-        # Allowed tools — only compatible tools shown for the selected annotation_type
-        self._tools_box = QGroupBox("Allowed tools")
-        tl = QHBoxLayout(self._tools_box)
-        self._tool_checks: dict[str, QCheckBox] = {}
-        for t in _ALL_TOOLS:
-            cb = QCheckBox(t)
-            cb.stateChanged.connect(self._sync_tools)
-            self._tool_checks[t] = cb
-            tl.addWidget(cb)
-        self._no_tools_label = QLabel("No drawing tools — image-level label")
-        self._no_tools_label.setStyleSheet("color: #888; font-style: italic;")
-        tl.addWidget(self._no_tools_label)
-        tl.addStretch()
-        rl.addWidget(self._tools_box)
 
         # Subclasses
         sub_box = QGroupBox("Subclasses")
@@ -323,11 +306,7 @@ class ClassSchemaEditorDialog(QDialog):
         else:
             self._type_label.setText(c.annotation_type)
 
-        self._update_tools_visibility(c.annotation_type)
-        for tool, cb in self._tool_checks.items():
-            cb.blockSignals(True)
-            cb.setChecked(tool in c.allowed_tools)
-            cb.blockSignals(False)
+        self._update_type_ui(c.annotation_type)
 
         self._sub_list.clear()
         for s in c.subclasses:
@@ -347,11 +326,7 @@ class ClassSchemaEditorDialog(QDialog):
 
         self._load_skeleton_ui(c)
 
-    def _update_tools_visibility(self, annotation_type: str):
-        compatible = ANNOTATION_TYPE_TOOLS.get(annotation_type, [])
-        for tool_name, cb in self._tool_checks.items():
-            cb.setVisible(tool_name in compatible)
-        self._no_tools_label.setVisible(not compatible)
+    def _update_type_ui(self, annotation_type: str):
         self._skel_box.setVisible(annotation_type == "keypoints")
 
     def _current_class(self) -> LabelClass | None:
@@ -387,16 +362,7 @@ class ClassSchemaEditorDialog(QDialog):
         if c is None:
             return
         c.annotation_type = text
-        self._update_tools_visibility(text)
-        # Drop any tool selections that are no longer compatible
-        self._sync_tools()
-
-    def _sync_tools(self):
-        c = self._current_class()
-        if c is None:
-            return
-        c.allowed_tools = [t for t, cb in self._tool_checks.items()
-                           if cb.isChecked() and cb.isVisible()]
+        self._update_type_ui(text)
 
     def _sync_style(self):
         c = self._current_class()
