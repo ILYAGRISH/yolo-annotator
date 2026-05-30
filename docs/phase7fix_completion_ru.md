@@ -103,4 +103,45 @@ annotator/
 | Discard | `close_project()` без сохранения |
 | Cancel | Проект остаётся открытым |
 
+---
+
+## Задача 3 — Project Settings (настройки проекта)
+
+### Проблема
+Диалог создания проекта содержал только имя и папку. Остальные поля `ProjectSettings` были недоступны для просмотра и редактирования.
+
+### Решение
+Новый диалог **File → Project Settings…** для открытого проекта.
+
+**`annotator/ui/dialogs/project_settings_dialog.py`** (новый)
+- **Name** — редактируемое имя проекта
+- **Settings (группа)**:
+  - Default export format — QComboBox (все 6 форматов)
+  - Autosave interval — QSpinBox (10–3600 сек)
+- **Info (read-only группа)**:
+  - Created / Modified — даты из project.json
+  - ID — UUID проекта
+
+**`annotator/controller/project_controller.py`**
+- `update_project_settings(name, settings)` — обновляет имя и `ProjectSettings`, сохраняет проект, эмитит `project_changed`
+
+**`annotator/ui/main_window.py`**
+- File → "Project Settings…" (после Close Project)
+- `_open_project_settings()`: открывает диалог, применяет изменения, немедленно обновляет интервал autosave-таймера
+
+### File меню (итоговый порядок)
+```
+New Project…      Ctrl+N
+Open Project…     Ctrl+O
+Save Project      Ctrl+S
+Close Project
+Project Settings…
+──────────────────────
+Add Images from Folder…
+──────────────────────
+Export Dataset…   Ctrl+E
+──────────────────────
+Quit              Ctrl+Q
+```
+
 <!-- Следующие задачи будут добавлены ниже -->
