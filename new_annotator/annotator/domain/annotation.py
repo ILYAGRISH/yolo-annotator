@@ -11,6 +11,7 @@ class AnnotationType(Enum):
     OBB = "obb"            # oriented bounding box (Phase 3)
     POSE = "pose"          # keypoint skeleton (Phase 3)
     CLASSIFY = "classify"  # image-level label (Phase 3)
+    POINT = "point"        # single keypoint — counting, landmarks
 
 
 @dataclass
@@ -25,6 +26,7 @@ class Annotation:
       BBOX     → {"x", "y", "w", "h": float}       top-left + size, normalized
       OBB      → {"cx","cy","w","h","angle_deg"}
       POSE     → {"keypoints": [[x,y,vis], ...]}
+      POINT    → {"x": float, "y": float}          normalized [0,1]
     """
     id: str
     class_id: int

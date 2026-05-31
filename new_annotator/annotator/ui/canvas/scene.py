@@ -103,6 +103,7 @@ class AnnotationScene(QGraphicsScene):
         from annotator.domain.annotation import AnnotationType
         from annotator.ui.canvas.items.bbox_item import BBoxAnnotationItem
         from annotator.ui.canvas.items.obb_item import OBBAnnotationItem
+        from annotator.ui.canvas.items.point_item import PointAnnotationItem
         from annotator.ui.canvas.items.polygon_item import PolygonAnnotationItem
         from annotator.ui.canvas.items.pose_item import PoseAnnotationItem
 
@@ -150,6 +151,10 @@ class AnnotationScene(QGraphicsScene):
                             edge_set.add((min(i, j), max(i, j)))
                 edges = sorted(edge_set)
             item = PoseAnnotationItem(ann.id, kps, edges, color, label)
+
+        elif ann.ann_type == AnnotationType.POINT:
+            d = ann.data
+            item = PointAnnotationItem(ann.id, (d["x"] * w, d["y"] * h), color, label)
 
         if item is not None and cls is not None:
             item.line_width = float(cls.display_style.line_width)

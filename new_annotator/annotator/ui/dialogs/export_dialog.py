@@ -12,6 +12,7 @@ _FORMATS = [
     ("YOLO Segment  (polygon / polyline)",            "yolo_seg"),
     ("YOLO OBB  (oriented bbox → 4 corners)",         "yolo_obb"),
     ("YOLO Pose  (keypoints → bbox + kpoints)",       "yolo_pose"),
+    ("YOLO Point  (single point → 1-kpt pose)",       "yolo_point"),
     ("YOLO Classify  (image-level classification)",   "yolo_classify"),
     ("COCO Instances  (JSON with attributes)",        "coco"),
 ]

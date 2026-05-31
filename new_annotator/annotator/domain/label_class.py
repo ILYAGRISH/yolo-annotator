@@ -3,7 +3,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-ANNOTATION_TYPES = ["bbox", "polygon", "polyline", "obb", "keypoints", "classification"]
+ANNOTATION_TYPES = ["bbox", "polygon", "polyline", "obb", "keypoints", "point", "classification"]
 
 # Drawing tools compatible with each annotation_type (enforced in UI and toolbar)
 ANNOTATION_TYPE_TOOLS: dict[str, list[str]] = {
@@ -12,6 +12,7 @@ ANNOTATION_TYPE_TOOLS: dict[str, list[str]] = {
     "polyline":       ["polyline"],
     "obb":            ["obb"],
     "keypoints":      ["pose"],
+    "point":          ["point"],
     "classification": [],
 }
 
@@ -22,6 +23,7 @@ ANNOTATION_TYPE_DEFAULT_TOOL: dict[str, str | None] = {
     "polyline":       "polyline",
     "obb":            "obb",
     "keypoints":      "pose",
+    "point":          "point",
     "classification": None,   # no drawing tool
 }
 

@@ -17,6 +17,7 @@ from annotator.tools.bbox_tool import BBoxTool
 from annotator.tools.crack_tool import CrackTool
 from annotator.tools.obb_tool import OBBTool
 from annotator.tools.polygon_tool import PolygonTool, PolylineTool
+from annotator.tools.point_tool import PointTool
 from annotator.tools.pose_tool import PoseTool
 from annotator.tools.select_tool import SelectTool
 from annotator.ui.canvas.scene import AnnotationScene
@@ -130,6 +131,7 @@ class MainWindow(QMainWindow):
         self._menu_tool_acts["obb"]       = self._add_action(tools_m, "OBB  [O]",       lambda: self._activate_tool("obb"),       "O")
         self._menu_tool_acts["crack_tool"] = self._add_action(tools_m, "Crack  [C]",    lambda: self._activate_tool("crack_tool"), "C")
         self._menu_tool_acts["pose"]      = self._add_action(tools_m, "Pose  [K]",     lambda: self._activate_tool("pose"),      "K")
+        self._menu_tool_acts["point"]     = self._add_action(tools_m, "Point  [.]",    lambda: self._activate_tool("point"),     ".")
 
         # Export (populated in File menu via Ctrl+E, this menu kept as alias)
         mb.addMenu("&Export")
@@ -186,6 +188,7 @@ class MainWindow(QMainWindow):
         self._act_obb        = _tool_action("⬡ OBB",      "obb",        "O")
         self._act_crack      = _tool_action("⌇ Crack",    "crack_tool", "C")
         self._act_pose       = _tool_action("✿ Pose",     "pose",       "K")
+        self._act_point      = _tool_action("• Point",    "point",      ".")
 
         tb.addSeparator()
         act_fit = QAction("⊞ Fit  [F]", self)
@@ -208,6 +211,7 @@ class MainWindow(QMainWindow):
             "obb":        self._act_obb,
             "crack_tool": self._act_crack,
             "pose":       self._act_pose,
+            "point":      self._act_point,
         }
 
     # ── shortcuts ─────────────────────────────────────────────────────────────
@@ -264,6 +268,7 @@ class MainWindow(QMainWindow):
             "obb":        OBBTool(),
             "crack_tool": CrackTool(),
             "pose":       PoseTool(),
+            "point":      PointTool(),
         }
 
     def _activate_tool(self, name: str):
