@@ -202,7 +202,7 @@ class ClassSchemaEditorDialog(QDialog):
         edges_form = QFormLayout()
         self._edges_edit = QLineEdit()
         self._edges_edit.setPlaceholderText('e.g. "0-1, 1-2, 1-5"')
-        self._edges_edit.editingFinished.connect(self._sync_skeleton)
+        self._edges_edit.textChanged.connect(self._sync_skeleton)
         edges_form.addRow("Edges (i-j pairs):", self._edges_edit)
         skel_l.addLayout(edges_form)
         rl.addWidget(self._skel_box)
