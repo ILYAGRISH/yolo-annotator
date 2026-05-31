@@ -153,10 +153,10 @@ class PoseTool(BaseTool):
         self._clear_preview()
         pts = self._points
         color = QColor("#00FF88")
-        r = 5
+        lod = self._view_lod()
+        r = 5.0 / max(lod, 0.05)  # constant 5 screen-pixel radius
 
-        # Skeleton edges between already-placed keypoints
-        edge_pen = QPen(color, 1.5)
+        edge_pen = self._cosmetic_pen("#00FF88", 1.5)
         for a, b in self._skeleton_edges:
             if a < len(pts) and b < len(pts):
                 ln = self._scene.addLine(
@@ -164,8 +164,7 @@ class PoseTool(BaseTool):
                 ln.setZValue(20)
                 self._temp_items.append(ln)
 
-        # Placed keypoints
-        dot_pen = QPen(Qt.GlobalColor.white, 1)
+        dot_pen = self._cosmetic_pen("#FFFFFF", 1.0)
         dot_brush = QBrush(color)
         for i, pt in enumerate(pts):
             dot = self._scene.addEllipse(
@@ -180,24 +179,25 @@ class PoseTool(BaseTool):
             txt.setZValue(22)
             self._temp_items.append(txt)
 
-        # Ghost indicator for next keypoint
         if cursor is not None:
             idx = len(pts)
+            ghost_pen = self._cosmetic_pen("#00FF88", 1.0, Qt.PenStyle.DashLine)
+            ghost_pen.setColor(QColor(0, 255, 136, 180))
             c_dot = self._scene.addEllipse(
                 cursor.x() - r, cursor.y() - r, r * 2, r * 2,
-                QPen(color, 1, Qt.PenStyle.DashLine),
+                ghost_pen,
                 QBrush(QColor(0, 255, 136, 60)))
             c_dot.setZValue(20)
             self._temp_items.append(c_dot)
 
-            # Ghost edge from last placed point to cursor
             if pts and self._skeleton_edges:
                 last_idx = len(pts) - 1
                 connects = [b for a, b in self._skeleton_edges if a == last_idx] + \
                            [a for a, b in self._skeleton_edges if b == last_idx]
                 if idx in connects:
+                    gl_pen = self._cosmetic_pen("#00FF88", 1.0, Qt.PenStyle.DashLine)
+                    gl_pen.setColor(QColor(0, 255, 136, 100))
                     gl = self._scene.addLine(
-                        pts[-1].x(), pts[-1].y(), cursor.x(), cursor.y(),
-                        QPen(QColor(0, 255, 136, 100), 1, Qt.PenStyle.DashLine))
+                        pts[-1].x(), pts[-1].y(), cursor.x(), cursor.y(), gl_pen)
                     gl.setZValue(19)
                     self._temp_items.append(gl)

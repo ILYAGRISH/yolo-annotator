@@ -64,8 +64,10 @@ class PoseAnnotationItem(BaseAnnotationItem):
         color = QColor(self.class_color)
         lw = self.line_width + (1.0 if selected else 0.0)
 
-        # Skeleton edges
-        painter.setPen(QPen(color, lw))
+        # Skeleton edges (cosmetic — constant screen-pixel width)
+        edge_pen = QPen(color, lw)
+        edge_pen.setCosmetic(True)
+        painter.setPen(edge_pen)
         for a, b in self._edges:
             if a < len(self._keypoints) and b < len(self._keypoints):
                 xa, ya, va = self._keypoints[a]
@@ -80,7 +82,9 @@ class PoseAnnotationItem(BaseAnnotationItem):
             dot_color = QColor(self.class_color)
             dot_color.setAlpha(230 if selected else 180)
             painter.setBrush(QBrush(dot_color))
-            painter.setPen(QPen(Qt.GlobalColor.white, 1))
+            border_pen = QPen(Qt.GlobalColor.white, 1)
+            border_pen.setCosmetic(True)
+            painter.setPen(border_pen)
             painter.drawEllipse(QPointF(x, y), kp_r, kp_r)
             painter.setPen(QPen(color))
             painter.drawText(QPointF(x + kp_r + 2, y + kp_r / 2), str(i))

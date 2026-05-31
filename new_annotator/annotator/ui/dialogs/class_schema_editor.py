@@ -247,6 +247,8 @@ class ClassSchemaEditorDialog(QDialog):
         self._class_list.blockSignals(False)
 
     def _on_class_selected(self, row: int):
+        # Flush any uncommitted text-field edits before switching away
+        self._sync_skeleton()
         if row < 0 or row >= len(self._classes):
             self._selected_idx = -1
             self._set_form_enabled(False)
@@ -576,6 +578,7 @@ class ClassSchemaEditorDialog(QDialog):
             QMessageBox.warning(self, "Empty schema",
                                 "At least one class is required.")
             return
+        self._sync_skeleton()  # flush uncommitted edges text before saving
         self.result_classes = self._classes
         self.accept()
 
