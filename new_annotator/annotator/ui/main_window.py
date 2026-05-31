@@ -320,8 +320,8 @@ class MainWindow(QMainWindow):
     def _on_annotations_changed(self, annotations: list):
         self._scene.rebuild_annotations(annotations, self._ctrl.project)
         self._annotations_panel.refresh(annotations)
-        if self._ctrl.current_image and annotations:
-            self._images_panel.mark_annotated(self._ctrl.current_image)
+        if self._ctrl.current_image:
+            self._images_panel.set_annotated(self._ctrl.current_image, bool(annotations))
 
     def _on_annotation_selected(self, ann_id: str):
         if ann_id:

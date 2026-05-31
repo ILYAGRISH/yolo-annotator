@@ -23,6 +23,7 @@ class ImagesPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._project: Project | None = None
+        self._annotated: set[str] = set()
         self._setup_ui()
 
     def _setup_ui(self):
@@ -47,16 +48,19 @@ class ImagesPanel(QWidget):
 
     def load_project(self, project: Project):
         self._project = project
+        self._annotated = self._scan_annotated(project)
         self._refresh()
 
-    def mark_annotated(self, image_path: str):
+    def set_annotated(self, image_path: str, has_annotations: bool):
+        if has_annotations:
+            self._annotated.add(image_path)
+        else:
+            self._annotated.discard(image_path)
         if not self._project:
             return
         for i, rec in enumerate(self._project.images):
             if rec.path == image_path:
-                item = self._list.item(i)
-                if item:
-                    item.setForeground(QColor("#55CC55"))
+                self._refresh_item(i)
                 break
 
     def select_next(self):
@@ -79,6 +83,22 @@ class ImagesPanel(QWidget):
 
     # ── internal ──────────────────────────────────────────────────────────────
 
+    @staticmethod
+    def _scan_annotated(project: Project) -> set[str]:
+        annotated: set[str] = set()
+        if project.project_path is None:
+            return annotated
+        ann_dir = project.project_path / "annotations"
+        if not ann_dir.exists():
+            return annotated
+        stem_to_path = {Path(rec.path).stem: rec.path for rec in project.images}
+        for ann_file in ann_dir.glob("*.json"):
+            if ann_file.stat().st_size > 5:  # non-empty: more than just "[]"
+                img_path = stem_to_path.get(ann_file.stem)
+                if img_path:
+                    annotated.add(img_path)
+        return annotated
+
     def _refresh(self):
         self._list.clear()
         if not self._project:
@@ -90,7 +110,8 @@ class ImagesPanel(QWidget):
     def _make_item(self, rec) -> QListWidgetItem:
         split = rec.split or "train"
         tag = f" [{split}]" if split != "train" else ""
-        item = QListWidgetItem(Path(rec.path).name + tag)
+        check = " ✓" if rec.path in self._annotated else ""
+        item = QListWidgetItem(Path(rec.path).name + tag + check)
         item.setToolTip(f"{rec.path}\nSplit: {split}")
         color = _SPLIT_COLORS.get(split)
         if color:
