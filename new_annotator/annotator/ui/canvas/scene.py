@@ -156,6 +156,11 @@ class AnnotationScene(QGraphicsScene):
             d = ann.data
             item = PointAnnotationItem(ann.id, (d["x"] * w, d["y"] * h), color, label)
 
+        elif ann.ann_type == AnnotationType.MASK:
+            from annotator.ui.canvas.items.mask_item import MaskAnnotationItem
+            pts = [(x * w, y * h) for x, y in ann.data.get("polygon", [])]
+            item = MaskAnnotationItem(ann.id, pts, color, label)
+
         if item is not None and cls is not None:
             item.line_width = float(cls.display_style.line_width)
             item.fill_opacity = float(cls.display_style.opacity)

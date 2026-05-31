@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (QComboBox, QDoubleSpinBox, QFrame, QHBoxLayout,
-                              QLabel, QSizePolicy, QWidget)
+                              QLabel, QSizePolicy, QSpinBox, QWidget)
 
 
 class ToolPropsPanel(QFrame):
@@ -72,6 +72,17 @@ class ToolPropsPanel(QFrame):
                 self._layout.addWidget(w)
                 self._controls[key] = w
 
+            elif spec["type"] == "int":
+                w = QSpinBox()
+                w.setMinimum(spec.get("min", 1))
+                w.setMaximum(spec.get("max", 9999))
+                w.setSingleStep(spec.get("step", 1))
+                w.setValue(int(current_params.get(key, spec.get("default", 1))))
+                w.setFixedWidth(70)
+                w.valueChanged.connect(self._emit_params)
+                self._layout.addWidget(w)
+                self._controls[key] = w
+
             elif spec["type"] == "select":
                 w = QComboBox()
                 for opt in spec.get("options", []):
@@ -105,7 +116,9 @@ class ToolPropsPanel(QFrame):
     def _emit_params(self, _=None):
         params = {}
         for key, widget in self._controls.items():
-            if isinstance(widget, QDoubleSpinBox):
+            if isinstance(widget, QSpinBox):
+                params[key] = widget.value()
+            elif isinstance(widget, QDoubleSpinBox):
                 params[key] = widget.value()
             elif isinstance(widget, QComboBox):
                 params[key] = widget.currentText()

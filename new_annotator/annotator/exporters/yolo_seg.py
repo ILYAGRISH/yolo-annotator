@@ -42,6 +42,13 @@ def _format_annotation(ann: Annotation) -> str | None:
         coords = " ".join(f"{x:.6f} {y:.6f}" for x, y in pts)
         return f"{ann.class_id} {coords}"
 
+    if ann.ann_type == AnnotationType.MASK:
+        pts = ann.data.get("polygon", [])
+        if len(pts) < 3:
+            return None
+        coords = " ".join(f"{x:.6f} {y:.6f}" for x, y in pts)
+        return f"{ann.class_id} {coords}"
+
     if ann.ann_type == AnnotationType.BBOX:
         d = ann.data
         x, y, w, h = d["x"], d["y"], d["w"], d["h"]

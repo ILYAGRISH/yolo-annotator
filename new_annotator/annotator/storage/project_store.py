@@ -39,6 +39,7 @@ class ProjectStore:
     def save(project: Project, path: Path):
         path.mkdir(parents=True, exist_ok=True)
         (path / ANNOTS_DIR).mkdir(exist_ok=True)
+        (path / "masks").mkdir(exist_ok=True)
 
         # project.json  (no classes)
         with open(path / PROJECT_FILE, "w", encoding="utf-8") as f:

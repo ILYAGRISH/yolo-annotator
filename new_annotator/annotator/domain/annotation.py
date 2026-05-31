@@ -12,6 +12,7 @@ class AnnotationType(Enum):
     POSE = "pose"          # keypoint skeleton (Phase 3)
     CLASSIFY = "classify"  # image-level label (Phase 3)
     POINT = "point"        # single keypoint — counting, landmarks
+    MASK = "mask"          # brush-painted binary mask → polygon contour
 
 
 @dataclass
@@ -27,6 +28,7 @@ class Annotation:
       OBB      → {"cx","cy","w","h","angle_deg"}
       POSE     → {"keypoints": [[x,y,vis], ...]}
       POINT    → {"x": float, "y": float}          normalized [0,1]
+      MASK     → {"mask_png_path": str, "polygon": [[x,y],...], "bbox": [cx,cy,w,h]}
     """
     id: str
     class_id: int

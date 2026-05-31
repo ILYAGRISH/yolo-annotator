@@ -231,6 +231,109 @@ If an image has no annotations of the selected type — write an empty label fil
 If a class has `annotation_type` that does not match the current export type — skip its annotations silently.
 
 
+## 6.1 Export Mode: Single Task vs Multi-Task
+
+### UI in ExportDataset Dialog
+
+```
+Export mode:
+  ○ Single task    [dropdown: YOLO Detect | YOLO Segment |
+                    YOLO OBB | YOLO Pose | YOLO Classify | COCO Instances]
+  ● Multi-task     [checkboxes: ☑ detect  ☑ segment  ☐ pose  ☐ obb  ☐ classify]
+```
+
+### ExportJob — Multi-Task Schema
+
+```python
+class ExportJob:
+    tasks: list[CVTask]       # selected tasks
+    format: ExportFormat      # YOLO (COCO multi-task — backlog)
+    split: SplitConfig        # shared split config for all tasks
+    geometry_policy: str      # "convert" | "skip" | "error"
+```
+
+**`geometry_policy` behavior:**
+
+| Value | Description |
+|---|---|
+| `convert` | Auto-convert geometry (e.g. polygon → bbox for detect) |
+| `skip` | Skip annotations with incompatible geometry silently |
+| `error` | Stop export with explicit error on incompatible geometry |
+
+### Output Structure
+
+```
+export_<timestamp>/
+  images/                       ← single shared folder, no duplication
+    train/
+      img001.jpg
+    val/
+      img002.jpg
+
+  labels_detect/                ← created only if task is selected
+    train/
+      img001.txt                (class cx cy w h)
+    val/
+    data.yaml
+
+  labels_segment/
+    train/
+      img001.txt                (class x1 y1 x2 y2 ...)
+    val/
+    data.yaml
+
+  labels_pose/
+    train/
+      img001.txt                (class cx cy w h px py v ...)
+    val/
+    data.yaml
+
+  labels_obb/
+    train/
+      img001.txt                (class x1 y1 x2 y2 x3 y3 x4 y4)
+    val/
+    data.yaml
+
+  classify/                     ← folder structure instead of labels/
+    train/
+      cat/
+        img003.jpg              (symlink or copy from images/)
+      dog/
+        img004.jpg
+    val/
+    data.yaml
+```
+
+### Key Rules
+
+1. `images/` is always shared across all tasks — no file duplication.
+2. For `classify` — images are copied (or symlinked) into class-named subfolders,
+   as YOLO classify requires that exact layout.
+3. Each `labels_<task>/data.yaml` references `../images/` (the shared folder).
+4. If an image has no annotations for a given task — an empty
+   `labels_<task>/train/imgXXX.txt` is created
+   (YOLO standard: empty txt = no objects in frame).
+5. Pre-export summary shown to the user:
+
+```
+Found: 8 bbox → detect (6 images), 4 polygon → segment (3 images),
+2 keypoints → pose (2 images).
+Images without annotations for a task will receive empty label files.
+```
+
+### Geometry Auto-Conversion Table
+
+| Source annotation | Export task | Conversion applied |
+|---|---|---|
+| polygon | detect | bbox computed from min/max of polygon vertices |
+| obb | detect | axis-aligned bbox computed from OBB corners |
+| mask (pixel) | segment | converted to polygon contour |
+| bbox | detect | exported as-is |
+| keypoints | pose | exported with enclosing bbox |
+| polygon | segment | exported as-is |
+
+
+
 ---
 
 ## 7. Multi-Model Inference Strategy
