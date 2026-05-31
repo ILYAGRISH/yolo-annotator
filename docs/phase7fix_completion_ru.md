@@ -392,4 +392,62 @@ annotator/
     main_window.py           (set_annotated вместо mark_annotated, передаёт bool)
 ```
 
+## Задача 10 — Point Tool (одиночная точка)
+
+### Что реализовано
+
+Новый тип аннотации `POINT` и одноимённый инструмент для разметки одиночных точек (центроиды, ориентиры, подсчёт объектов). Отличие от Pose: нет скелета, нет множества точек, нет имён — один клик = одна аннотация.
+
+### Детали реализации
+
+**`annotator/domain/annotation.py`**
+- Добавлен `AnnotationType.POINT = "point"`
+- Схема данных: `{"x": float, "y": float}` (нормализованные [0, 1])
+
+**`annotator/domain/label_class.py`**
+- `"point"` добавлен в `ANNOTATION_TYPES`, `ANNOTATION_TYPE_TOOLS`, `ANNOTATION_TYPE_DEFAULT_TOOL`
+- Совместимый инструмент: `["point"]`; авто-активация: `"point"`
+
+**`annotator/tools/point_tool.py`** (новый)
+- Горячая клавиша: `.` (точка)
+- ЛКМ → аннотация создаётся немедленно (не нужен Enter)
+- Превью: ghost-кружок следует за курсором; Esc — скрыть превью
+- Размер ghost — LOD-based (5 экр.пикс.)
+
+**`annotator/ui/canvas/items/point_item.py`** (новый)
+- Cosmetic dot с белой границей; при выделении — дополнительное кольцо
+- `PT_SCREEN_R = 6.0` (экр.пикс.), `PT_HIT = 10.0` (scene units) — зона клика
+
+**`annotator/ui/canvas/scene.py`**
+- Добавлена ветка `AnnotationType.POINT → PointAnnotationItem` в `_make_item()`
+
+**`annotator/exporters/yolo_point.py`** (новый)
+- Формат: `class_id cx cy 0.01 0.01 x y 2` (YOLO 1-keypoint pose + синтетический bbox 1%)
+- `data.yaml` дополняется `kpt_shape: [1, 3]`
+
+**`annotator/ui/main_window.py`**, **`export_dialog.py`**, **`project_controller.py`**
+- Кнопка `• Point [.]` в тулбаре и меню Tools
+- Формат `YOLO Point (single point → 1-kpt pose)` в диалоге экспорта
+
+### Файлы задачи 10
+```
+annotator/
+  domain/
+    annotation.py              (+ POINT enum)
+    label_class.py             (+ "point" в словари)
+  tools/
+    point_tool.py              (новый)
+  ui/canvas/items/
+    point_item.py              (новый)
+  ui/canvas/
+    scene.py                   (+ POINT ветка)
+  ui/
+    main_window.py             (+ импорт, toolbar, menu, _build_tools)
+    dialogs/export_dialog.py   (+ YOLO Point)
+  exporters/
+    yolo_point.py              (новый)
+  controller/
+    project_controller.py      (+ yolo_point ветка)
+```
+
 <!-- Следующие задачи будут добавлены ниже -->
