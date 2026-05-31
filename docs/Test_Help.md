@@ -150,6 +150,41 @@
 
 **Получаем:** аннотация POSE; в Annotations Panel — тип POSE
 
+### Point [.]
+**Используем:** класс любого типа; клавиша `.` (точка)  
+**Делаем:** один клик ЛКМ → аннотация создаётся немедленно (Enter не нужен); Esc скрывает превью  
+**Получаем:** одиночная точка (ghost-кружок 6 экр.пикс.); тип POINT в Annotations Panel
+
+---
+
+### Classify [кнопка]
+**Используем:** создать класс типа `classification`; выбрать его в Classes Panel  
+**Делаем:** в Annotations Panel появляется кнопка **`+ Classify as "<имя>"`** → нажать  
+**Получаем:** IMAGE LABEL-аннотация для текущего изображения; повторный клик → предупреждение "Already labeled"
+
+> Все drawing-инструменты при активном classification-классе блокируются автоматически.
+
+---
+
+### Brush / Mask [M]
+**Используем:** класс любого типа; клавиша `M`  
+**Делаем:**
+1. Рисуем кистью: ЛКМ + drag → закрашиваем область
+2. **Tool Props:** `Brush size` (px) и `Mode` (draw / erase)
+3. Enter или double-click → commit → маска сохраняется
+4. Esc → discard (без потери данных, см. Re-edit)
+
+**Получаем:** аннотация типа MASK; в Annotations Panel отображается как MASK; PNG-файл сохраняется в `.annproj/masks/`
+
+#### Re-edit маски
+| Способ | Шаги |
+|--------|------|
+| Загрузить конкретную маску | Select → выделить нужную маску → нажать M → маска загружается в canvas |
+| Авто-загрузка при стирании | M → Erase mode → первый мазок на пустом canvas → загружает последнюю маску текущего класса |
+
+> **Esc при ре-едите** → оригинальная маска возвращается на место (данные не теряются).  
+> Enter при ре-едите → старая маска заменяется новой.
+
 ---
 
 ## 5. Undo / Redo
@@ -302,6 +337,83 @@ kpt_shape: [3, 3]
 
 ---
 
+### 7.6 YOLO Point
+**Формат:** YOLO 1-keypoint pose с синтетическим bbox 1%  
+`class_id  cx cy 0.01 0.01  x y 2`
+
+**Пример `labels/train/img1.txt`:**
+```
+0 0.512 0.342 0.010 0.010 0.512 0.342 2
+```
+
+**Пример `data.yaml`:**
+```yaml
+nc: 1
+names: ['crack_center']
+kpt_shape: [1, 3]
+```
+
+---
+
+### 7.7 YOLO Classify
+**Структура:** папочная — изображение копируется в `<split>/<class_name>/`
+
+```
+output/
+  train/
+    cat/
+      img1.jpg
+    dog/
+      img2.jpg
+  val/
+    cat/
+      img4.jpg
+```
+
+> Нет `labels/` и `data.yaml` — это стандартный формат для `torchvision.datasets.ImageFolder`.
+
+---
+
+### 7.8 Multi-task (Detect + Segment, общий images/)
+
+**Используем:** File → Export Dataset → режим **Multi-task**  
+**Выбираем:** чекбоксы `YOLO Detect` и/или `YOLO Segment`; политику несовместимых типов  
+**Получаем:**
+```
+<output>/
+  images/
+    train/   val/              ← изображения скопированы один раз
+  labels_detect/
+    train/   val/              ← bbox-файлы
+  labels_segment/
+    train/   val/              ← polygon-файлы
+  data_detect.yaml
+  data_segment.yaml
+```
+
+**Пример `data_detect.yaml`:**
+```yaml
+# Multi-task export — images shared at images/{split}/
+# Labels at labels_detect/{split}/
+path: C:/exports/run1
+train: images/train
+val: images/val
+label_dir: labels_detect
+nc: 2
+names: ['car', 'person']
+```
+
+#### Политика несовместимых типов (`geometry_policy`)
+
+| Политика | Поведение при YOLO Detect |
+|----------|--------------------------|
+| **Skip** (по умолчанию) | Экспортирует только BBOX-аннотации; MASK/POLYGON игнорируются |
+| **Convert** | BBOX → как обычно; MASK → bbox из `ann.data["bbox"]`; POLYGON → bounding box из вершин |
+
+> Для YOLO Segment политика не влияет — seg-экспортёр уже обрабатывает все типы.
+
+---
+
 ## 8. Схема классов — импорт / экспорт
 
 ### Экспорт
@@ -338,9 +450,12 @@ kpt_shape: [3, 3]
 | 6 | Crack → Edit source → добавить точку → Enter | полигон обновлён |
 | 7 | Create class "person" / keypoints, скелет 3 точки | skeleton в schema |
 | 8 | Pose [K]: разместить 3 точки на img2 | авто-commit, рёбра видны |
-| 9 | Ctrl+Z × 3 | аннотации откатываются |
-| 10 | ПКМ на img3 → val | иконка сплита меняется |
-| 11 | QC → Validate | список issues |
-| 12 | Export → YOLO Pose | `labels/train/*.txt` + `kpt_shape` в yaml |
-| 13 | Export → COCO Instances | `annotations/instances_train.json` |
-| 14 | Ctrl+S | сохранено без ошибок |
+| 9 | Point [.]: кликнуть точку на img3 | аннотация POINT создаётся немедленно |
+| 10 | Brush [M]: нарисовать маску → Enter | аннотация MASK в панели, PNG в masks/ |
+| 11 | Select → выделить маску → M → Esc | маска возвращается на место (не теряется) |
+| 12 | Ctrl+Z × 3 | аннотации откатываются |
+| 13 | ПКМ на img4 → val | иконка сплита меняется |
+| 14 | QC → Validate | список issues |
+| 15 | Export → Single → YOLO Pose | `labels/train/*.txt` + `kpt_shape` в yaml |
+| 16 | Export → Multi-task → Detect + Segment | `labels_detect/` + `labels_segment/` + shared `images/` |
+| 17 | Ctrl+S | сохранено без ошибок |

@@ -395,8 +395,9 @@ class ProjectController(QObject):
 
     def export_dataset(self, output_dir: Path,
                        format_name: str,
-                       copy_images: bool = True) -> None:
-        """Export the full dataset in the requested YOLO format."""
+                       copy_images: bool = True,
+                       geometry_policy: str = "skip") -> None:
+        """Export the full dataset in the requested format."""
         if not self._project:
             raise RuntimeError("No project open")
         self._flush_current_image()
@@ -434,8 +435,45 @@ class ProjectController(QObject):
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         exp.export(self._project, output_dir,
-                   all_annotations=all_anns, copy_images=copy_images)
+                   all_annotations=all_anns, copy_images=copy_images,
+                   geometry_policy=geometry_policy)
         self.status_message.emit(f"Exported [{exp.name}] → {output_dir}")
+
+    def export_multitask(self, output_dir: Path,
+                         jobs: list,
+                         copy_images: bool = True) -> None:
+        """Export multiple formats sharing a single images/ folder."""
+        if not self._project:
+            raise RuntimeError("No project open")
+        self._flush_current_image()
+
+        all_anns = ProjectStore.load_all_annotations(self._project)
+        if self._current_image:
+            all_anns[self._current_image] = self._annotations
+        for img in self._project.images:
+            all_anns.setdefault(img.path, [])
+
+        from annotator.exporters.base import write_yolo_multitask
+        from annotator.exporters.yolo_detect import _make_detect_fn
+        from annotator.exporters.yolo_seg import _format_annotation
+
+        _JOB_MAP = {
+            "yolo_detect":  lambda policy: ("labels_detect",  "data_detect",  _make_detect_fn(policy)),
+            "yolo_seg":     lambda policy: ("labels_segment", "data_segment", _format_annotation),
+        }
+
+        tasks = []
+        for job in jobs:
+            builder = _JOB_MAP.get(job.format_name)
+            if builder is None:
+                raise ValueError(f"Multi-task not supported for format: {job.format_name!r}")
+            tasks.append(builder(job.geometry_policy))
+
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        write_yolo_multitask(self._project, all_anns, output_dir, tasks, copy_images)
+        task_names = " + ".join(j.format_name for j in jobs)
+        self.status_message.emit(f"Multi-task export [{task_names}] → {output_dir}")
 
     def export_validation_report(self, path: Path, fmt: str = "json") -> None:
         from annotator.validation.validator import Validator

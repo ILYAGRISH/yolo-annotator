@@ -562,8 +562,12 @@ class MainWindow(QMainWindow):
             if ret != QMessageBox.StandardButton.Yes:
                 return
         try:
-            self._ctrl.export_dataset(
-                Path(dlg.output_dir), dlg.format_name, dlg.copy_images)
+            if dlg.is_multitask:
+                self._ctrl.export_multitask(
+                    Path(dlg.output_dir), dlg.export_jobs, dlg.copy_images)
+            else:
+                self._ctrl.export_dataset(
+                    Path(dlg.output_dir), dlg.format_name, dlg.copy_images)
         except Exception as exc:
             QMessageBox.critical(self, "Export error", str(exc))
 

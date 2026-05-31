@@ -55,6 +55,68 @@ def _write_data_yaml(project: Project, output_dir: Path) -> None:
     (output_dir / "data.yaml").write_text("\n".join(lines), encoding="utf-8")
 
 
+# ── multi-task writer ─────────────────────────────────────────────────────────
+
+def write_yolo_multitask(project: Project,
+                          all_annotations: dict,
+                          output_dir: Path,
+                          tasks: list,
+                          copy_images: bool = True) -> None:
+    """
+    Write a multi-task dataset sharing a single images/ folder.
+
+    tasks: list of (labels_dir_name, yaml_stem, ann_to_line_fn)
+
+    Structure:
+      output_dir/
+        images/{split}/img.jpg          ← copied once
+        labels_detect/{split}/img.txt   ← per task
+        labels_segment/{split}/img.txt  ← per task
+        data_detect.yaml
+        data_segment.yaml
+    """
+    output_dir = Path(output_dir)
+
+    for img_rec in project.images:
+        split = img_rec.split or "train"
+        img_path = Path(img_rec.path)
+        anns = all_annotations.get(img_rec.path, [])
+
+        for labels_dir_name, _yaml_stem, ann_fn in tasks:
+            labels_dir = output_dir / labels_dir_name / split
+            labels_dir.mkdir(parents=True, exist_ok=True)
+            lines = [ln for ann in anns for ln in [ann_fn(ann)] if ln]
+            (labels_dir / (img_path.stem + ".txt")).write_text(
+                "\n".join(lines), encoding="utf-8")
+
+        if copy_images and img_path.exists():
+            images_dir = output_dir / "images" / split
+            images_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(img_path, images_dir / img_path.name)
+
+    splits = sorted({r.split or "train" for r in project.images})
+    names = [c.name for c in sorted(project.classes, key=lambda c: c.id)]
+
+    for labels_dir_name, yaml_stem, _ in tasks:
+        _write_multitask_yaml(output_dir, labels_dir_name, yaml_stem, splits, names)
+
+
+def _write_multitask_yaml(output_dir: Path, labels_dir_name: str,
+                           yaml_stem: str, splits: list, names: list) -> None:
+    lines = [
+        f"# Multi-task export — images shared at images/{{split}}/",
+        f"# Labels at {labels_dir_name}/{{split}}/",
+        f"path: {output_dir.resolve()}",
+    ]
+    for s in ("train", "val", "test"):
+        if s in splits:
+            lines.append(f"{s}: images/{s}")
+    lines.append(f"label_dir: {labels_dir_name}")
+    lines.append(f"nc: {len(names)}")
+    lines.append(f"names: {names}")
+    (output_dir / f"{yaml_stem}.yaml").write_text("\n".join(lines), encoding="utf-8")
+
+
 # ── abstract base ─────────────────────────────────────────────────────────────
 
 class BaseExporter(ABC):
