@@ -93,11 +93,15 @@ class AnnotationsPanel(QWidget):
 
     def set_selected(self, annotation_id: str):
         self._list.blockSignals(True)
+        found: Annotation | None = None
         for i, ann in enumerate(self._annotations):
             if ann.id == annotation_id:
                 self._list.setCurrentRow(i)
+                found = ann
                 break
         self._list.blockSignals(False)
+        self._btn_edit_src.setEnabled(
+            found is not None and "source_geometry" in found.data)
 
     def _on_row(self, row: int):
         if 0 <= row < len(self._annotations):
