@@ -31,10 +31,14 @@ htmlcov/
 Thumbs.db
 desktop.ini
 
-# Project-specific: sample data and project files
-Example/
-app/
+# Project-specific: sample data, project files, masks
+Archive/Example/
 *.annproj
+masks/
+*.annproj/
+
+# Scratch / prompt drafts
+docs/mask-storage-prompt.md
 
 # Qt compiled resources
 *.qmlc
