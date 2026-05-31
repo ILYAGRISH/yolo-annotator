@@ -95,6 +95,7 @@ class CrackTool(BaseTool):
             "simplify": 0.001,
         }
         self._edit_ann = None   # Annotation being edited (None = create mode)
+        self._drag_idx: int = -1  # index of vertex being dragged (-1 = not dragging)
 
     @property
     def name(self) -> str:
@@ -175,15 +176,33 @@ class CrackTool(BaseTool):
 
     # ── event handlers ────────────────────────────────────────────────────────
 
+    def _vertex_at(self, pos: QPointF) -> int:
+        """Return index of the vertex closest to pos within hit radius, or -1."""
+        lod = self._view_lod()
+        hit_r = 8.0 / max(lod, 0.05)   # 8 screen pixels in scene units
+        best_idx, best_dist = -1, float("inf")
+        for i, pt in enumerate(self._points):
+            d = (pt - pos).manhattanLength()
+            if d <= hit_r and d < best_dist:
+                best_idx, best_dist = i, d
+        return best_idx
+
     def on_press(self, pos, modifiers, button):
         if not self._scene:
             return
         pos = self._clamp(pos)
         if button == Qt.MouseButton.LeftButton:
-            self._points.append(pos)
-            self._refresh_preview(pos)
+            # Click on existing vertex → start drag instead of adding a new point
+            idx = self._vertex_at(pos)
+            if idx >= 0:
+                self._drag_idx = idx
+            else:
+                self._points.append(pos)
+                self._refresh_preview(pos)
         elif button == Qt.MouseButton.RightButton:
-            if self._points:
+            if self._drag_idx >= 0:
+                self._drag_idx = -1
+            elif self._points:
                 self._points.pop()
                 self._refresh_preview(self._cursor_pos)
 
@@ -191,10 +210,16 @@ class CrackTool(BaseTool):
         if not self._scene:
             return
         self._cursor_pos = self._clamp(pos)
-        if self._points:
+        if self._drag_idx >= 0:
+            self._points[self._drag_idx] = self._cursor_pos
+            self._refresh_preview(None)   # no rubber-band while dragging a vertex
+        elif self._points:
             self._refresh_preview(self._cursor_pos)
 
-    def on_release(self, pos, modifiers, button): ...
+    def on_release(self, pos, modifiers, button):
+        if self._drag_idx >= 0:
+            self._drag_idx = -1
+            self._refresh_preview(self._cursor_pos)
 
     def on_double_click(self, pos, modifiers, button):
         if button == Qt.MouseButton.LeftButton:
@@ -219,6 +244,7 @@ class CrackTool(BaseTool):
         self._points.clear()
         self._cursor_pos = None
         self._edit_ann = None
+        self._drag_idx = -1
         self._clear_preview()
 
     def _commit(self):

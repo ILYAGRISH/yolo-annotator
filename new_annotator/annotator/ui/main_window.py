@@ -405,6 +405,8 @@ class MainWindow(QMainWindow):
         crack = self._tools.get("crack_tool")
         if crack is not None and hasattr(crack, "start_edit"):
             crack.start_edit(ann)
+            # Reload panel so it reflects this annotation's stored buffer params
+            self._tool_props.load_tool(crack)
 
     # ── plugin loader ─────────────────────────────────────────────────────────
 
