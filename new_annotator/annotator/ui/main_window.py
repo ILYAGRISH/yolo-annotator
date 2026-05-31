@@ -327,6 +327,12 @@ class MainWindow(QMainWindow):
         if ann_id:
             self._scene.select_by_id(ann_id)
             self._annotations_panel.set_selected(ann_id)
+            # After crack edit commits it calls select_annotation — switch back to Select
+            crack = self._tools.get("crack_tool")
+            if (self._current_tool_name() == "crack_tool"
+                    and crack is not None
+                    and not crack.is_editing):
+                self._activate_tool("select")
         else:
             self._scene.deselect_all()
             self._annotations_panel.set_selected("")

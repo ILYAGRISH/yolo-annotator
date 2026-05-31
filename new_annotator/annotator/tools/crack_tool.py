@@ -212,19 +212,24 @@ class CrackTool(BaseTool):
         self._cursor_pos = self._clamp(pos)
         if self._drag_idx >= 0:
             self._points[self._drag_idx] = self._cursor_pos
-            self._refresh_preview(None)   # no rubber-band while dragging a vertex
+            self._refresh_preview(None)
         elif self._points:
-            self._refresh_preview(self._cursor_pos)
+            # Suppress rubber-band in edit mode — dragging vertices, not adding points
+            cursor = None if self._edit_ann is not None else self._cursor_pos
+            self._refresh_preview(cursor)
 
     def on_release(self, pos, modifiers, button):
         if self._drag_idx >= 0:
             self._drag_idx = -1
-            self._refresh_preview(self._cursor_pos)
+            cursor = None if self._edit_ann is not None else self._cursor_pos
+            self._refresh_preview(cursor)
 
     def on_double_click(self, pos, modifiers, button):
         if button == Qt.MouseButton.LeftButton:
-            # The single-click of the double-click already added a point — remove it
-            if self._points:
+            was_dragging = self._drag_idx >= 0
+            self._drag_idx = -1
+            if not was_dragging and self._points:
+                # The single-click of the double-click already added a point — remove it
                 self._points.pop()
             self._commit()
 
@@ -272,6 +277,7 @@ class CrackTool(BaseTool):
             self._cancel()
             self._ctrl.update_annotation_data(
                 edit_id, new_data, "Edit crack source")
+            self._ctrl.select_annotation(edit_id)
         else:
             ann = Annotation.new(
                 self._class_id,
