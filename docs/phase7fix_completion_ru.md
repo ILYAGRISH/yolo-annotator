@@ -314,4 +314,82 @@ annotator/
     main_window.py               (_on_annotation_selected: auto-switch; load_tool после start_edit)
 ```
 
+## Задача 8 — PoseTool: рёбра скелета и cosmetic rendering
+
+### Проблема (три пункта)
+
+1. **Рёбра скелета не сохранялись** — поле `Edges (i-j pairs)` принимало ввод вида `"0-1, 0-2"` (с кавычками), которые пользователь добавлял интуитивно, опираясь на подсказку-плейсхолдер. `int("'0")` бросал `ValueError` → пары парсились в `[]` → `edges: []` в JSON.
+2. **Размер точек при рисовании зависел от масштаба** — радиус задавался в координатах сцены (`r = 5`), а не экранных пикселях.
+3. **Рёбра скелета не отображались при рисовании и в готовой разметке** — все перья были scene-unit width.
+
+### Решение
+
+**`annotator/ui/dialogs/class_schema_editor.py`**
+- `_parse_edges` переписан с `re.finditer(r'(\d+)-(\d+)', text)` — regex извлекает пары `N-N` из любого текста, игнорируя кавычки, пробелы и прочие символы
+- Добавлен `import re`
+- Плейсхолдер `Edges` изменён: `e.g. "0-1, 1-2, 1-5"` → `e.g. 0-1, 1-2, 1-5` (без кавычек)
+- Удалены отладочные `print([DEBUG ...])` из `_sync_skeleton` и `_accept`
+
+**`annotator/tools/pose_tool.py`**
+- `_refresh_preview()`: `r = 5.0 / max(lod, 0.05)` — радиус точки в экранных пикселях
+- `edge_pen = self._cosmetic_pen("#00FF88", 1.5)` — рёбра при рисовании cosmetic
+- `dot_pen = self._cosmetic_pen("#FFFFFF", 1.0)` — граница точки cosmetic
+
+**`annotator/ui/canvas/items/pose_item.py`**
+- `edge_pen.setCosmetic(True)` — рёбра готовой разметки постоянной ширины
+- `border_pen.setCosmetic(True)` — граница точек-ключевых постоянной ширины
+
+**`test_phase7a.py`, `test_phase7.py`**
+- Добавлен `_MockView` с `transform().m11() = 1.0`
+- `_MockScene.views()` возвращает `[_MockView()]` — без этого `_view_lod()` падал в headless-тестах
+- `_MockCtrl.select_annotation()` — заглушка для тестов CrackTool в edit-режиме
+
+### Файлы задачи 8
+```
+annotator/
+  ui/
+    dialogs/class_schema_editor.py  (_parse_edges regex, плейсхолдер без кавычек)
+  tools/
+    pose_tool.py                    (cosmetic pens, LOD-based dot radius)
+  ui/canvas/items/
+    pose_item.py                    (cosmetic edge_pen и border_pen)
+test_phase7a.py                     (_MockView, _MockScene.views)
+test_phase7.py                      (_MockView, _MockScene.views, _MockCtrl.select_annotation)
+```
+
+---
+
+## Задача 9 — Images panel: галочка ✓ для размеченных файлов
+
+### Проблема
+- Файлы с аннотациями отображались зелёным цветом (`#55CC55`) через `mark_annotated()`
+- Это перекрывало цвет `val` (синий) и `test` (оранжевый) — нельзя было одновременно видеть и наличие разметки, и принадлежность к сплиту
+
+### Решение
+
+**`annotator/ui/panels/images_panel.py`**
+- Добавлен `self._annotated: set[str]` — набор путей изображений с аннотациями
+- `_scan_annotated(project)` — при загрузке проекта сканирует `annotations/*.json`, добавляет в set если размер файла > 5 байт (т.е. не пустой `[]`)
+- `_make_item()`: вместо зелёного цвета добавляет суффикс ` ✓` если путь в `_annotated`; цвет split сохраняется
+- `mark_annotated()` → `set_annotated(path, has: bool)` — обновляет set и вызывает `_refresh_item()`. Работает в обе стороны: при добавлении ✓ появляется, при удалении последней аннотации — исчезает
+
+**`annotator/ui/main_window.py`**
+- `_on_annotations_changed`: `mark_annotated(path)` → `set_annotated(path, bool(annotations))` — теперь вызывается всегда (не только при наличии аннотаций), передаёт `False` когда аннотации удалены
+
+### Итоговый вид списка Images
+```
+CA1000148_1_i.jpg ✓          ← train (дефолт), есть разметка
+CA1000235_1_d.jpg [val]      ← val, нет разметки  (синий)
+CA1000504_1_d.jpg [test] ✓   ← test, есть разметка (оранжевый)
+CA1000713_1_d.jpg [val] ✓    ← val, есть разметка  (синий)
+```
+
+### Файлы задачи 9
+```
+annotator/
+  ui/
+    panels/images_panel.py   (_annotated set, _scan_annotated, set_annotated, _make_item с ✓)
+    main_window.py           (set_annotated вместо mark_annotated, передаёт bool)
+```
+
 <!-- Следующие задачи будут добавлены ниже -->
