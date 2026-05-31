@@ -364,6 +364,12 @@ class _MockItem:
     def setZValue(self, v): pass
 
 
+class _MockView:
+    class _T:
+        def m11(self): return 1.0
+    def transform(self): return self._T()
+
+
 class _MockScene:
     image_size = (200, 100)
 
@@ -371,6 +377,7 @@ class _MockScene:
     def addEllipse(self, *a): return _MockItem()
     def addPolygon(self, *a): return _MockItem()
     def removeItem(self, item): pass
+    def views(self): return [_MockView()]
 
 
 norm_src = [[0.1, 0.5], [0.5, 0.5], [0.9, 0.5]]
@@ -421,6 +428,8 @@ class _MockCtrl:
 
     def add_annotation(self, ann):
         self.added = ann
+
+    def select_annotation(self, ann_id): pass
 
 
 mock_ctrl = _MockCtrl()

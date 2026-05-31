@@ -120,6 +120,12 @@ class _MockItem:
     def setPos(self, x, y): pass
 
 
+class _MockView:
+    class _T:
+        def m11(self): return 1.0
+    def transform(self): return self._T()
+
+
 class _MockScene:
     def __init__(self, w=800, h=600):
         self.image_size = (w, h)
@@ -128,6 +134,7 @@ class _MockScene:
     def addEllipse(self, *a, **kw): return _MockItem()
     def addSimpleText(self, *a): return _MockItem()
     def removeItem(self, item): self.removed.append(item)
+    def views(self): return [_MockView()]
 
 
 class _MockCtrl:

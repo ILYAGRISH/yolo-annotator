@@ -7,6 +7,7 @@ Layout:
 """
 from __future__ import annotations
 import copy
+import re
 import uuid
 
 from PyQt6.QtCore import Qt
@@ -443,8 +444,8 @@ class ClassSchemaEditorDialog(QDialog):
         if c is None:
             return
         n = len(c.skeleton)
-        pairs = self._parse_edges(self._edges_edit.text(), n)
-        # Reset all edges, then apply parsed pairs
+        text = self._edges_edit.text()
+        pairs = self._parse_edges(text, n)
         for kp in c.skeleton:
             kp.edges = []
         for a, b in pairs:
@@ -457,20 +458,13 @@ class ClassSchemaEditorDialog(QDialog):
     def _parse_edges(text: str, n_kp: int) -> list[tuple[int, int]]:
         pairs: list[tuple[int, int]] = []
         seen: set[tuple[int, int]] = set()
-        for part in text.split(","):
-            part = part.strip()
-            if not part:
-                continue
-            try:
-                a_s, b_s = part.split("-")
-                a, b = int(a_s.strip()), int(b_s.strip())
-                if 0 <= a < n_kp and 0 <= b < n_kp and a != b:
-                    p = (min(a, b), max(a, b))
-                    if p not in seen:
-                        seen.add(p)
-                        pairs.append(p)
-            except (ValueError, AttributeError):
-                pass
+        for m in re.finditer(r'(\d+)-(\d+)', text):
+            a, b = int(m.group(1)), int(m.group(2))
+            if 0 <= a < n_kp and 0 <= b < n_kp and a != b:
+                p = (min(a, b), max(a, b))
+                if p not in seen:
+                    seen.add(p)
+                    pairs.append(p)
         return pairs
 
     def _add_keypoint(self):
