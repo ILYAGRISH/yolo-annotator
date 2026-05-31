@@ -18,9 +18,10 @@ from PyQt6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPen
 
 from annotator.ui.canvas.items.base_item import BaseAnnotationItem
 
-HANDLE_R = 5.0
+HANDLE_SCREEN_R = 5.0
 HANDLE_HIT = 9.0
 ROTATION_OFFSET = 22.0   # pixels from top edge to rotation handle center
+_BOUNDING_MARGIN = 30.0
 
 
 def _rotate(px: float, py: float, cx: float, cy: float, angle_deg: float):
@@ -45,6 +46,7 @@ class OBBAnnotationItem(BaseAnnotationItem):
         self._angle = angle_deg
         self.label = label
         self._hover_handle = -1
+        self._lod: float = 1.0
         self.setAcceptHoverEvents(True)
 
     # ── geometry helpers ──────────────────────────────────────────────────────
@@ -69,11 +71,12 @@ class OBBAnnotationItem(BaseAnnotationItem):
     # ── handle API (used by SelectTool) ───────────────────────────────────────
 
     def handle_at(self, pos: QPointF) -> int:
+        hit_r = max(HANDLE_HIT, HANDLE_SCREEN_R * 1.5 / max(self._lod, 0.05))
         rx, ry = self._rot_handle_pos()
-        if (QPointF(rx, ry) - pos).manhattanLength() <= HANDLE_HIT:
+        if (QPointF(rx, ry) - pos).manhattanLength() <= hit_r:
             return 0
         for i, (cx, cy) in enumerate(self._corners()):
-            if (QPointF(cx, cy) - pos).manhattanLength() <= HANDLE_HIT:
+            if (QPointF(cx, cy) - pos).manhattanLength() <= hit_r:
                 return i + 1
         return -1
 
@@ -132,7 +135,7 @@ class OBBAnnotationItem(BaseAnnotationItem):
         pts.append(self._rot_handle_pos())
         xs = [p[0] for p in pts]
         ys = [p[1] for p in pts]
-        m = HANDLE_R + 2
+        m = _BOUNDING_MARGIN
         return QRectF(min(xs) - m, min(ys) - m,
                       max(xs) - min(xs) + 2 * m, max(ys) - min(ys) + 2 * m)
 
@@ -146,20 +149,26 @@ class OBBAnnotationItem(BaseAnnotationItem):
         return path
 
     def paint(self, painter: QPainter, option, widget=None):
+        self._lod = option.levelOfDetailFromTransform(painter.worldTransform())
+        handle_r = HANDLE_SCREEN_R / self._lod
+
         selected = self.isSelected()
         color = QColor(self.class_color)
         corners = self._corners()
 
-        # Filled rotated rect
         path = QPainterPath()
         path.moveTo(*corners[0])
         for pt in corners[1:]:
             path.lineTo(*pt)
         path.closeSubpath()
+
+        alpha = int(min(255, self.fill_opacity * 255 * (1.5 if selected else 1.0)))
         fill = QColor(color)
-        fill.setAlpha(40 if not selected else 70)
+        fill.setAlpha(alpha)
+        lw = self.line_width + (1.0 if selected else 0.0)
+
         painter.setBrush(QBrush(fill))
-        painter.setPen(QPen(color, 1.5 if not selected else 2.5))
+        painter.setPen(QPen(color, lw))
         painter.drawPath(path)
 
         if selected:
@@ -173,7 +182,7 @@ class OBBAnnotationItem(BaseAnnotationItem):
             # Rotation handle (orange circle)
             painter.setBrush(QBrush(QColor(255, 170, 0)))
             painter.setPen(QPen(Qt.GlobalColor.black, 1))
-            painter.drawEllipse(QPointF(rx, ry), HANDLE_R, HANDLE_R)
+            painter.drawEllipse(QPointF(rx, ry), handle_r, handle_r)
 
             # Corner handles
             for i, (cx, cy) in enumerate(corners):
@@ -183,7 +192,7 @@ class OBBAnnotationItem(BaseAnnotationItem):
                 else:
                     painter.setBrush(QBrush(Qt.GlobalColor.white))
                     painter.setPen(QPen(color, 1.5))
-                painter.drawEllipse(QPointF(cx, cy), HANDLE_R, HANDLE_R)
+                painter.drawEllipse(QPointF(cx, cy), handle_r, handle_r)
 
         if self.label:
             painter.setPen(QPen(color))

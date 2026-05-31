@@ -127,6 +127,38 @@ IoU = Площадь пересечения / Площадь объединен�
 
 ---
 
+## Параметры визуального отображения
+
+### Отображение готовых аннотаций (canvas items)
+
+Настраиваются **per-class** через Schema Editor → Display style. Дефолты и константы:
+
+| Параметр | Файл | Константа / поле |
+|----------|------|-----------------|
+| Размер хэндла выделения (экр.пикс.) | `ui/canvas/items/polygon_item.py`, `bbox_item.py`, `obb_item.py`, `pose_item.py` | `HANDLE_SCREEN_R = 5.0` |
+| Зона клика на хэндл (scene units) | те же файлы | `HANDLE_HIT = 9.0` |
+| Отступ хэндла поворота OBB | `ui/canvas/items/obb_item.py` | `ROTATION_OFFSET = 22.0` |
+| Толщина линии (дефолт) | `ui/canvas/items/base_item.py` | `self.line_width = 2.0` |
+| Заливка (дефолт) | `ui/canvas/items/base_item.py` | `self.fill_opacity = 0.3` |
+
+Значения `line_width` и `fill_opacity` переопределяются из `display_style` класса в `scene.py → _make_item()`.
+
+### Превью при рисовании (tools)
+
+Действуют **во время отрисовки** — до фиксации разметки. Не зависят от настроек класса.
+
+| Параметр | Файл | Место |
+|----------|------|-------|
+| Размер точки-узла (экр.пикс.) | `tools/polygon_tool.py`, `tools/crack_tool.py` | `dot_r = 5.0 / lod` в `_refresh_preview()` |
+| Размер кольца замыкания полигона (экр.пикс.) | `tools/polygon_tool.py` | `snap_r = 11.0 / lod` в `_refresh_preview()` |
+| Зона замыкания контура (экр.пикс.) | `tools/polygon_tool.py` | `CLOSE_THRESHOLD_SCREEN = 15` |
+| Заливка превью CrackTool (alpha 0–255) | `tools/crack_tool.py` | `QColor(255, 170, 0, 90)` в `_refresh_preview()` |
+| Базовые хелперы масштабирования | `tools/base.py` | `_view_lod()`, `_cosmetic_pen()` |
+
+Все размеры превью — в **экранных пикселях**, автоматически пересчитываются в координаты сцены через `_view_lod()` — поэтому выглядят одинаково при любом зуме.
+
+---
+
 ## Версии внутреннего формата
 
 | Версия | Изменение |

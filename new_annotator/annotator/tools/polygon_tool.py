@@ -8,7 +8,7 @@ from PyQt6.QtGui import QPen, QBrush, QColor
 from annotator.domain.annotation import Annotation, AnnotationType
 from annotator.tools.base import BaseTool
 
-CLOSE_THRESHOLD = 12  # scene pixels
+CLOSE_THRESHOLD_SCREEN = 15  # screen pixels (dynamically converted to scene units)
 
 
 class PolygonTool(BaseTool):
@@ -87,7 +87,9 @@ class PolygonTool(BaseTool):
         return QPointF(max(0.0, min(w, pos.x())), max(0.0, min(h, pos.y())))
 
     def _near_first(self, pos: QPointF) -> bool:
-        return (self._points[0] - pos).manhattanLength() <= CLOSE_THRESHOLD
+        lod = self._view_lod()
+        threshold = max(8.0, min(60.0, CLOSE_THRESHOLD_SCREEN / max(lod, 0.05)))
+        return (self._points[0] - pos).manhattanLength() <= threshold
 
     def _cancel(self):
         self._points.clear()
@@ -124,9 +126,12 @@ class PolygonTool(BaseTool):
         if not pts:
             return
 
-        dash = QPen(QColor("#FFFF00"), 1.5, Qt.PenStyle.DashLine)
-        solid = QPen(QColor("#FFFF00"), 1.5)
-        r = 4
+        lod = self._view_lod()
+        dot_r = 5.0 / max(lod, 0.05)       # 5 screen-pixel dot
+        snap_r = 11.0 / max(lod, 0.05)     # 11 screen-pixel snap ring
+
+        dash = self._cosmetic_pen("#FFFF00", 1.5, Qt.PenStyle.DashLine)
+        solid = self._cosmetic_pen("#FFFF00", 1.5)
 
         for i in range(len(pts) - 1):
             ln = self._scene.addLine(
@@ -135,18 +140,21 @@ class PolygonTool(BaseTool):
             self._temp_items.append(ln)
 
         if cursor is not None:
+            cursor_pen = self._cosmetic_pen("#FFFF00", 1.0, Qt.PenStyle.DashLine)
+            cursor_pen.setColor(QColor(255, 255, 0, 120))
             cl = self._scene.addLine(
-                pts[-1].x(), pts[-1].y(), cursor.x(), cursor.y(),
-                QPen(QColor(255, 255, 0, 120), 1, Qt.PenStyle.DashLine))
+                pts[-1].x(), pts[-1].y(), cursor.x(), cursor.y(), cursor_pen)
             cl.setZValue(20)
             self._cursor_line = cl
 
-            # Show snap indicator when close to first point
+            # Snap indicator: bright ring around first point
             if len(pts) >= self._MIN_PTS and self._near_first(cursor):
+                snap_pen = self._cosmetic_pen("#FFFF00", 2.5)
                 snap = self._scene.addEllipse(
-                    pts[0].x() - r*2, pts[0].y() - r*2, r*4, r*4,
-                    QPen(QColor("#FFFF00"), 2),
-                    QBrush(QColor(255, 255, 0, 60)))
+                    pts[0].x() - snap_r, pts[0].y() - snap_r,
+                    snap_r * 2, snap_r * 2,
+                    snap_pen,
+                    QBrush(QColor(255, 255, 0, 70)))
                 snap.setZValue(22)
                 self._temp_items.append(snap)
 
@@ -154,7 +162,8 @@ class PolygonTool(BaseTool):
         white = QBrush(QColor("white"))
         for i, pt in enumerate(pts):
             dot = self._scene.addEllipse(
-                pt.x() - r, pt.y() - r, r*2, r*2, solid,
+                pt.x() - dot_r, pt.y() - dot_r, dot_r * 2, dot_r * 2,
+                solid,
                 yellow if i == 0 else white)
             dot.setZValue(21)
             self._temp_items.append(dot)

@@ -4,8 +4,8 @@ from PyQt6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPen
 
 from annotator.ui.canvas.items.base_item import BaseAnnotationItem
 
-KP_R = 5.0       # keypoint circle radius (display)
-KP_HIT = 9.0     # hit radius
+KP_SCREEN_R = 5.0    # screen-pixel keypoint radius
+KP_HIT = 9.0         # scene-unit hit radius
 
 
 class PoseAnnotationItem(BaseAnnotationItem):
@@ -22,6 +22,7 @@ class PoseAnnotationItem(BaseAnnotationItem):
         self._keypoints = list(keypoints_scene)   # [(x, y, v), ...]
         self._edges = list(skeleton_edges)
         self.label = label
+        self._lod: float = 1.0
 
     # ── BaseAnnotationItem interface ──────────────────────────────────────────
 
@@ -43,7 +44,7 @@ class PoseAnnotationItem(BaseAnnotationItem):
             return QRectF(0, 0, 1, 1)
         xs = [p[0] for p in visible]
         ys = [p[1] for p in visible]
-        m = KP_R + 4
+        m = 30.0
         return QRectF(min(xs) - m, min(ys) - m,
                       max(xs) - min(xs) + 2 * m,
                       max(ys) - min(ys) + 2 * m)
@@ -56,12 +57,15 @@ class PoseAnnotationItem(BaseAnnotationItem):
         return path
 
     def paint(self, painter: QPainter, option, widget=None):
+        self._lod = option.levelOfDetailFromTransform(painter.worldTransform())
+        kp_r = KP_SCREEN_R / self._lod
+
         selected = self.isSelected()
         color = QColor(self.class_color)
-        edge_pen = QPen(color, 2.0 if selected else 1.5)
+        lw = self.line_width + (1.0 if selected else 0.0)
 
         # Skeleton edges
-        painter.setPen(edge_pen)
+        painter.setPen(QPen(color, lw))
         for a, b in self._edges:
             if a < len(self._keypoints) and b < len(self._keypoints):
                 xa, ya, va = self._keypoints[a]
@@ -77,9 +81,9 @@ class PoseAnnotationItem(BaseAnnotationItem):
             dot_color.setAlpha(230 if selected else 180)
             painter.setBrush(QBrush(dot_color))
             painter.setPen(QPen(Qt.GlobalColor.white, 1))
-            painter.drawEllipse(QPointF(x, y), KP_R, KP_R)
+            painter.drawEllipse(QPointF(x, y), kp_r, kp_r)
             painter.setPen(QPen(color))
-            painter.drawText(QPointF(x + KP_R + 2, y + KP_R / 2), str(i))
+            painter.drawText(QPointF(x + kp_r + 2, y + kp_r / 2), str(i))
 
         if self.label and self._keypoints:
             visible = [(x, y) for x, y, v in self._keypoints if v > 0]

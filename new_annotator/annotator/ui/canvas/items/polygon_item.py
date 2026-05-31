@@ -8,12 +8,12 @@ Migrated from old_app with key changes:
 from PyQt6.QtCore import QRectF, QPointF, Qt
 from PyQt6.QtGui import (QPainter, QPen, QBrush, QColor, QPolygonF,
                           QPainterPath)
-from PyQt6.QtWidgets import QGraphicsItem
-
 from annotator.ui.canvas.items.base_item import BaseAnnotationItem
 
-HANDLE_R = 5.0
-HANDLE_HIT = 9.0
+# Screen-space handle size (pixels, constant regardless of zoom)
+HANDLE_SCREEN_R = 5.0
+HANDLE_HIT = 9.0        # scene-unit hit radius (fallback/base)
+_BOUNDING_MARGIN = 30.0 # scene-unit bounding-rect margin; covers cosmetic handles at zoom ≥ 0.17
 
 
 class PolygonAnnotationItem(BaseAnnotationItem):
@@ -26,6 +26,7 @@ class PolygonAnnotationItem(BaseAnnotationItem):
         self.label = label
         self.closed = closed
         self._hover_handle = -1
+        self._lod: float = 1.0   # cached from last paint; used for hit-radius scaling
         self.setAcceptHoverEvents(True)
 
     # ── geometry accessors ────────────────────────────────────────────────────
@@ -40,8 +41,9 @@ class PolygonAnnotationItem(BaseAnnotationItem):
         self.update()
 
     def handle_at(self, pos: QPointF) -> int:
+        hit_r = max(HANDLE_HIT, HANDLE_SCREEN_R * 1.5 / max(self._lod, 0.05))
         for i, pt in enumerate(self._points):
-            if (pt - pos).manhattanLength() <= HANDLE_HIT:
+            if (pt - pos).manhattanLength() <= hit_r:
                 return i
         return -1
 
@@ -64,7 +66,7 @@ class PolygonAnnotationItem(BaseAnnotationItem):
             return QRectF()
         xs = [p.x() for p in self._points]
         ys = [p.y() for p in self._points]
-        m = HANDLE_R + 2
+        m = _BOUNDING_MARGIN
         return QRectF(min(xs) - m, min(ys) - m,
                       max(xs) - min(xs) + 2 * m,
                       max(ys) - min(ys) + 2 * m)
@@ -80,21 +82,25 @@ class PolygonAnnotationItem(BaseAnnotationItem):
     def paint(self, painter: QPainter, option, widget=None):
         if len(self._points) < 2:
             return
+        self._lod = option.levelOfDetailFromTransform(painter.worldTransform())
+        handle_r = HANDLE_SCREEN_R / self._lod
+
         selected = self.isSelected()
         color = QColor(self.class_color)
         poly = QPolygonF(self._points)
 
+        alpha = int(min(255, self.fill_opacity * 255 * (1.5 if selected else 1.0)))
         fill = QColor(color)
-        fill.setAlpha(55 if not selected else 90)
+        fill.setAlpha(alpha)
+        lw = self.line_width + (1.0 if selected else 0.0)
 
         if self.closed:
             painter.setBrush(QBrush(fill))
-            painter.setPen(QPen(color, 1.5 if not selected else 2.5))
+            painter.setPen(QPen(color, lw))
             painter.drawPolygon(poly)
         else:
-            # Polyline: no fill, thicker line
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.setPen(QPen(color, 2.0 if not selected else 3.0))
+            painter.setPen(QPen(color, lw + 0.5))
             painter.drawPolyline(poly)
 
         if selected:
@@ -105,7 +111,7 @@ class PolygonAnnotationItem(BaseAnnotationItem):
                 else:
                     painter.setBrush(QBrush(Qt.GlobalColor.white))
                     painter.setPen(QPen(color, 1.5))
-                painter.drawEllipse(pt, HANDLE_R, HANDLE_R)
+                painter.drawEllipse(pt, handle_r, handle_r)
 
         if self.label and self._points:
             cx = sum(p.x() for p in self._points) / len(self._points)

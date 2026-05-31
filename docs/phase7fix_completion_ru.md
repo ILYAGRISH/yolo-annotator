@@ -213,4 +213,55 @@ Quit              Ctrl+Q
 4. Изменить name / type / options / default → OK
 5. Строка обновляется немедленно; изменения применяются после OK в Schema Editor
 
+---
+
+## Задача 6 — Cosmetic rendering: хэндлы и превью
+
+### Проблема
+- Хэндлы выделенных аннотаций (polygon, bbox, obb, pose) задавались в координатах сцены (`HANDLE_R = 5.0`). При типичном зуме ≈0.3 это 1–2 экр.пикс. — почти невидимо.
+- Точки и линии при рисовании (preview в инструментах) — та же проблема.
+- `display_style` (line_width, opacity) из схемы классов хранился, но нигде не применялся к отрисовке.
+- CrackTool: заливка превью слишком прозрачная (alpha=55).
+- Polygon: snap-индикатор замыкания контура практически невидим.
+
+### Решение
+
+**`annotator/ui/canvas/items/base_item.py`**
+- Добавлены поля `line_width: float = 2.0` и `fill_opacity: float = 0.3`
+
+**`annotator/ui/canvas/items/polygon_item.py`, `bbox_item.py`, `obb_item.py`, `pose_item.py`**
+- `HANDLE_R` → `HANDLE_SCREEN_R = 5.0` (экранные пиксели)
+- В `paint()`: `lod = option.levelOfDetailFromTransform(...)`, `handle_r = HANDLE_SCREEN_R / lod` — хэндлы постоянного экранного размера
+- `_lod` кэшируется для `handle_at()` — зона клика тоже масштабируется
+- `paint()` использует `self.line_width` и `self.fill_opacity` вместо hardcoded значений
+- `_BOUNDING_MARGIN = 30.0` — запас bounding rect для cosmetic хэндлов
+
+**`annotator/ui/canvas/scene.py` → `_make_item()`**
+- После создания item: `item.line_width = cls.display_style.line_width`, `item.fill_opacity = cls.display_style.opacity`
+- Рефакторинг: `return item` вместо множества `return X` → display_style применяется единообразно
+
+**`annotator/tools/base.py`**
+- `_view_lod()` — текущий zoom-фактор из `scene.views()[0].transform().m11()`
+- `_cosmetic_pen(color, width, style)` — pen с `setCosmetic(True)`: ширина в экр.пикс.
+
+**`annotator/tools/polygon_tool.py`**
+- `CLOSE_THRESHOLD_SCREEN = 15` (вместо 12 scene units) — зона замыкания динамически масштабируется
+- `_near_first()` использует `_view_lod()` для корректного threshold
+- `_refresh_preview()`: cosmetic pens, `dot_r = 5.0/lod`, snap-кольцо `snap_r = 11.0/lod`
+
+**`annotator/tools/crack_tool.py`**
+- `_refresh_preview()`: cosmetic pens, `dot_r = 5.0/lod`, fill alpha 55 → 90
+
+### Карта параметров (для быстрого поиска)
+
+| Параметр | Файл | Место |
+|----------|------|-------|
+| Размер хэндла (экр.пикс.) | `items/*_item.py` | `HANDLE_SCREEN_R = 5.0` |
+| Дефолт line_width | `items/base_item.py` | `self.line_width = 2.0` |
+| Дефолт fill_opacity | `items/base_item.py` | `self.fill_opacity = 0.3` |
+| Точки превью (экр.пикс.) | `tools/polygon_tool.py`, `crack_tool.py` | `dot_r = 5.0 / lod` |
+| Кольцо замыкания (экр.пикс.) | `tools/polygon_tool.py` | `snap_r = 11.0 / lod` |
+| Заливка превью CrackTool | `tools/crack_tool.py` | `QColor(255, 170, 0, 90)` |
+| Зона замыкания (экр.пикс.) | `tools/polygon_tool.py` | `CLOSE_THRESHOLD_SCREEN = 15` |
+
 <!-- Следующие задачи будут добавлены ниже -->

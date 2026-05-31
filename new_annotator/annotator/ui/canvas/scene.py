@@ -114,23 +114,24 @@ class AnnotationScene(QGraphicsScene):
                 color, label = cls.color, cls.name
 
         w, h = self._image_size
+        item = None
 
         if ann.ann_type == AnnotationType.SEGMENT:
             pts = [(x * w, y * h) for x, y in ann.data.get("points", [])]
-            return PolygonAnnotationItem(ann.id, pts, color, label, closed=True)
+            item = PolygonAnnotationItem(ann.id, pts, color, label, closed=True)
 
-        if ann.ann_type == AnnotationType.POLYLINE:
+        elif ann.ann_type == AnnotationType.POLYLINE:
             pts = [(x * w, y * h) for x, y in ann.data.get("points", [])]
-            return PolygonAnnotationItem(ann.id, pts, color, label, closed=False)
+            item = PolygonAnnotationItem(ann.id, pts, color, label, closed=False)
 
-        if ann.ann_type == AnnotationType.BBOX:
+        elif ann.ann_type == AnnotationType.BBOX:
             d = ann.data
             rect = (d["x"]*w, d["y"]*h, d["w"]*w, d["h"]*h)
-            return BBoxAnnotationItem(ann.id, rect, color, label)
+            item = BBoxAnnotationItem(ann.id, rect, color, label)
 
-        if ann.ann_type == AnnotationType.OBB:
+        elif ann.ann_type == AnnotationType.OBB:
             d = ann.data
-            return OBBAnnotationItem(
+            item = OBBAnnotationItem(
                 ann.id,
                 d["cx"] * w, d["cy"] * h,
                 d["w"] * w,  d["h"] * h,
@@ -138,7 +139,7 @@ class AnnotationScene(QGraphicsScene):
                 color, label,
             )
 
-        if ann.ann_type == AnnotationType.POSE:
+        elif ann.ann_type == AnnotationType.POSE:
             kps = [(x * w, y * h, v) for x, y, v in ann.data.get("keypoints", [])]
             edges: list[tuple[int, int]] = []
             if cls and cls.skeleton:
@@ -148,9 +149,13 @@ class AnnotationScene(QGraphicsScene):
                         if 0 <= j < len(cls.skeleton) and i != j:
                             edge_set.add((min(i, j), max(i, j)))
                 edges = sorted(edge_set)
-            return PoseAnnotationItem(ann.id, kps, edges, color, label)
+            item = PoseAnnotationItem(ann.id, kps, edges, color, label)
 
-        return None  # other types silently skipped
+        if item is not None and cls is not None:
+            item.line_width = float(cls.display_style.line_width)
+            item.fill_opacity = float(cls.display_style.opacity)
+
+        return item  # None for unsupported types
 
     def _clear_ann_items(self):
         for item in self._ann_items.values():

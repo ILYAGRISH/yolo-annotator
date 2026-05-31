@@ -274,9 +274,11 @@ class CrackTool(BaseTool):
         if not pts:
             return
 
-        orange_dash = QPen(QColor("#FFAA00"), 1.5, Qt.PenStyle.DashLine)
-        orange_solid = QPen(QColor("#FFAA00"), 1.5)
-        dot_r = 3
+        lod = self._view_lod()
+        dot_r = 5.0 / max(lod, 0.05)   # 5 screen-pixel dot
+
+        orange_dash = self._cosmetic_pen("#FFAA00", 1.5, Qt.PenStyle.DashLine)
+        orange_solid = self._cosmetic_pen("#FFAA00", 1.5)
 
         # Draw committed segments
         for i in range(len(pts) - 1):
@@ -287,16 +289,17 @@ class CrackTool(BaseTool):
 
         # Rubber-band line to cursor
         if cursor is not None:
+            cursor_pen = self._cosmetic_pen("#FFAA00", 1.0, Qt.PenStyle.DashLine)
+            cursor_pen.setColor(QColor(255, 170, 0, 120))
             cl = self._scene.addLine(
-                pts[-1].x(), pts[-1].y(), cursor.x(), cursor.y(),
-                QPen(QColor(255, 170, 0, 120), 1, Qt.PenStyle.DashLine))
+                pts[-1].x(), pts[-1].y(), cursor.x(), cursor.y(), cursor_pen)
             cl.setZValue(20)
             self._temp_items.append(cl)
 
         # Vertex dots
         for pt in pts:
             dot = self._scene.addEllipse(
-                pt.x() - dot_r, pt.y() - dot_r, dot_r*2, dot_r*2,
+                pt.x() - dot_r, pt.y() - dot_r, dot_r * 2, dot_r * 2,
                 orange_solid, QBrush(QColor("#FFAA00")))
             dot.setZValue(21)
             self._temp_items.append(dot)
@@ -311,8 +314,8 @@ class CrackTool(BaseTool):
                 qpoly = QPolygonF([QPointF(x * w, y * h) for x, y in poly_pts])
                 filled = self._scene.addPolygon(
                     qpoly,
-                    QPen(QColor("#FFAA00"), 1),
-                    QBrush(QColor(255, 170, 0, 55)),
+                    self._cosmetic_pen("#FFAA00", 1.5),
+                    QBrush(QColor(255, 170, 0, 90)),   # увеличено с 55 до 90
                 )
                 filled.setZValue(19)
                 self._temp_items.append(filled)

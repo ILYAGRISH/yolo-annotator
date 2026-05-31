@@ -4,8 +4,9 @@ from PyQt6.QtGui import QPainter, QPen, QBrush, QColor, QPainterPath
 
 from annotator.ui.canvas.items.base_item import BaseAnnotationItem
 
-HANDLE_R = 5.0
+HANDLE_SCREEN_R = 5.0
 HANDLE_HIT = 9.0
+_BOUNDING_MARGIN = 30.0
 
 
 class BBoxAnnotationItem(BaseAnnotationItem):
@@ -16,6 +17,7 @@ class BBoxAnnotationItem(BaseAnnotationItem):
         self._x, self._y, self._w, self._h = rect_scene
         self.label = label
         self._hover_handle = -1
+        self._lod: float = 1.0
         self.setAcceptHoverEvents(True)
 
     # ── geometry accessors ────────────────────────────────────────────────────
@@ -30,8 +32,9 @@ class BBoxAnnotationItem(BaseAnnotationItem):
                 QPointF(x+w, y+h), QPointF(x, y+h)]
 
     def handle_at(self, pos: QPointF) -> int:
+        hit_r = max(HANDLE_HIT, HANDLE_SCREEN_R * 1.5 / max(self._lod, 0.05))
         for i, pt in enumerate(self._corners()):
-            if (pt - pos).manhattanLength() <= HANDLE_HIT:
+            if (pt - pos).manhattanLength() <= hit_r:
                 return i
         return -1
 
@@ -75,7 +78,7 @@ class BBoxAnnotationItem(BaseAnnotationItem):
     # ── QGraphicsItem overrides ───────────────────────────────────────────────
 
     def boundingRect(self) -> QRectF:
-        m = HANDLE_R + 2
+        m = _BOUNDING_MARGIN
         return QRectF(self._x - m, self._y - m,
                       self._w + 2 * m, self._h + 2 * m)
 
@@ -85,13 +88,19 @@ class BBoxAnnotationItem(BaseAnnotationItem):
         return path
 
     def paint(self, painter: QPainter, option, widget=None):
+        self._lod = option.levelOfDetailFromTransform(painter.worldTransform())
+        handle_r = HANDLE_SCREEN_R / self._lod
+
         selected = self.isSelected()
         color = QColor(self.class_color)
 
+        alpha = int(min(255, self.fill_opacity * 255 * (1.5 if selected else 1.0)))
         fill = QColor(color)
-        fill.setAlpha(40 if not selected else 70)
+        fill.setAlpha(alpha)
+        lw = self.line_width + (1.0 if selected else 0.0)
+
         painter.setBrush(QBrush(fill))
-        painter.setPen(QPen(color, 1.5 if not selected else 2.5))
+        painter.setPen(QPen(color, lw))
         painter.drawRect(QRectF(self._x, self._y, self._w, self._h))
 
         if selected:
@@ -102,7 +111,7 @@ class BBoxAnnotationItem(BaseAnnotationItem):
                 else:
                     painter.setBrush(QBrush(Qt.GlobalColor.white))
                     painter.setPen(QPen(color, 1.5))
-                painter.drawEllipse(pt, HANDLE_R, HANDLE_R)
+                painter.drawEllipse(pt, handle_r, handle_r)
 
         if self.label:
             painter.setPen(QPen(color))

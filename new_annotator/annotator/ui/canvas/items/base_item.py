@@ -12,6 +12,8 @@ class BaseAnnotationItem(QGraphicsItem):
         super().__init__(parent)
         self.annotation_id = annotation_id
         self.class_color = class_color
+        self.line_width: float = 2.0
+        self.fill_opacity: float = 0.3
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
 
     @abstractmethod
