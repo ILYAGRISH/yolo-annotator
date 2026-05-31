@@ -450,4 +450,93 @@ annotator/
     project_controller.py      (+ yolo_point ветка)
 ```
 
-<!-- Следующие задачи будут добавлены ниже -->
+---
+
+## Задача 11 — Brush/Mask tool (бинарные маски сегментации)
+
+### Что реализовано
+
+Новый инструмент рисования бинарных масок кистью. Результат сохраняется как PNG и экспортируется в YOLO seg через контурный полигон.
+
+### Детали реализации
+
+**`annotator/domain/annotation.py`**
+- Добавлен `AnnotationType.MASK = "mask"`
+
+**`annotator/storage/mask_storage.py`** (новый)
+- `MaskStorage` — save/load PNG (grayscale, uint8)
+- `mask_to_polygon(bitmap, w, h)` — контур через `cv2.findContours` → нормализованные координаты
+- `mask_to_bbox(bitmap, w, h)` — bounding box из ненулевых пикселей
+
+**`annotator/tools/brush_tool.py`** (новый)
+- Горячая клавиша: `M`
+- Рисование/стирание: `cv2.circle` на numpy uint8 bitmap
+- Overlay: numpy → RGBA QImage → QPixmap (fix: `raw = rgba.tobytes()` + `.copy()` против use-after-free)
+- Enter / double-click = commit; Esc = discard (с восстановлением оригинала)
+- Re-edit (Select нужную маску → M): загружает PNG в canvas, оригинал восстанавливается при Esc
+- Авто-загрузка: первый Erase-мазок на пустом canvas → загружает последнюю маску класса
+
+**`annotator/ui/canvas/items/mask_item.py`** (новый)
+- `MaskAnnotationItem` — отрисовка заполненным полигоном контура
+- `handle_at() → -1` (нет вершин для перетаскивания)
+
+**`annotator/ui/panels/tool_props_panel.py`**
+- Добавлена поддержка типа `"int"` (QSpinBox) — используется для `brush_size`
+
+**`annotator/ui/canvas/scene.py`**, **`main_window.py`**, **`exporters/yolo_seg.py`**, **`storage/project_store.py`**
+- Регистрация BrushTool, MaskAnnotationItem, экспорт YOLO seg через `ann.data["polygon"]`
+
+### Workflow
+1. Выбрать класс → нажать `M`
+2. Рисовать кистью (ЛКМ + drag); Erase mode — стирает
+3. Enter или двойной клик → commit (маска сохраняется как PNG, появляется в Annotations)
+4. Esc → discard (если маска была загружена для ре-едита — возвращается на место)
+5. Re-edit: Select нужную маску → M → маска загружается в canvas → Enter сохраняет новую версию
+
+### Файлы задачи 11
+```
+annotator/
+  domain/
+    annotation.py              (+ MASK enum)
+    label_class.py             (+ "mask" в словари)
+  storage/
+    mask_storage.py            (новый)
+  tools/
+    brush_tool.py              (новый)
+  ui/canvas/items/
+    mask_item.py               (новый)
+  ui/canvas/
+    scene.py                   (+ MASK ветка)
+  ui/
+    main_window.py             (+ BrushTool регистрация)
+    panels/tool_props_panel.py (+ int spinbox)
+  exporters/
+    yolo_seg.py                (+ MASK экспорт)
+  controller/
+    project_controller.py      (minor)
+```
+
+---
+
+## Баг-фиксы (после тестирования задачи 11)
+
+### Фикс 1 — Потеря маски при Esc после загрузки для ре-едита
+
+**Проблема:** `_load_mask_into_canvas()` удалял аннотацию из контроллера сразу при загрузке (чтобы избежать двойного рендеринга). При нажатии Esc canvas очищался, но оригинальная аннотация не восстанавливалась — данные терялись безвозвратно.
+
+**Сценарий:** Select → клик на маску → M (загрузка в canvas) → Esc → маска исчезает.
+
+**Решение (`annotator/tools/brush_tool.py`):**
+- `self._editing_ann` сохраняет оригинальную аннотацию при загрузке
+- `_reset_canvas()` (Esc) — восстанавливает `_editing_ann` через `ctrl.add_annotation()`
+- `deactivate()` — то же, если пользователь переключился на другой инструмент
+- `_commit()` — очищает `_editing_ann` перед `_reset_canvas()` (новая версия уже добавлена)
+
+### Фикс 2 — Хоткей M не работал
+
+**Проблема:** Каждый инструмент регистрировал шорткат дважды — в пункте меню Tools и в кнопке тулбара. Qt трактовал это как "ambiguous shortcut" и не активировал ни один из них.
+
+**Решение (`annotator/ui/main_window.py`):**
+- Шорткаты убраны из пунктов меню Tools (текст `[M]` в названии остался для информации)
+- Шорткаты остались только на кнопках тулбара (единственный canonical источник)
+- Исправление применено ко всем инструментам (V, P, L, B, O, C, K, ., M)
