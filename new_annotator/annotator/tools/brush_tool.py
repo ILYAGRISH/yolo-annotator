@@ -58,6 +58,7 @@ class BrushTool(BaseTool):
         self._last_pos: QPointF | None = None
         self._has_content: bool = False
         self._img_size: tuple[int, int] = (1, 1)      # (W, H)
+        self._editing_ann = None                       # original Annotation being re-edited; restored on Esc
 
     # ── BaseTool interface ────────────────────────────────────────────────────
 
@@ -77,6 +78,9 @@ class BrushTool(BaseTool):
         self._try_load_selected_mask()   # load selected MASK annotation if any
 
     def deactivate(self):
+        if self._editing_ann is not None and self._ctrl is not None:
+            self._ctrl.add_annotation(self._editing_ann)
+            self._editing_ann = None
         self._remove_overlay()
         self._mask_bitmap = None
         self._has_content = False
@@ -165,6 +169,9 @@ class BrushTool(BaseTool):
         self._overlay_item = None
 
     def _reset_canvas(self):
+        if self._editing_ann is not None and self._ctrl is not None:
+            self._ctrl.add_annotation(self._editing_ann)
+            self._editing_ann = None
         if self._mask_bitmap is not None:
             self._mask_bitmap[:] = 0
         self._flush_overlay()
@@ -262,7 +269,9 @@ class BrushTool(BaseTool):
     def _load_mask_into_canvas(self, ann) -> bool:
         """
         Load a MASK annotation's PNG into the canvas bitmap.
-        Deletes the annotation from the controller so a re-commit replaces it.
+        The original annotation is removed from the scene immediately (to avoid
+        double-rendering) but saved in _editing_ann so Esc can restore it.
+        On commit, _editing_ann is cleared (new annotation replaces it).
         Returns True on success.
         """
         if self._ctrl is None or self._mask_bitmap is None:
@@ -283,6 +292,7 @@ class BrushTool(BaseTool):
 
         self._mask_bitmap[:] = loaded
         self._has_content = bool(self._mask_bitmap.any())
+        self._editing_ann = ann              # save original — restored on Esc
         self._ctrl.delete_annotation(ann.id)
         self._flush_overlay()
 
@@ -368,6 +378,7 @@ class BrushTool(BaseTool):
         }
 
         self._ctrl.add_annotation(ann)
+        self._editing_ann = None   # original already deleted; clear before _reset_canvas
         self._reset_canvas()
 
     # ── helpers ───────────────────────────────────────────────────────────────
