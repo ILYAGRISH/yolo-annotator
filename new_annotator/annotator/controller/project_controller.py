@@ -360,6 +360,12 @@ class ProjectController(QObject):
 
     def get_type_mismatches(self) -> list[str]:
         """Return unique descriptions where ann.ann_type.value != class.annotation_type."""
+        # Ann types that work on any class (BrushTool, PointTool) — never a mismatch
+        _UNIVERSAL = {"mask", "point"}
+        # Explicitly compatible (schema_type, actual_ann_type)
+        # CrackTool creates SEGMENT (buffered polygon) on polygon-type classes — expected
+        _COMPAT = {("polygon", "segment")}
+
         if not self._project:
             return []
         all_anns = ProjectStore.load_all_annotations(self._project)
@@ -371,6 +377,10 @@ class ProjectController(QObject):
             for ann in anns:
                 cls = self._project.get_class(ann.class_id)
                 if cls and cls.annotation_type != ann.ann_type.value:
+                    if ann.ann_type.value in _UNIVERSAL:
+                        continue
+                    if (cls.annotation_type, ann.ann_type.value) in _COMPAT:
+                        continue
                     key = (cls.name, cls.annotation_type, ann.ann_type.value)
                     if key not in seen:
                         seen.add(key)
