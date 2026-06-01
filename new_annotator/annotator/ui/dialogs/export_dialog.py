@@ -63,8 +63,11 @@ class ExportDatasetDialog(QDialog):
         # ── Multi-task section ─────────────────────────────────────────────────
         self._multi_group = QGroupBox("Tasks")
         multi_lay = QFormLayout(self._multi_group)
-        self._chk_detect  = QCheckBox("YOLO Detect  (bbox labels)")
-        self._chk_segment = QCheckBox("YOLO Segment  (polygon / mask labels)")
+        self._chk_detect   = QCheckBox("YOLO Detect  (bbox labels)")
+        self._chk_segment  = QCheckBox("YOLO Segment  (polygon / mask labels)")
+        self._chk_obb      = QCheckBox("YOLO OBB  (oriented bbox labels)")
+        self._chk_pose     = QCheckBox("YOLO Pose  (keypoints labels)")
+        self._chk_classify = QCheckBox("YOLO Classify  (image folders → classify/)")
         self._chk_detect.setChecked(True)
         self._chk_segment.setChecked(True)
         self._policy_combo = QComboBox()
@@ -72,6 +75,9 @@ class ExportDatasetDialog(QDialog):
             self._policy_combo.addItem(label)
         multi_lay.addRow("", self._chk_detect)
         multi_lay.addRow("", self._chk_segment)
+        multi_lay.addRow("", self._chk_obb)
+        multi_lay.addRow("", self._chk_pose)
+        multi_lay.addRow("", self._chk_classify)
         multi_lay.addRow("Incompatible types:", self._policy_combo)
         self._multi_group.setVisible(False)
         lay.addWidget(self._multi_group)
@@ -130,6 +136,12 @@ class ExportDatasetDialog(QDialog):
             jobs.append(ExportJob("yolo_detect", geometry_policy=policy))
         if self._chk_segment.isChecked():
             jobs.append(ExportJob("yolo_seg", geometry_policy=policy))
+        if self._chk_obb.isChecked():
+            jobs.append(ExportJob("yolo_obb", geometry_policy=policy))
+        if self._chk_pose.isChecked():
+            jobs.append(ExportJob("yolo_pose", geometry_policy=policy))
+        if self._chk_classify.isChecked():
+            jobs.append(ExportJob("yolo_classify", geometry_policy=policy))
         return jobs
 
     @property

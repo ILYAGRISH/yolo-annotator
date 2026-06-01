@@ -82,7 +82,7 @@ def write_yolo_multitask(project: Project,
         img_path = Path(img_rec.path)
         anns = all_annotations.get(img_rec.path, [])
 
-        for labels_dir_name, _yaml_stem, ann_fn in tasks:
+        for labels_dir_name, _yaml_stem, ann_fn, _yaml_extra in tasks:
             labels_dir = output_dir / labels_dir_name / split
             labels_dir.mkdir(parents=True, exist_ok=True)
             lines = [ln for ann in anns for ln in [ann_fn(ann)] if ln]
@@ -97,12 +97,13 @@ def write_yolo_multitask(project: Project,
     splits = sorted({r.split or "train" for r in project.images})
     names = [c.name for c in sorted(project.classes, key=lambda c: c.id)]
 
-    for labels_dir_name, yaml_stem, _ in tasks:
-        _write_multitask_yaml(output_dir, labels_dir_name, yaml_stem, splits, names)
+    for labels_dir_name, yaml_stem, _, yaml_extra in tasks:
+        _write_multitask_yaml(output_dir, labels_dir_name, yaml_stem, splits, names, yaml_extra)
 
 
 def _write_multitask_yaml(output_dir: Path, labels_dir_name: str,
-                           yaml_stem: str, splits: list, names: list) -> None:
+                           yaml_stem: str, splits: list, names: list,
+                           extra: str | None = None) -> None:
     lines = [
         f"# Multi-task export — images shared at images/{{split}}/",
         f"# Labels at {labels_dir_name}/{{split}}/",
@@ -114,7 +115,10 @@ def _write_multitask_yaml(output_dir: Path, labels_dir_name: str,
     lines.append(f"label_dir: {labels_dir_name}")
     lines.append(f"nc: {len(names)}")
     lines.append(f"names: {names}")
-    (output_dir / f"{yaml_stem}.yaml").write_text("\n".join(lines), encoding="utf-8")
+    content = "\n".join(lines)
+    if extra:
+        content += extra
+    (output_dir / f"{yaml_stem}.yaml").write_text(content, encoding="utf-8")
 
 
 # ── abstract base ─────────────────────────────────────────────────────────────

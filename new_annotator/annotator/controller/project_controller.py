@@ -456,22 +456,43 @@ class ProjectController(QObject):
         from annotator.exporters.base import write_yolo_multitask
         from annotator.exporters.yolo_detect import _make_detect_fn
         from annotator.exporters.yolo_seg import _format_annotation
-
-        _JOB_MAP = {
-            "yolo_detect":  lambda policy: ("labels_detect",  "data_detect",  _make_detect_fn(policy)),
-            "yolo_seg":     lambda policy: ("labels_segment", "data_segment", _format_annotation),
-        }
-
-        tasks = []
-        for job in jobs:
-            builder = _JOB_MAP.get(job.format_name)
-            if builder is None:
-                raise ValueError(f"Multi-task not supported for format: {job.format_name!r}")
-            tasks.append(builder(job.geometry_policy))
+        from annotator.exporters.yolo_obb import _format_obb
+        from annotator.exporters.yolo_pose import (_make_format_fn as _make_pose_fn,
+                                                    _kpt_count_for_project)
+        from annotator.exporters.yolo_classify import YoloClassifyExporter
 
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
-        write_yolo_multitask(self._project, all_anns, output_dir, tasks, copy_images)
+
+        # Classify has a separate folder structure — handle apart from write_yolo_multitask
+        classify_jobs = [j for j in jobs if j.format_name == "yolo_classify"]
+        task_jobs     = [j for j in jobs if j.format_name != "yolo_classify"]
+
+        tasks = []
+        for job in task_jobs:
+            if job.format_name == "yolo_detect":
+                tasks.append(("labels_detect", "data_detect",
+                               _make_detect_fn(job.geometry_policy), None))
+            elif job.format_name == "yolo_seg":
+                tasks.append(("labels_segment", "data_segment", _format_annotation, None))
+            elif job.format_name == "yolo_obb":
+                tasks.append(("labels_obb", "data_obb", _format_obb, None))
+            elif job.format_name == "yolo_pose":
+                n = _kpt_count_for_project(self._project)
+                extra = f"\nkpt_shape: [{n}, 3]" if n > 0 else None
+                tasks.append(("labels_pose", "data_pose",
+                               _make_pose_fn(self._project), extra))
+            else:
+                raise ValueError(f"Multi-task not supported for format: {job.format_name!r}")
+
+        if tasks:
+            write_yolo_multitask(self._project, all_anns, output_dir, tasks, copy_images)
+
+        for _job in classify_jobs:
+            YoloClassifyExporter().export(
+                self._project, output_dir / "classify",
+                all_annotations=all_anns, copy_images=True)
+
         task_names = " + ".join(j.format_name for j in jobs)
         self.status_message.emit(f"Multi-task export [{task_names}] → {output_dir}")
 
