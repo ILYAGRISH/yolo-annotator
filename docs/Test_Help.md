@@ -374,22 +374,35 @@ output/
 
 ---
 
-### 7.8 Multi-task (Detect + Segment, общий images/)
+### 7.8 Multi-task (общий images/, несколько форматов)
 
 **Используем:** File → Export Dataset → режим **Multi-task**  
-**Выбираем:** чекбоксы `YOLO Detect` и/или `YOLO Segment`; политику несовместимых типов  
-**Получаем:**
+**Выбираем:** любую комбинацию чекбоксов; политику несовместимых типов  
+**Получаем** (при всех 5 чекбоксах):
 ```
 <output>/
   images/
-    train/   val/              ← изображения скопированы один раз
+    train/   val/              ← изображения скопированы один раз (для detect/seg/obb/pose)
   labels_detect/
     train/   val/              ← bbox-файлы
   labels_segment/
     train/   val/              ← polygon-файлы
+  labels_obb/
+    train/   val/              ← OBB-файлы (4 угла)
+  labels_pose/
+    train/   val/              ← keypoint-файлы
+  classify/
+    train/
+      <class_name>/            ← изображения для classify (свои копии)
+    val/
+      <class_name>/
   data_detect.yaml
   data_segment.yaml
+  data_obb.yaml
+  data_pose.yaml               ← включает kpt_shape
 ```
+
+> **Classify** выгружается в отдельную папку `classify/` — у него другая структура (папки по классам вместо labels/*.txt), поэтому `images/` он не использует.
 
 **Пример `data_detect.yaml`:**
 ```yaml
@@ -403,14 +416,37 @@ nc: 2
 names: ['car', 'person']
 ```
 
+**Пример `data_pose.yaml`** (с kpt_shape):
+```yaml
+# Multi-task export — images shared at images/{split}/
+# Labels at labels_pose/{split}/
+path: C:/exports/run1
+train: images/train
+val: images/val
+label_dir: labels_pose
+nc: 1
+names: ['person']
+kpt_shape: [3, 3]
+```
+
+#### Доступные чекбоксы в Multi-task
+
+| Чекбокс | Папка с лейблами | yaml-файл | Примечание |
+|---------|-----------------|-----------|------------|
+| YOLO Detect | `labels_detect/` | `data_detect.yaml` | affected by geometry_policy |
+| YOLO Segment | `labels_segment/` | `data_segment.yaml` | — |
+| YOLO OBB | `labels_obb/` | `data_obb.yaml` | только OBB-аннотации |
+| YOLO Pose | `labels_pose/` | `data_pose.yaml` | + kpt_shape в yaml |
+| YOLO Classify | `classify/` | нет yaml | отдельная папочная структура |
+
 #### Политика несовместимых типов (`geometry_policy`)
 
 | Политика | Поведение при YOLO Detect |
 |----------|--------------------------|
-| **Skip** (по умолчанию) | Экспортирует только BBOX-аннотации; MASK/POLYGON игнорируются |
+| **Skip** (по умолчанию) | Экспортирует только BBOX-аннотации; MASK/POLYGON/OBB/POSE игнорируются |
 | **Convert** | BBOX → как обычно; MASK → bbox из `ann.data["bbox"]`; POLYGON → bounding box из вершин |
 
-> Для YOLO Segment политика не влияет — seg-экспортёр уже обрабатывает все типы.
+> Для Segment, OBB, Pose и Classify политика не влияет — каждый экспортёр обрабатывает только свой тип.
 
 ---
 
@@ -458,4 +494,8 @@ names: ['car', 'person']
 | 14 | QC → Validate | список issues |
 | 15 | Export → Single → YOLO Pose | `labels/train/*.txt` + `kpt_shape` в yaml |
 | 16 | Export → Multi-task → Detect + Segment | `labels_detect/` + `labels_segment/` + shared `images/` |
-| 17 | Ctrl+S | сохранено без ошибок |
+| 17 | Export → Multi-task → OBB | `labels_obb/train/*.txt` + `data_obb.yaml` |
+| 18 | Export → Multi-task → Pose | `labels_pose/train/*.txt` + `kpt_shape` в `data_pose.yaml` |
+| 19 | Export → Multi-task → Classify | `classify/train/<class>/img.jpg` (без labels/) |
+| 20 | Export → Multi-task → Detect (Convert) + Segment | POLYGON → bbox в `labels_detect/`; polygon → `labels_segment/` |
+| 21 | Ctrl+S | сохранено без ошибок |
