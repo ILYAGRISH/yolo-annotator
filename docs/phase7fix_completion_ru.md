@@ -518,6 +518,138 @@ annotator/
 
 ---
 
+## Задача 12 — Экспорт Phase 7fix: ExportJob, geometry_policy, Multi-task UI
+
+### Что реализовано
+
+Три связанных улучшения экспорта: унифицированный dataclass для задания параметров экспорта, политика конвертации несовместимых геометрий, и новый режим Multi-task в диалоге экспорта.
+
+### Детали реализации
+
+**`annotator/exporters/export_job.py`** (новый)
+```python
+@dataclass
+class ExportJob:
+    format_name: str           # "yolo_detect" | "yolo_seg" | ...
+    geometry_policy: str = "skip"  # "skip" | "convert"
+```
+
+**`annotator/exporters/yolo_detect.py`**
+- `_get_bbox_from_ann(ann)` — извлекает bbox из MASK (`ann.data["bbox"]`) или вычисляет из вершин POLYGON/POLYLINE
+- `_make_detect_fn(policy)` — фабрика: при `policy="convert"` MASK/POLYGON конвертируются в bbox; при `"skip"` — пропускаются
+- `YoloDetectExporter.export()` принимает `geometry_policy` из kwargs
+
+**`annotator/exporters/base.py`**
+- `write_yolo_multitask(project, all_annotations, output_dir, tasks, copy_images)` — общий `images/{split}/` + отдельные `labels_*/{split}/` для каждой задачи
+- Task-тупл: `(labels_dir_name, yaml_stem, ann_to_line_fn, yaml_extra | None)`
+- `_write_multitask_yaml(...)` — yaml с `label_dir:` вместо стандартного `labels`; принимает `extra` (дописывается в конец файла — используется для `kpt_shape`)
+
+**`annotator/ui/dialogs/export_dialog.py`**
+- Режим **Single** / **Multi-task** (radio buttons)
+- В Multi-task: чекбоксы задач + dropdown политики несовместимых типов
+- `export_jobs: list[ExportJob]` — property для контроллера
+
+**`annotator/controller/project_controller.py`**
+- `export_dataset()` — добавлен параметр `geometry_policy`, передаётся в `exp.export()`
+- `export_multitask(output_dir, jobs, copy_images)` — роутинг по `_JOB_MAP` → `write_yolo_multitask()`
+- `main_window.py`: роутинг `dlg.is_multitask` → `export_multitask()` или `export_dataset()`
+
+### Политика geometry_policy
+
+| Политика | Поведение в YOLO Detect |
+|----------|------------------------|
+| `skip` (по умолчанию) | Только BBOX; всё остальное игнорируется |
+| `convert` | MASK → bbox из `ann.data["bbox"]`; POLYGON/POLYLINE → min/max bbox из вершин |
+
+> Для Segment/OBB/Pose политика не применяется — каждый экспортёр уже обрабатывает только свои типы.
+
+### Структура вывода Multi-task (Detect + Segment)
+```
+output/
+  images/train/        ← скопировано один раз
+  labels_detect/train/ ← bbox
+  labels_segment/train/← polygon/mask
+  data_detect.yaml
+  data_segment.yaml
+```
+
+### Файлы задачи 12
+```
+annotator/
+  exporters/
+    export_job.py              (новый — ExportJob dataclass)
+    yolo_detect.py             (_make_detect_fn, _get_bbox_from_ann, geometry_policy)
+    base.py                    (write_yolo_multitask, _write_multitask_yaml с extra)
+  ui/
+    dialogs/export_dialog.py   (Single/Multi-task radio, чекбоксы, policy dropdown)
+    main_window.py             (роутинг export_multitask vs export_dataset)
+  controller/
+    project_controller.py      (export_multitask, _JOB_MAP detect+seg, geometry_policy)
+```
+
+---
+
+## Задача 13 — Multi-task расширение: OBB, Pose, Classify
+
+### Что реализовано
+
+Добавлены три новых формата в режим Multi-task: OBB, Pose (с `kpt_shape` в yaml), Classify (в отдельный `classify/` субдиректорий).
+
+### Детали реализации
+
+**`annotator/exporters/base.py`**
+- Task-тупл расширен с 3 до 4 элементов: `(labels_dir, yaml_stem, fn, yaml_extra)`
+- `_write_multitask_yaml` принимает `extra: str | None` и дописывает в конец yaml-файла
+
+**`annotator/controller/project_controller.py`** — `export_multitask()`
+- Classify джобы выделяются отдельно (`classify_jobs`) — у них другая структура
+- Остальные форматы строят 4-тупл и передаются в `write_yolo_multitask()`
+- OBB: `("labels_obb", "data_obb", _format_obb, None)`
+- Pose: `("labels_pose", "data_pose", _make_pose_fn(project), "\nkpt_shape: [N, 3]")`
+- Classify: `YoloClassifyExporter().export(..., output_dir / "classify", ...)`
+
+**`annotator/ui/dialogs/export_dialog.py`**
+- Три новых чекбокса в Multi-task секции: OBB, Pose, Classify (по умолчанию не отмечены)
+- `export_jobs` property возвращает их при отметке
+
+### Итоговая структура при всех 5 задачах
+```
+output/
+  images/train/              ← shared для detect/seg/obb/pose
+  labels_detect/train/
+  labels_segment/train/
+  labels_obb/train/
+  labels_pose/train/
+  classify/train/<class>/    ← отдельно, свои копии изображений
+  data_detect.yaml
+  data_segment.yaml
+  data_obb.yaml
+  data_pose.yaml             ← содержит kpt_shape: [N, 3]
+```
+
+### Таблица форматов Multi-task
+
+| Формат | Папка | yaml | Особенности |
+|--------|-------|------|-------------|
+| YOLO Detect | `labels_detect/` | `data_detect.yaml` | geometry_policy применяется |
+| YOLO Segment | `labels_segment/` | `data_segment.yaml` | — |
+| YOLO OBB | `labels_obb/` | `data_obb.yaml` | только OBB-тип |
+| YOLO Pose | `labels_pose/` | `data_pose.yaml` | + kpt_shape в yaml |
+| YOLO Classify | `classify/` | нет | папочная структура, вне write_yolo_multitask |
+
+### Файлы задачи 13
+```
+annotator/
+  exporters/
+    base.py                    (4-элементный тупл, _write_multitask_yaml extra)
+  ui/
+    dialogs/export_dialog.py   (+ OBB, Pose, Classify чекбоксы)
+  controller/
+    project_controller.py      (classify отдельно; OBB/Pose в _JOB_MAP; kpt_shape extra)
+```
+
+---
+
 ## Баг-фиксы (после тестирования задачи 11)
 
 ### Фикс 1 — Потеря маски при Esc после загрузки для ре-едита
