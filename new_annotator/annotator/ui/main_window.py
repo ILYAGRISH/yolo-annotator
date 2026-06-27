@@ -107,6 +107,7 @@ class MainWindow(QMainWindow):
         self._add_action(file_m, "Project Settings…", self._open_project_settings)
         file_m.addSeparator()
         self._add_action(file_m, "Add Images from Folder…", self._add_images)
+        self._add_action(file_m, "Split Dataset…", self._split_dataset)
         file_m.addSeparator()
         self._add_action(file_m, "Export Dataset…", self._export_dataset, "Ctrl+E")
         file_m.addSeparator()
@@ -636,6 +637,21 @@ class MainWindow(QMainWindow):
         folder = QFileDialog.getExistingDirectory(self, "Select image folder")
         if folder:
             self._ctrl.add_images_from_folder(Path(folder))
+
+    def _split_dataset(self):
+        if not self._ctrl.project:
+            QMessageBox.information(self, "No project",
+                                    "Open or create a project first.")
+            return
+        if not self._ctrl.project.images:
+            QMessageBox.information(self, "No images",
+                                    "Add images to the project first.")
+            return
+        from annotator.ui.dialogs.split_dataset_dialog import SplitDatasetDialog
+        dlg = SplitDatasetDialog(self._ctrl.project, self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._ctrl.split_dataset(
+                dlg.val_pct, dlg.test_pct, dlg.mode, dlg.shuffle)
 
     # ── close ─────────────────────────────────────────────────────────────────
 

@@ -109,6 +109,50 @@ class ProjectController(QObject):
         self._dirty_images.clear()
         self.status_message.emit(f"Saved: {self._project.project_path}")
 
+    def split_dataset(self, val_pct: int, test_pct: int,
+                      mode: str = "all", shuffle: bool = True) -> None:
+        """Assign train/val/test splits to project images proportionally.
+
+        mode: "all"        — reassign all images (overwrites existing splits)
+              "unassigned" — only images not yet assigned to val or test
+        """
+        if not self._project:
+            return
+
+        if mode == "all":
+            pool = list(self._project.images)
+        else:
+            pool = [img for img in self._project.images
+                    if img.split not in ("val", "test")]
+
+        if not pool:
+            self.status_message.emit("No images to split.")
+            return
+
+        if shuffle:
+            import random
+            random.shuffle(pool)
+
+        n = len(pool)
+        n_val  = min(round(n * val_pct  / 100), n)
+        n_test = min(round(n * test_pct / 100), n - n_val)
+        n_train = n - n_val - n_test
+
+        for i, img in enumerate(pool):
+            if i < n_train:
+                img.split = "train"
+            elif i < n_train + n_val:
+                img.split = "val"
+            else:
+                img.split = "test"
+
+        self.save_project()
+        parts = "  ".join(
+            f"{k}: {v}" for k, v in
+            [("train", n_train), ("val", n_val), ("test", n_test)] if v > 0)
+        self.status_message.emit(f"Split {n} images — {parts}")
+        self.project_changed.emit(self._project)
+
     def _activate_project(self, project: Project):
         self._project = project
         self._current_image = None
