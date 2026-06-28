@@ -16,7 +16,7 @@ import math
 from PyQt6.QtCore import QPointF, QRectF, Qt
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPen
 
-from annotator.ui.canvas.items.base_item import BaseAnnotationItem
+from annotator.ui.canvas.items.base_item import BaseAnnotationItem, _cpen
 
 HANDLE_SCREEN_R = 5.0
 HANDLE_HIT = 9.0
@@ -168,7 +168,7 @@ class OBBAnnotationItem(BaseAnnotationItem):
         lw = self.line_width + (1.0 if selected else 0.0)
 
         painter.setBrush(QBrush(fill))
-        painter.setPen(QPen(color, lw))
+        painter.setPen(_cpen(color, lw))
         painter.drawPath(path)
 
         if selected:
@@ -176,22 +176,22 @@ class OBBAnnotationItem(BaseAnnotationItem):
             tc = QPointF((corners[0][0] + corners[1][0]) / 2,
                          (corners[0][1] + corners[1][1]) / 2)
             rx, ry = self._rot_handle_pos()
-            painter.setPen(QPen(color, 1, Qt.PenStyle.DashLine))
+            painter.setPen(_cpen(color, 1, Qt.PenStyle.DashLine))
             painter.drawLine(tc, QPointF(rx, ry))
 
             # Rotation handle (orange circle)
             painter.setBrush(QBrush(QColor(255, 170, 0)))
-            painter.setPen(QPen(Qt.GlobalColor.black, 1))
+            painter.setPen(_cpen(Qt.GlobalColor.black, 1))
             painter.drawEllipse(QPointF(rx, ry), handle_r, handle_r)
 
             # Corner handles
             for i, (cx, cy) in enumerate(corners):
                 if i + 1 == self._hover_handle:
                     painter.setBrush(QBrush(QColor(255, 220, 0)))
-                    painter.setPen(QPen(Qt.GlobalColor.black, 1))
+                    painter.setPen(_cpen(Qt.GlobalColor.black, 1))
                 else:
                     painter.setBrush(QBrush(Qt.GlobalColor.white))
-                    painter.setPen(QPen(color, 1.5))
+                    painter.setPen(_cpen(color, 1.5))
                 painter.drawEllipse(QPointF(cx, cy), handle_r, handle_r)
 
         if self.label:

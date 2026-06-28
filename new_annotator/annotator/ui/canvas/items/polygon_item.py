@@ -8,7 +8,7 @@ Migrated from old_app with key changes:
 from PyQt6.QtCore import QRectF, QPointF, Qt
 from PyQt6.QtGui import (QPainter, QPen, QBrush, QColor, QPolygonF,
                           QPainterPath)
-from annotator.ui.canvas.items.base_item import BaseAnnotationItem
+from annotator.ui.canvas.items.base_item import BaseAnnotationItem, _cpen
 
 # Screen-space handle size (pixels, constant regardless of zoom)
 HANDLE_SCREEN_R = 5.0
@@ -96,21 +96,21 @@ class PolygonAnnotationItem(BaseAnnotationItem):
 
         if self.closed:
             painter.setBrush(QBrush(fill))
-            painter.setPen(QPen(color, lw))
+            painter.setPen(_cpen(color, lw))
             painter.drawPolygon(poly)
         else:
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.setPen(QPen(color, lw + 0.5))
+            painter.setPen(_cpen(color, lw + 0.5))
             painter.drawPolyline(poly)
 
         if selected:
             for i, pt in enumerate(self._points):
                 if i == self._hover_handle:
                     painter.setBrush(QBrush(QColor(255, 220, 0)))
-                    painter.setPen(QPen(Qt.GlobalColor.black, 1))
+                    painter.setPen(_cpen(Qt.GlobalColor.black, 1))
                 else:
                     painter.setBrush(QBrush(Qt.GlobalColor.white))
-                    painter.setPen(QPen(color, 1.5))
+                    painter.setPen(_cpen(color, 1.5))
                 painter.drawEllipse(pt, handle_r, handle_r)
 
         if self.label and self._points:

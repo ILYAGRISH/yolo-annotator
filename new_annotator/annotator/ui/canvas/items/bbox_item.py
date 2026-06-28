@@ -2,7 +2,7 @@
 from PyQt6.QtCore import QRectF, QPointF, Qt
 from PyQt6.QtGui import QPainter, QPen, QBrush, QColor, QPainterPath
 
-from annotator.ui.canvas.items.base_item import BaseAnnotationItem
+from annotator.ui.canvas.items.base_item import BaseAnnotationItem, _cpen
 
 HANDLE_SCREEN_R = 5.0
 HANDLE_HIT = 9.0
@@ -100,17 +100,17 @@ class BBoxAnnotationItem(BaseAnnotationItem):
         lw = self.line_width + (1.0 if selected else 0.0)
 
         painter.setBrush(QBrush(fill))
-        painter.setPen(QPen(color, lw))
+        painter.setPen(_cpen(color, lw))
         painter.drawRect(QRectF(self._x, self._y, self._w, self._h))
 
         if selected:
             for i, pt in enumerate(self._corners()):
                 if i == self._hover_handle:
                     painter.setBrush(QBrush(QColor(255, 220, 0)))
-                    painter.setPen(QPen(Qt.GlobalColor.black, 1))
+                    painter.setPen(_cpen(Qt.GlobalColor.black, 1))
                 else:
                     painter.setBrush(QBrush(Qt.GlobalColor.white))
-                    painter.setPen(QPen(color, 1.5))
+                    painter.setPen(_cpen(color, 1.5))
                 painter.drawEllipse(pt, handle_r, handle_r)
 
         if self.label:

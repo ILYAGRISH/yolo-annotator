@@ -1,5 +1,14 @@
 from abc import abstractmethod
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPen
 from PyQt6.QtWidgets import QGraphicsItem
+
+
+def _cpen(color, width: float, style=None) -> QPen:
+    """Return a cosmetic pen — constant screen-pixel width regardless of zoom/image size."""
+    p = QPen(color, width, style or Qt.PenStyle.SolidLine)
+    p.setCosmetic(True)
+    return p
 
 
 class BaseAnnotationItem(QGraphicsItem):

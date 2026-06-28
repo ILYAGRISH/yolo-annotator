@@ -78,11 +78,9 @@ class BBoxTool(BaseTool):
         if self._preview and self._preview.scene():
             self._scene.removeItem(self._preview)
         rect = self._rect_from(current)
-        self._preview = self._scene.addRect(
-            rect,
-            QPen(QColor("#FFFF00"), 2.0, Qt.PenStyle.DashLine),
-            QBrush(QColor(255, 255, 0, 70))
-        )
+        pen = QPen(QColor("#FFFF00"), 2.0, Qt.PenStyle.DashLine)
+        pen.setCosmetic(True)
+        self._preview = self._scene.addRect(rect, pen, QBrush(QColor(255, 255, 0, 70)))
         self._preview.setZValue(20)
 
     def _commit(self, end: QPointF):
