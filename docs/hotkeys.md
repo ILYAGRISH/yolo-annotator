@@ -42,7 +42,7 @@ Based on CVAT standard layout with additional shortcuts for infrastructure annot
 | `Shift+O` | Activate OBB tool |
 | `Shift+K` | Activate Keypoints tool |
 | `N` | Repeat last draw action (same class, same tool) |
-| `1`–`9` | Quick class select by index |
+| `0`–`9` | Quick class select by ID (two digits within 600 ms for classes 10–99) |
 | `[` | Previous class |
 | `]` | Next class |
 | `Q` | Activate last used custom tool (e.g. Crack Tool) |
@@ -120,7 +120,7 @@ Based on CVAT standard layout with additional shortcuts for infrastructure annot
 - All hotkeys must be configurable in Project Settings.
 - Custom tool hotkeys (e.g. Crack Tool) must be assignable per tool manifest.
 - Hotkey configuration must be stored in `project.json` and portable with project settings export.
-- Class quick-select keys `1`–`9` map to class index in the current project schema.
+- Class quick-select keys `0`–`9` map to class ID (YOLO 0-based). For projects with 10+ classes, press two digits within 600 ms (e.g. `1` → `2` selects class 12). Keys are ignored when a text input has focus.
 - `N` (repeat last draw) must remember: last active tool + last active class.
 - `T+L` and `T+H` are sequential key presses, not simultaneous.
 - Show a hotkey reference overlay on `F1` — rendered from the current hotkey config, not hardcoded.
