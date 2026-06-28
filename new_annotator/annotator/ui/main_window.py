@@ -51,6 +51,7 @@ class MainWindow(QMainWindow):
         self._setup_shortcuts()
         self._connect_signals()
         self._setup_autosave()
+        self._setup_class_hotkeys()
         self._load_plugins()
         self._activate_tool("select")
 
@@ -262,6 +263,38 @@ class MainWindow(QMainWindow):
         self._autosave_timer = QTimer(self)
         self._autosave_timer.timeout.connect(self._ctrl.save_project)
         self._autosave_timer.start(60_000)
+
+    # ── class digit hotkeys ───────────────────────────────────────────────────
+
+    def _setup_class_hotkeys(self):
+        self._digit_buffer = ""
+        self._digit_timer = QTimer(self)
+        self._digit_timer.setSingleShot(True)
+        self._digit_timer.timeout.connect(self._commit_digit_class)
+
+    def keyPressEvent(self, event):
+        from PyQt6.QtWidgets import QAbstractSpinBox, QLineEdit, QTextEdit
+        fw = self.focusWidget()
+        if not isinstance(fw, (QLineEdit, QTextEdit, QAbstractSpinBox)):
+            key = event.key()
+            if Qt.Key.Key_0 <= key <= Qt.Key.Key_9:
+                self._on_digit_pressed(str(key - Qt.Key.Key_0))
+                event.accept()
+                return
+        super().keyPressEvent(event)
+
+    def _on_digit_pressed(self, digit: str):
+        self._digit_buffer += digit
+        if len(self._digit_buffer) >= 2:
+            self._commit_digit_class()
+        else:
+            self._digit_timer.start(600)
+
+    def _commit_digit_class(self):
+        self._digit_timer.stop()
+        buf, self._digit_buffer = self._digit_buffer, ""
+        if buf and self._ctrl.project:
+            self._classes_panel.select_class_by_id(int(buf))
 
     # ── tool management ───────────────────────────────────────────────────────
 

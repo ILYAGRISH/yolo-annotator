@@ -67,6 +67,16 @@ class ClassesPanel(QWidget):
         if self._project and 0 <= row < len(self._project.classes):
             self.class_selected.emit(self._project.classes[row].id)
 
+    def select_class_by_id(self, class_id: int) -> bool:
+        """Select the row whose class.id == class_id. Returns True if found."""
+        if not self._project:
+            return False
+        for i, cls in enumerate(self._project.classes):
+            if cls.id == class_id:
+                self._list.setCurrentRow(i)
+                return True
+        return False
+
     @property
     def current_class_id(self) -> int | None:
         if not self._project:
