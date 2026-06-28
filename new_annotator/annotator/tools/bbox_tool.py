@@ -80,8 +80,8 @@ class BBoxTool(BaseTool):
         rect = self._rect_from(current)
         self._preview = self._scene.addRect(
             rect,
-            QPen(QColor("#FFFF00"), 1.5, Qt.PenStyle.DashLine),
-            QBrush(QColor(255, 255, 0, 30))
+            QPen(QColor("#FFFF00"), 2.0, Qt.PenStyle.DashLine),
+            QBrush(QColor(255, 255, 0, 70))
         )
         self._preview.setZValue(20)
 

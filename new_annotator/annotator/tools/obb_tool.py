@@ -80,8 +80,8 @@ class OBBTool(BaseTool):
         rect = self._rect_from(current)
         self._preview = self._scene.addRect(
             rect,
-            QPen(QColor("#FFAA00"), 1.5, Qt.PenStyle.DashLine),
-            QBrush(QColor(255, 170, 0, 30)),
+            QPen(QColor("#FFAA00"), 2.0, Qt.PenStyle.DashLine),
+            QBrush(QColor(255, 170, 0, 70)),
         )
         self._preview.setZValue(20)
 
