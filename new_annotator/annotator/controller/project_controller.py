@@ -207,12 +207,32 @@ class ProjectController(QObject):
             self._export_yolo(self._current_image, self._annotations)
         self._dirty_images.discard(self._current_image)
 
+    def _pick_yolo_formatter(self):
+        """Return the best YOLO line-formatter based on the project class schema."""
+        ann_types = {c.annotation_type for c in self._project.classes}
+        if ann_types <= {"bbox"}:
+            from annotator.exporters.yolo_detect import _make_detect_fn
+            return _make_detect_fn("skip")
+        if ann_types <= {"obb"}:
+            from annotator.exporters.yolo_obb import _format_obb
+            return _format_obb
+        if ann_types <= {"keypoints"}:
+            from annotator.exporters.yolo_pose import _make_format_fn
+            return _make_format_fn(self._project)
+        from annotator.exporters.yolo_seg import _format_annotation
+        return _format_annotation
+
     def _export_yolo(self, image_path: str, annotations: list):
         try:
-            from annotator.exporters.yolo_seg import YoloSegExporter
-            out = YoloSegExporter.export_image(image_path, annotations, self._project)
+            from annotator.exporters.yolo_seg import _labels_dir
+            formatter = self._pick_yolo_formatter()
+            labels_dir = _labels_dir(image_path)
+            labels_dir.mkdir(parents=True, exist_ok=True)
+            out_path = labels_dir / (Path(image_path).stem + ".txt")
+            lines = [line for ann in annotations if (line := formatter(ann))]
+            out_path.write_text("\n".join(lines), encoding="utf-8")
             self.status_message.emit(
-                f"Saved  ·  YOLO: {out.parent.name}/{out.name}")
+                f"Saved  ·  YOLO: {out_path.parent.name}/{out_path.name}")
         except Exception as exc:
             self.status_message.emit(f"YOLO export warning: {exc}")
 
