@@ -14,6 +14,7 @@ import uuid
 from pathlib import Path
 
 from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtGui import QImageReader
 
 try:
     from PyQt6.QtGui import QUndoStack
@@ -169,7 +170,10 @@ class ProjectController(QObject):
         added = 0
         for p in sorted(folder.iterdir()):
             if p.suffix.lower() in IMAGE_EXTS:
-                self._project.add_image(str(p))
+                reader = QImageReader(str(p))
+                sz = reader.size()
+                w, h = (sz.width(), sz.height()) if sz.isValid() else (0, 0)
+                self._project.add_image(str(p), width=w, height=h)
                 added += 1
         if added:
             self._project.settings.image_folder = str(folder)
