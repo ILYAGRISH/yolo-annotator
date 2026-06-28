@@ -208,17 +208,40 @@ class ProjectController(QObject):
         self._dirty_images.discard(self._current_image)
 
     def _pick_yolo_formatter(self):
-        """Return the best YOLO line-formatter based on the project class schema."""
+        """Return YOLO line-formatter per project auto-export setting."""
+        fmt = self._project.settings.default_export_format
+        if fmt == "auto":
+            fmt = self._auto_detect_format()
+        return self._formatter_for(fmt)
+
+    def _auto_detect_format(self) -> str:
+        """Infer best YOLO format from the project class schema."""
         ann_types = {c.annotation_type for c in self._project.classes}
         if ann_types <= {"bbox"}:
+            return "yolo_detect"
+        if ann_types <= {"obb"}:
+            return "yolo_obb"
+        if ann_types <= {"keypoints"}:
+            return "yolo_pose"
+        if ann_types <= {"point"}:
+            return "yolo_point"
+        return "yolo_seg"
+
+    def _formatter_for(self, fmt: str):
+        """Return a callable(Annotation) → str | None for the given format key."""
+        if fmt == "yolo_detect":
             from annotator.exporters.yolo_detect import _make_detect_fn
             return _make_detect_fn("skip")
-        if ann_types <= {"obb"}:
+        if fmt == "yolo_obb":
             from annotator.exporters.yolo_obb import _format_obb
             return _format_obb
-        if ann_types <= {"keypoints"}:
+        if fmt == "yolo_pose":
             from annotator.exporters.yolo_pose import _make_format_fn
             return _make_format_fn(self._project)
+        if fmt == "yolo_point":
+            from annotator.exporters.yolo_point import _format
+            return _format
+        # yolo_seg, yolo_classify, unknown → seg (best general fallback)
         from annotator.exporters.yolo_seg import _format_annotation
         return _format_annotation
 

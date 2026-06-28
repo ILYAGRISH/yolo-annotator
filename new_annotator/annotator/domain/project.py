@@ -33,7 +33,7 @@ class ImageRecord:
 
 @dataclass
 class ProjectSettings:
-    default_export_format: str = "yolo_seg"
+    default_export_format: str = "auto"
     autosave_interval_sec: int = 60
     image_folder: str = ""
 
@@ -47,7 +47,7 @@ class ProjectSettings:
     @classmethod
     def from_dict(cls, d: dict) -> "ProjectSettings":
         return cls(
-            default_export_format=d.get("default_export_format", "yolo_seg"),
+            default_export_format=d.get("default_export_format", "auto"),
             autosave_interval_sec=d.get("autosave_interval_sec", 60),
             image_folder=d.get("image_folder", ""),
         )

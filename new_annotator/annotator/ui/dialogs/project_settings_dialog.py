@@ -5,12 +5,13 @@ from PyQt6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QFormLayout,
 from annotator.domain.project import Project, ProjectSettings
 
 _EXPORT_FORMATS = [
-    ("YOLO Segment",   "yolo_seg"),
-    ("YOLO Detect",    "yolo_detect"),
-    ("YOLO OBB",       "yolo_obb"),
-    ("YOLO Pose",      "yolo_pose"),
-    ("YOLO Classify",  "yolo_classify"),
-    ("COCO Instances", "coco"),
+    ("Auto  (by class types)",  "auto"),
+    ("YOLO Detect",             "yolo_detect"),
+    ("YOLO Segment",            "yolo_seg"),
+    ("YOLO OBB",                "yolo_obb"),
+    ("YOLO Pose",               "yolo_pose"),
+    ("YOLO Point",              "yolo_point"),
+    ("YOLO Classify",           "yolo_classify"),
 ]
 
 
@@ -42,7 +43,7 @@ class ProjectSettingsDialog(QDialog):
         self._fmt_combo = QComboBox()
         for label, _ in _EXPORT_FORMATS:
             self._fmt_combo.addItem(label)
-        sform.addRow("Default export format:", self._fmt_combo)
+        sform.addRow("Auto-export format:", self._fmt_combo)
 
         self._autosave = QSpinBox()
         self._autosave.setRange(10, 3600)
