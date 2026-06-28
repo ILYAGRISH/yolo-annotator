@@ -46,9 +46,9 @@ class ImagesPanel(QWidget):
 
     # ── public API ────────────────────────────────────────────────────────────
 
-    def load_project(self, project: Project):
+    def load_project(self, project: Project | None):
         self._project = project
-        self._annotated = self._scan_annotated(project)
+        self._annotated = self._scan_annotated(project) if project else set()
         self._refresh()
 
     def set_annotated(self, image_path: str, has_annotations: bool):
@@ -86,7 +86,7 @@ class ImagesPanel(QWidget):
     @staticmethod
     def _scan_annotated(project: Project) -> set[str]:
         annotated: set[str] = set()
-        if project.project_path is None:
+        if project is None or project.project_path is None:
             return annotated
         ann_dir = project.project_path / "annotations"
         if not ann_dir.exists():
