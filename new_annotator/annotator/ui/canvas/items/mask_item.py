@@ -8,7 +8,7 @@ No vertex handles — editing is done by re-entering BrushTool, not by dragging 
 from PyQt6.QtCore import QRectF, QPointF
 from PyQt6.QtGui import (QPainter, QPen, QBrush, QColor, QPolygonF,
                           QPainterPath)
-from annotator.ui.canvas.items.base_item import BaseAnnotationItem, _cpen
+from annotator.ui.canvas.items.base_item import BaseAnnotationItem, _cpen, _draw_label
 
 _BOUNDING_MARGIN = 20.0
 
@@ -79,7 +79,4 @@ class MaskAnnotationItem(BaseAnnotationItem):
         if self.label and self._points:
             cx = sum(p.x() for p in self._points) / len(self._points)
             cy = sum(p.y() for p in self._points) / len(self._points)
-            painter.setPen(QPen(QColor(255, 255, 255)))
-            painter.drawText(QPointF(cx + 1, cy + 1), self.label)
-            painter.setPen(QPen(color))
-            painter.drawText(QPointF(cx, cy), self.label)
+            _draw_label(painter, QPointF(cx, cy), self.label, color)

@@ -2,7 +2,7 @@
 from PyQt6.QtCore import QPointF, QRectF, Qt
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPen
 
-from annotator.ui.canvas.items.base_item import BaseAnnotationItem
+from annotator.ui.canvas.items.base_item import BaseAnnotationItem, _draw_label
 
 KP_SCREEN_R = 5.0    # screen-pixel keypoint radius
 KP_HIT = 9.0         # scene-unit hit radius
@@ -86,13 +86,11 @@ class PoseAnnotationItem(BaseAnnotationItem):
             border_pen.setCosmetic(True)
             painter.setPen(border_pen)
             painter.drawEllipse(QPointF(x, y), kp_r, kp_r)
-            painter.setPen(QPen(color))
-            painter.drawText(QPointF(x + kp_r + 2, y + kp_r / 2), str(i))
+            _draw_label(painter, QPointF(x + kp_r + 2, y + kp_r / 2), str(i), color)
 
         if self.label and self._keypoints:
             visible = [(x, y) for x, y, v in self._keypoints if v > 0]
             if visible:
                 tx = min(p[0] for p in visible)
                 ty = min(p[1] for p in visible) - 4
-                painter.setPen(QPen(color))
-                painter.drawText(QPointF(tx, ty), self.label)
+                _draw_label(painter, QPointF(tx, ty), self.label, color)

@@ -16,7 +16,7 @@ import math
 from PyQt6.QtCore import QPointF, QRectF, Qt
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPen
 
-from annotator.ui.canvas.items.base_item import BaseAnnotationItem, _cpen
+from annotator.ui.canvas.items.base_item import BaseAnnotationItem, _cpen, _draw_label
 
 HANDLE_SCREEN_R = 5.0
 HANDLE_HIT = 9.0
@@ -195,8 +195,7 @@ class OBBAnnotationItem(BaseAnnotationItem):
                 painter.drawEllipse(QPointF(cx, cy), handle_r, handle_r)
 
         if self.label:
-            painter.setPen(QPen(color))
-            painter.drawText(QPointF(corners[0][0] + 4, corners[0][1] - 4), self.label)
+            _draw_label(painter, QPointF(corners[0][0] + 4, corners[0][1] - 4), self.label, color)
 
     def hoverMoveEvent(self, event):
         if self.isSelected():

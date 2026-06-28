@@ -1,7 +1,11 @@
 from abc import abstractmethod
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPen
+from PyQt6.QtCore import Qt, QPointF
+from PyQt6.QtGui import QColor, QFont, QPen
 from PyQt6.QtWidgets import QGraphicsItem
+
+_LABEL_FONT = QFont()
+_LABEL_FONT.setPixelSize(12)
+_LABEL_FONT.setBold(True)
 
 
 def _cpen(color, width: float, style=None) -> QPen:
@@ -9,6 +13,19 @@ def _cpen(color, width: float, style=None) -> QPen:
     p = QPen(color, width, style or Qt.PenStyle.SolidLine)
     p.setCosmetic(True)
     return p
+
+
+def _draw_label(painter, scene_pos: QPointF, text: str, color) -> None:
+    """Draw text at a fixed 12px screen size, independent of zoom and image resolution."""
+    screen_pos = painter.worldTransform().map(scene_pos)
+    painter.save()
+    painter.resetTransform()
+    painter.setFont(_LABEL_FONT)
+    painter.setPen(QPen(QColor(0, 0, 0, 180)))
+    painter.drawText(screen_pos + QPointF(1, 1), text)
+    painter.setPen(QPen(QColor(color)))
+    painter.drawText(screen_pos, text)
+    painter.restore()
 
 
 class BaseAnnotationItem(QGraphicsItem):

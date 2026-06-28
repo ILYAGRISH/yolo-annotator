@@ -2,7 +2,7 @@
 from PyQt6.QtCore import QPointF, QRectF, Qt
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPen
 
-from annotator.ui.canvas.items.base_item import BaseAnnotationItem
+from annotator.ui.canvas.items.base_item import BaseAnnotationItem, _draw_label
 
 PT_SCREEN_R = 6.0   # screen-pixel radius
 PT_HIT = 10.0       # scene-unit hit radius
@@ -64,7 +64,5 @@ class PointAnnotationItem(BaseAnnotationItem):
                                 r + 4.0 / self._lod, r + 4.0 / self._lod)
 
         if self.label:
-            label_pen = QPen(QColor(self.class_color))
-            label_pen.setCosmetic(True)
-            painter.setPen(label_pen)
-            painter.drawText(QPointF(self._x + r + 4, self._y + r / 2), self.label)
+            _draw_label(painter, QPointF(self._x + r + 4, self._y + r / 2),
+                        self.label, QColor(self.class_color))

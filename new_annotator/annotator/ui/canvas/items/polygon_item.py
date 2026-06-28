@@ -8,7 +8,7 @@ Migrated from old_app with key changes:
 from PyQt6.QtCore import QRectF, QPointF, Qt
 from PyQt6.QtGui import (QPainter, QPen, QBrush, QColor, QPolygonF,
                           QPainterPath)
-from annotator.ui.canvas.items.base_item import BaseAnnotationItem, _cpen
+from annotator.ui.canvas.items.base_item import BaseAnnotationItem, _cpen, _draw_label
 
 # Screen-space handle size (pixels, constant regardless of zoom)
 HANDLE_SCREEN_R = 5.0
@@ -116,10 +116,7 @@ class PolygonAnnotationItem(BaseAnnotationItem):
         if self.label and self._points:
             cx = sum(p.x() for p in self._points) / len(self._points)
             cy = sum(p.y() for p in self._points) / len(self._points)
-            painter.setPen(QPen(Qt.GlobalColor.white))
-            painter.drawText(QPointF(cx + 1, cy + 1), self.label)
-            painter.setPen(QPen(color))
-            painter.drawText(QPointF(cx, cy), self.label)
+            _draw_label(painter, QPointF(cx, cy), self.label, color)
 
     def hoverMoveEvent(self, event):
         if self.isSelected():
