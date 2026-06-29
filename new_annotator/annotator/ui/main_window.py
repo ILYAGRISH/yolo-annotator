@@ -4,7 +4,7 @@ All annotation logic lives in the controller; window only routes signals.
 """
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import QEvent, Qt, QTimer
 from PyQt6.QtGui import QAction, QKeySequence, QShortcut
 from PyQt6.QtGui import QActionGroup
 from PyQt6.QtWidgets import (QDialog, QFileDialog, QMainWindow, QMessageBox,
@@ -271,17 +271,19 @@ class MainWindow(QMainWindow):
         self._digit_timer = QTimer(self)
         self._digit_timer.setSingleShot(True)
         self._digit_timer.timeout.connect(self._commit_digit_class)
+        from PyQt6.QtWidgets import QApplication
+        QApplication.instance().installEventFilter(self)
 
-    def keyPressEvent(self, event):
-        from PyQt6.QtWidgets import QAbstractSpinBox, QLineEdit, QTextEdit
-        fw = self.focusWidget()
-        if not isinstance(fw, (QLineEdit, QTextEdit, QAbstractSpinBox)):
-            key = event.key()
-            if Qt.Key.Key_0 <= key <= Qt.Key.Key_9:
-                self._on_digit_pressed(str(key - Qt.Key.Key_0))
-                event.accept()
-                return
-        super().keyPressEvent(event)
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.KeyPress:
+            from PyQt6.QtWidgets import QAbstractSpinBox, QLineEdit, QTextEdit, QApplication
+            fw = QApplication.focusWidget()
+            if not isinstance(fw, (QLineEdit, QTextEdit, QAbstractSpinBox)):
+                key = event.key()
+                if Qt.Key.Key_0 <= key <= Qt.Key.Key_9:
+                    self._on_digit_pressed(str(key - Qt.Key.Key_0))
+                    return True  # событие потреблено
+        return False
 
     def _on_digit_pressed(self, digit: str):
         self._digit_buffer += digit
