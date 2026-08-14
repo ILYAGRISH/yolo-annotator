@@ -116,12 +116,15 @@ class MainWindow(QMainWindow):
 
         # Edit
         edit_m = mb.addMenu("&Edit")
-        undo_act = self._ctrl.undo_stack.createUndoAction(self, "Undo")
-        undo_act.setShortcut(QKeySequence.StandardKey.Undo)
-        redo_act = self._ctrl.undo_stack.createRedoAction(self, "Redo")
-        redo_act.setShortcut(QKeySequence.StandardKey.Redo)
-        edit_m.addAction(undo_act)
-        edit_m.addAction(redo_act)
+        self._undo_act = self._ctrl.undo_stack.createUndoAction(self, "Undo")
+        self._undo_act.setShortcut(QKeySequence.StandardKey.Undo)
+        self._redo_act = self._ctrl.undo_stack.createRedoAction(self, "Redo")
+        self._redo_act.setShortcuts([
+            QKeySequence.StandardKey.Redo,        # Ctrl+Y
+            QKeySequence("Ctrl+Shift+Z"),          # common alternative
+        ])
+        edit_m.addAction(self._undo_act)
+        edit_m.addAction(self._redo_act)
 
         # Tools
         self._tools_menu = mb.addMenu("&Tools")
