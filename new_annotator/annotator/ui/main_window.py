@@ -711,10 +711,20 @@ class MainWindow(QMainWindow):
         return ""
 
     def _leader_display_name(self, hostname: str) -> str:
-        """Return saved display name for leader, defaulting to hostname."""
+        """Return saved display name for leader. Asks once if not yet set."""
         from PyQt6.QtCore import QSettings
+        from PyQt6.QtWidgets import QInputDialog
         settings = QSettings("Annotator", "App")
-        return settings.value("user_name", hostname) or hostname
+        saved = settings.value("user_name", "")
+        if saved:
+            return saved
+        name, ok = QInputDialog.getText(
+            self, "Your name",
+            "Enter your name (used to identify you as the project leader):",
+            text=hostname)
+        name = name.strip() if (ok and name.strip()) else hostname
+        settings.setValue("user_name", name)
+        return name
 
     def _reset_multiuser(self):
         self._user_role = "leader"

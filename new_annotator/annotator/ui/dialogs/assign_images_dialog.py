@@ -30,6 +30,7 @@ class AssignImagesDialog(QDialog):
         self.resize(820, 580)
 
         self._images = images
+        self._leader_name = leader_name  # current leader display name
         # Internal model: {name: set of stems}
         self._users: dict[str, set[str]] = {
             name: set(stems)
@@ -60,6 +61,19 @@ class AssignImagesDialog(QDialog):
         left = QWidget()
         ll = QVBoxLayout(left)
         ll.setContentsMargins(0, 0, 0, 0)
+
+        # "Your name" row — visible when dialog has a leader_name
+        self._my_name_label = QLabel()
+        self._my_name_label.setStyleSheet("color:#aaa; font-size:11px;")
+        btn_change_name = QPushButton("Change name…")
+        btn_change_name.setFixedHeight(22)
+        btn_change_name.clicked.connect(self._change_leader_name)
+        name_row = QHBoxLayout()
+        name_row.addWidget(self._my_name_label)
+        name_row.addWidget(btn_change_name)
+        ll.addLayout(name_row)
+        self._update_my_name_label()
+
         ll.addWidget(QLabel("Users:"))
 
         self._user_list = QListWidget()
@@ -193,6 +207,39 @@ class AssignImagesDialog(QDialog):
         self._refresh_unassigned()
 
     # ── actions ───────────────────────────────────────────────────────────────
+
+    def _update_my_name_label(self):
+        if self._leader_name:
+            self._my_name_label.setText(f"You: {self._leader_name}")
+        else:
+            self._my_name_label.setText("")
+
+    def _change_leader_name(self):
+        from PyQt6.QtCore import QSettings
+        name, ok = QInputDialog.getText(
+            self, "Change your name",
+            "Enter your new display name:",
+            text=self._leader_name)
+        if not ok or not name.strip():
+            return
+        new_name = name.strip()
+        if new_name == self._leader_name:
+            return
+        # Rename in users dict (keep their assigned images)
+        if self._leader_name in self._users:
+            stems = self._users.pop(self._leader_name)
+            self._users[new_name] = stems
+        elif new_name not in self._users:
+            self._users[new_name] = set()
+        self._leader_name = new_name
+        QSettings("Annotator", "App").setValue("user_name", new_name)
+        self._update_my_name_label()
+        self._full_refresh()
+        # Re-select new name
+        for i in range(self._user_list.count()):
+            if self._user_list.item(i).data(Qt.ItemDataRole.UserRole) == new_name:
+                self._user_list.setCurrentRow(i)
+                break
 
     def _on_user_selected(self, _row: int):
         self._refresh_user_images()
