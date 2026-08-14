@@ -172,6 +172,7 @@ class MainWindow(QMainWindow):
         tb = QToolBar("Tools")
         tb.setMovable(False)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, tb)
+        self._toolbar = tb
 
         grp = QActionGroup(self)
         grp.setExclusive(True)
@@ -421,10 +422,19 @@ class MainWindow(QMainWindow):
                 if default_tool and cur != "select" and cur not in compatible:
                     self._activate_tool(default_tool)
 
+        _HIGHLIGHT = (
+            "QToolButton { background: rgba(80,180,80,45); "
+            "border: 1px solid #4a8a4a; border-radius: 3px; }"
+        )
         for tool_name, act in self._tool_act_map.items():
             if tool_name in self._plugin_tool_names:
                 continue  # plugin tools are not filtered by class type
             act.setEnabled(tool_name == "select" or lc is None or tool_name in compatible)
+            btn = self._toolbar.widgetForAction(act)
+            if btn:
+                highlight = (lc is not None and tool_name != "select"
+                             and tool_name in compatible)
+                btn.setStyleSheet(_HIGHLIGHT if highlight else "")
         for tool_name, act in self._menu_tool_acts.items():
             if tool_name in self._plugin_tool_names:
                 continue
