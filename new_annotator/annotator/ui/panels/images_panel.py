@@ -12,6 +12,7 @@ _SPLIT_COLORS = {
     "val":   "#55AAFF",
     "test":  "#FF9944",
 }
+_ASSIGN_COLOR = "#BB99FF"  # light purple for assignee tag (leader view)
 
 
 class ImagesPanel(QWidget):
@@ -26,6 +27,7 @@ class ImagesPanel(QWidget):
         self._annotated: set[str] = set()
         self._user_filter: set[str] | None = None  # None = no filter (leader)
         self._displayed: list[ImageRecord] = []     # currently visible records
+        self._stem_assignee: dict[str, str] = {}    # stem → username (leader view)
         self._setup_ui()
 
     def _setup_ui(self):
@@ -56,6 +58,18 @@ class ImagesPanel(QWidget):
     def set_user_filter(self, allowed_stems: set[str] | None):
         """None = leader (no filter). A set of stems = client sees only those."""
         self._user_filter = allowed_stems
+        self._refresh()
+
+    def set_assignments(self, data: dict | None):
+        """Update stem→assignee map shown in leader view. Pass None to clear."""
+        if data is None:
+            self._stem_assignee = {}
+        else:
+            mapping: dict[str, str] = {}
+            for name, stems in data.get("users", {}).items():
+                for stem in stems:
+                    mapping[stem] = name
+            self._stem_assignee = mapping
         self._refresh()
 
     def set_annotated(self, image_path: str, has_annotations: bool):
@@ -127,11 +141,22 @@ class ImagesPanel(QWidget):
 
     def _make_item(self, rec: ImageRecord) -> QListWidgetItem:
         split = rec.split or "train"
-        tag = f" [{split}]" if split != "train" else ""
+        split_tag = f" [{split}]" if split != "train" else ""
         check = " ✓" if rec.path in self._annotated else ""
-        item = QListWidgetItem(Path(rec.path).name + tag + check)
-        item.setToolTip(f"{rec.path}\nSplit: {split}")
+
+        stem = Path(rec.path).stem
+        assignee = self._stem_assignee.get(stem, "") if self._user_filter is None else ""
+        assign_tag = f" ▸{assignee}" if assignee else ""
+
+        item = QListWidgetItem(Path(rec.path).name + split_tag + assign_tag + check)
+        tooltip = f"{rec.path}\nSplit: {split}"
+        if assignee:
+            tooltip += f"\nAssigned to: {assignee}"
+        item.setToolTip(tooltip)
+
         color = _SPLIT_COLORS.get(split)
+        if assign_tag and not color:
+            color = _ASSIGN_COLOR
         if color:
             item.setForeground(QColor(color))
         return item

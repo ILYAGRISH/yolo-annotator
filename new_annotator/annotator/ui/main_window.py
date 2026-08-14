@@ -654,10 +654,10 @@ class MainWindow(QMainWindow):
             project.leader_machine = hostname
             self._ctrl.save_project()
             self._user_role = "leader"
-            self._user_name = hostname
+            self._user_name = self._leader_display_name(hostname)
         elif project.leader_machine == hostname:
             self._user_role = "leader"
-            self._user_name = hostname
+            self._user_name = self._leader_display_name(hostname)
         else:
             # Client — ask for name
             name = self._ask_user_name()
@@ -687,9 +687,13 @@ class MainWindow(QMainWindow):
                 + ("  ·  0 images — contact the leader" if n == 0 else ""))
             return
 
-        # Leader path
+        # Leader path — load existing assignments to show in panel
         self._images_panel.set_user_filter(None)
         self._assign_act.setEnabled(True)
+        path = project.project_path
+        if path:
+            assignments = ProjectStore.load_assignments(path)
+            self._images_panel.set_assignments(assignments)
 
     def _ask_user_name(self) -> str:
         from PyQt6.QtCore import QSettings
@@ -706,10 +710,17 @@ class MainWindow(QMainWindow):
             return name.strip()
         return ""
 
+    def _leader_display_name(self, hostname: str) -> str:
+        """Return saved display name for leader, defaulting to hostname."""
+        from PyQt6.QtCore import QSettings
+        settings = QSettings("Annotator", "App")
+        return settings.value("user_name", hostname) or hostname
+
     def _reset_multiuser(self):
         self._user_role = "leader"
         self._user_name = ""
         self._images_panel.set_user_filter(None)
+        self._images_panel.set_assignments(None)
         self._assign_act.setEnabled(False)
 
     def _open_assign_dialog(self):
@@ -720,9 +731,13 @@ class MainWindow(QMainWindow):
 
         path = self._ctrl.project.project_path
         assignments = ProjectStore.load_assignments(path)
-        dlg = AssignImagesDialog(self._ctrl.project.images, assignments, self)
+        dlg = AssignImagesDialog(
+            self._ctrl.project.images, assignments,
+            leader_name=self._user_name, parent=self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
-            ProjectStore.save_assignments(path, dlg.result_assignments)
+            result = dlg.result_assignments
+            ProjectStore.save_assignments(path, result)
+            self._images_panel.set_assignments(result)
             QMessageBox.information(
                 self, "Assignments saved",
                 "Assignments saved.\n"
@@ -741,8 +756,9 @@ class MainWindow(QMainWindow):
                 self._ctrl.project.leader_machine = socket.gethostname()
                 self._ctrl.save_project()
             self._user_role = "leader"
-            self._user_name = socket.gethostname()
+            self._user_name = self._leader_display_name(socket.gethostname())
             self._images_panel.set_user_filter(None)
+            self._images_panel.set_assignments(None)
             self._assign_act.setEnabled(True)
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))

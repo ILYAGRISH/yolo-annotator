@@ -23,7 +23,8 @@ from annotator.domain.project import ImageRecord
 
 class AssignImagesDialog(QDialog):
 
-    def __init__(self, images: list[ImageRecord], assignments: dict, parent=None):
+    def __init__(self, images: list[ImageRecord], assignments: dict,
+                 leader_name: str = "", parent=None):
         super().__init__(parent)
         self.setWindowTitle("Assign Images to Users")
         self.resize(820, 580)
@@ -34,9 +35,18 @@ class AssignImagesDialog(QDialog):
             name: set(stems)
             for name, stems in assignments.get("users", {}).items()
         }
+        # Auto-add the leader as a user if not already present
+        if leader_name and leader_name not in self._users:
+            self._users[leader_name] = set()
 
         self._setup_ui()
         self._refresh_user_list()
+        # Pre-select leader
+        if leader_name:
+            for i in range(self._user_list.count()):
+                if self._user_list.item(i).data(Qt.ItemDataRole.UserRole) == leader_name:
+                    self._user_list.setCurrentRow(i)
+                    break
         self._refresh_unassigned()
 
     # ── UI ────────────────────────────────────────────────────────────────────
