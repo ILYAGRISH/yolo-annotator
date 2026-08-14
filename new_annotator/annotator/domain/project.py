@@ -63,6 +63,7 @@ class Project:
     classes: list[LabelClass] = field(default_factory=list)
     images: list[ImageRecord] = field(default_factory=list)
     settings: ProjectSettings = field(default_factory=ProjectSettings)
+    leader_machine: str = field(default="")  # hostname of first opener; "" = unclaimed
 
     # Runtime-only
     project_path: Path | None = field(default=None, repr=False)
@@ -110,6 +111,7 @@ class Project:
             "created_at": self.created_at,
             "modified_at": self.modified_at,
             "settings": self.settings.to_dict(),
+            "leader_machine": self.leader_machine,
         }
 
     @classmethod
@@ -120,4 +122,5 @@ class Project:
             created_at=d["created_at"],
             modified_at=d["modified_at"],
             settings=ProjectSettings.from_dict(d.get("settings", {})),
+            leader_machine=d.get("leader_machine", ""),
         )

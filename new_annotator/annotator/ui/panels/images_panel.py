@@ -5,7 +5,7 @@ from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (QLabel, QListWidget, QListWidgetItem, QMenu,
                               QVBoxLayout, QWidget)
 
-from annotator.domain.project import Project
+from annotator.domain.project import ImageRecord, Project
 
 _SPLIT_COLORS = {
     "train": None,          # default text color
@@ -24,6 +24,8 @@ class ImagesPanel(QWidget):
         super().__init__(parent)
         self._project: Project | None = None
         self._annotated: set[str] = set()
+        self._user_filter: set[str] | None = None  # None = no filter (leader)
+        self._displayed: list[ImageRecord] = []     # currently visible records
         self._setup_ui()
 
     def _setup_ui(self):
@@ -51,6 +53,11 @@ class ImagesPanel(QWidget):
         self._annotated = self._scan_annotated(project) if project else set()
         self._refresh()
 
+    def set_user_filter(self, allowed_stems: set[str] | None):
+        """None = leader (no filter). A set of stems = client sees only those."""
+        self._user_filter = allowed_stems
+        self._refresh()
+
     def set_annotated(self, image_path: str, has_annotations: bool):
         if has_annotations:
             self._annotated.add(image_path)
@@ -58,7 +65,7 @@ class ImagesPanel(QWidget):
             self._annotated.discard(image_path)
         if not self._project:
             return
-        for i, rec in enumerate(self._project.images):
+        for i, rec in enumerate(self._displayed):
             if rec.path == image_path:
                 self._refresh_item(i)
                 break
@@ -74,9 +81,7 @@ class ImagesPanel(QWidget):
             self._list.setCurrentRow(r - 1)
 
     def select_by_path(self, image_path: str):
-        if not self._project:
-            return
-        for i, rec in enumerate(self._project.images):
+        for i, rec in enumerate(self._displayed):
             if rec.path == image_path:
                 self._list.setCurrentRow(i)
                 return
@@ -102,12 +107,25 @@ class ImagesPanel(QWidget):
     def _refresh(self):
         self._list.clear()
         if not self._project:
+            self._displayed = []
+            self._header.setText("Images")
             return
-        self._header.setText(f"Images ({len(self._project.images)})")
-        for i, rec in enumerate(self._project.images):
+
+        if self._user_filter is None:
+            self._displayed = list(self._project.images)
+            label = f"Images ({len(self._displayed)})"
+        else:
+            self._displayed = [
+                r for r in self._project.images
+                if Path(r.path).stem in self._user_filter
+            ]
+            label = f"My Images ({len(self._displayed)})"
+
+        self._header.setText(label)
+        for rec in self._displayed:
             self._list.addItem(self._make_item(rec))
 
-    def _make_item(self, rec) -> QListWidgetItem:
+    def _make_item(self, rec: ImageRecord) -> QListWidgetItem:
         split = rec.split or "train"
         tag = f" [{split}]" if split != "train" else ""
         check = " ✓" if rec.path in self._annotated else ""
@@ -119,9 +137,9 @@ class ImagesPanel(QWidget):
         return item
 
     def _refresh_item(self, row: int):
-        if not self._project or row >= len(self._project.images):
+        if row >= len(self._displayed):
             return
-        new_item = self._make_item(self._project.images[row])
+        new_item = self._make_item(self._displayed[row])
         old = self._list.item(row)
         if old:
             old.setText(new_item.text())
@@ -129,8 +147,8 @@ class ImagesPanel(QWidget):
             old.setForeground(new_item.foreground())
 
     def _on_row(self, row: int):
-        if self._project and 0 <= row < len(self._project.images):
-            self.image_selected.emit(self._project.images[row].path)
+        if 0 <= row < len(self._displayed):
+            self.image_selected.emit(self._displayed[row].path)
 
     # ── context menu (split assignment) ───────────────────────────────────────
 
@@ -139,9 +157,9 @@ class ImagesPanel(QWidget):
         if item is None or not self._project:
             return
         row = self._list.row(item)
-        if row < 0 or row >= len(self._project.images):
+        if row < 0 or row >= len(self._displayed):
             return
-        rec = self._project.images[row]
+        rec = self._displayed[row]
 
         menu = QMenu(self)
         menu.addAction("Set split:").setEnabled(False)
@@ -154,8 +172,8 @@ class ImagesPanel(QWidget):
         menu.exec(self._list.viewport().mapToGlobal(pos))
 
     def _set_split(self, row: int, split: str):
-        if not self._project or row >= len(self._project.images):
+        if row >= len(self._displayed):
             return
-        self._project.images[row].split = split
+        self._displayed[row].split = split
         self._refresh_item(row)
         self.split_changed.emit()

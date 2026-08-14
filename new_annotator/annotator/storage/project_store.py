@@ -22,6 +22,7 @@ ANNOTS_DIR = "annotations"
 PROJECT_FILE = "project.json"
 SCHEMA_FILE = "class_schema.json"
 IMAGES_FILE = "images.json"
+ASSIGNMENTS_FILE = "assignments.json"
 
 
 def _migrate_project(data: dict, from_version: int) -> dict:
@@ -136,3 +137,19 @@ class ProjectStore:
         """Overwrite annotation files for all images in the dict."""
         for img_path, anns in all_annotations.items():
             ProjectStore.save_annotations(project, img_path, anns)
+
+    # ── multi-user assignments ────────────────────────────────────────────────
+
+    @staticmethod
+    def load_assignments(path: Path) -> dict:
+        """Return {"version": 1, "users": {"name": [stem, ...]}} or empty structure."""
+        f = path / ASSIGNMENTS_FILE
+        if not f.exists():
+            return {"version": 1, "users": {}}
+        with open(f, "r", encoding="utf-8") as fp:
+            return json.load(fp)
+
+    @staticmethod
+    def save_assignments(path: Path, data: dict):
+        with open(path / ASSIGNMENTS_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)

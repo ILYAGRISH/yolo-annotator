@@ -45,6 +45,8 @@ class MainWindow(QMainWindow):
         self._ctrl = ProjectController(self)
         self._tools = self._build_tools()
         self._plugin_tool_names: set[str] = set()
+        self._user_role: str = "leader"   # "leader" or "client"
+        self._user_name: str = ""
         self._setup_ui()
         self._setup_menu()
         self._setup_toolbar()
@@ -109,6 +111,9 @@ class MainWindow(QMainWindow):
         file_m.addSeparator()
         self._add_action(file_m, "Add Images from Folder…", self._add_images)
         self._add_action(file_m, "Split Dataset…", self._split_dataset)
+        self._assign_act = self._add_action(
+            file_m, "Assign Images…", self._open_assign_dialog)
+        self._assign_act.setEnabled(False)
         file_m.addSeparator()
         self._add_action(file_m, "Export Dataset…", self._export_dataset, "Ctrl+E")
         file_m.addSeparator()
@@ -358,6 +363,8 @@ class MainWindow(QMainWindow):
         self._annotations_panel.refresh([])
         self._annotations_panel.set_active_class(None)
         self._qc_panel.set_project_loaded(project is not None)
+        self._assign_act.setEnabled(
+            project is not None and self._user_role == "leader")
         if project is not None:
             self.setWindowTitle(f"Annotator  —  {project.name}")
             self._status.showMessage(
@@ -629,6 +636,98 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             QMessageBox.critical(self, "Export error", str(exc))
 
+    # ── multi-user (Variant A) ────────────────────────────────────────────────
+
+    def _apply_multiuser_role(self):
+        """Called after project is open. Determines leader vs client role."""
+        import socket
+        from annotator.storage.project_store import ProjectStore
+
+        project = self._ctrl.project
+        if project is None:
+            return
+
+        hostname = socket.gethostname()
+
+        if not project.leader_machine:
+            # First opener — claim leadership
+            project.leader_machine = hostname
+            self._ctrl.save_project()
+            self._user_role = "leader"
+            self._user_name = hostname
+        elif project.leader_machine == hostname:
+            self._user_role = "leader"
+            self._user_name = hostname
+        else:
+            # Client — ask for name
+            name = self._ask_user_name()
+            if not name:
+                self._ctrl.close_project()
+                return
+
+            path = project.project_path
+            assignments = ProjectStore.load_assignments(path)
+            users = assignments.get("users", {})
+
+            if name not in users:
+                QMessageBox.warning(
+                    self, "Not assigned",
+                    f'No images are assigned to "{name}".\n'
+                    "Contact the project leader to assign images to you.")
+                self._ctrl.close_project()
+                return
+
+            self._user_role = "client"
+            self._user_name = name
+            stems = set(users[name])
+            self._images_panel.set_user_filter(stems)
+            n = len(stems)
+            self._status.showMessage(
+                f"Opened as {name}  ·  {n} image{'s' if n != 1 else ''} assigned"
+                + ("  ·  0 images — contact the leader" if n == 0 else ""))
+            return
+
+        # Leader path
+        self._images_panel.set_user_filter(None)
+        self._assign_act.setEnabled(True)
+
+    def _ask_user_name(self) -> str:
+        from PyQt6.QtCore import QSettings
+        from PyQt6.QtWidgets import QInputDialog
+        settings = QSettings("Annotator", "App")
+        last = settings.value("user_name", "")
+        name, ok = QInputDialog.getText(
+            self, "Enter your name",
+            "This project belongs to another computer.\n"
+            "Enter your name to load your assigned images:",
+            text=last)
+        if ok and name.strip():
+            settings.setValue("user_name", name.strip())
+            return name.strip()
+        return ""
+
+    def _reset_multiuser(self):
+        self._user_role = "leader"
+        self._user_name = ""
+        self._images_panel.set_user_filter(None)
+        self._assign_act.setEnabled(False)
+
+    def _open_assign_dialog(self):
+        if not self._ctrl.project or not self._ctrl.project.project_path:
+            return
+        from annotator.storage.project_store import ProjectStore
+        from annotator.ui.dialogs.assign_images_dialog import AssignImagesDialog
+
+        path = self._ctrl.project.project_path
+        assignments = ProjectStore.load_assignments(path)
+        dlg = AssignImagesDialog(self._ctrl.project.images, assignments, self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            ProjectStore.save_assignments(path, dlg.result_assignments)
+            QMessageBox.information(
+                self, "Assignments saved",
+                "Assignments saved.\n"
+                "Clients must reopen the project to see their updated image list.")
+
     # ── file / project actions ────────────────────────────────────────────────
 
     def _new_project(self):
@@ -636,7 +735,15 @@ class MainWindow(QMainWindow):
         if dlg.exec() != dlg.DialogCode.Accepted:
             return
         try:
+            import socket
             self._ctrl.create_project(dlg.project_name, Path(dlg.project_dir))
+            if self._ctrl.project:
+                self._ctrl.project.leader_machine = socket.gethostname()
+                self._ctrl.save_project()
+            self._user_role = "leader"
+            self._user_name = socket.gethostname()
+            self._images_panel.set_user_filter(None)
+            self._assign_act.setEnabled(True)
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
@@ -656,6 +763,7 @@ class MainWindow(QMainWindow):
             if ret == QMessageBox.StandardButton.Save:
                 self._ctrl.save_project()
         self._ctrl.close_project()
+        self._reset_multiuser()
 
     def _open_project_settings(self):
         if not self._ctrl.project:
@@ -682,7 +790,9 @@ class MainWindow(QMainWindow):
                                 "Selected folder is not a valid .annproj project.")
             return
         try:
+            self._reset_multiuser()
             self._ctrl.open_project(path)
+            self._apply_multiuser_role()
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
