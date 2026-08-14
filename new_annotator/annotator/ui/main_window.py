@@ -108,6 +108,7 @@ class MainWindow(QMainWindow):
         self._add_action(file_m, "&Save Project",   self._ctrl.save_project, "Ctrl+S")
         self._add_action(file_m, "&Close Project",    self._close_project)
         self._add_action(file_m, "Project Settings…", self._open_project_settings)
+        self._add_action(file_m, "Your Name…",        self._change_user_name)
         file_m.addSeparator()
         self._add_action(file_m, "Add Images from Folder…", self._add_images)
         self._add_action(file_m, "Split Dataset…", self._split_dataset)
@@ -709,6 +710,33 @@ class MainWindow(QMainWindow):
             settings.setValue("user_name", name.strip())
             return name.strip()
         return ""
+
+    def _change_user_name(self):
+        from PyQt6.QtCore import QSettings
+        from PyQt6.QtWidgets import QInputDialog
+        settings = QSettings("Annotator", "App")
+        current = self._user_name or settings.value("user_name", "")
+        name, ok = QInputDialog.getText(
+            self, "Your name", "Enter your display name:", text=current)
+        if not ok or not name.strip():
+            return
+        new_name = name.strip()
+        old_name = self._user_name
+        settings.setValue("user_name", new_name)
+        self._user_name = new_name
+        # If leader with open project — rename their entry in assignments.json
+        if (self._user_role == "leader"
+                and self._ctrl.project
+                and self._ctrl.project.project_path
+                and old_name and old_name != new_name):
+            from annotator.storage.project_store import ProjectStore
+            path = self._ctrl.project.project_path
+            assignments = ProjectStore.load_assignments(path)
+            users = assignments.get("users", {})
+            if old_name in users:
+                users[new_name] = users.pop(old_name)
+                ProjectStore.save_assignments(path, assignments)
+                self._images_panel.set_assignments(assignments)
 
     def _leader_display_name(self, hostname: str) -> str:
         """Return saved display name for leader. Asks once if not yet set."""
