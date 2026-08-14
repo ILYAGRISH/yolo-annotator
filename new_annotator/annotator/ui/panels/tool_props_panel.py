@@ -12,7 +12,7 @@ Emits params_changed(dict) whenever any control changes.
 """
 from __future__ import annotations
 
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import QEvent, Qt, pyqtSignal
 from PyQt6.QtWidgets import (QComboBox, QDoubleSpinBox, QFrame, QHBoxLayout,
                               QLabel, QSizePolicy, QSpinBox, QWidget)
 
@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (QComboBox, QDoubleSpinBox, QFrame, QHBoxLayout,
 class ToolPropsPanel(QFrame):
 
     params_changed = pyqtSignal(dict)
+    commit_requested = pyqtSignal()   # Enter pressed while a param widget has focus
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -69,6 +70,7 @@ class ToolPropsPanel(QFrame):
                 w.setValue(current_params.get(key, spec.get("default", 0.0)))
                 w.setFixedWidth(80)
                 w.valueChanged.connect(self._emit_params)
+                w.installEventFilter(self)
                 self._layout.addWidget(w)
                 self._controls[key] = w
 
@@ -80,6 +82,7 @@ class ToolPropsPanel(QFrame):
                 w.setValue(int(current_params.get(key, spec.get("default", 1))))
                 w.setFixedWidth(70)
                 w.valueChanged.connect(self._emit_params)
+                w.installEventFilter(self)
                 self._layout.addWidget(w)
                 self._controls[key] = w
 
@@ -92,6 +95,7 @@ class ToolPropsPanel(QFrame):
                 if idx >= 0:
                     w.setCurrentIndex(idx)
                 w.currentTextChanged.connect(self._emit_params)
+                w.installEventFilter(self)
                 self._layout.addWidget(w)
                 self._controls[key] = w
 
@@ -101,6 +105,15 @@ class ToolPropsPanel(QFrame):
     def clear_tool(self) -> None:
         self._clear_controls()
         self.hide()
+
+    # ── event filter — forward Enter to active tool ───────────────────────────
+
+    def eventFilter(self, obj, event):
+        if (event.type() == QEvent.Type.KeyPress and
+                event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter)):
+            self.commit_requested.emit()
+            return True   # consume — don't let combo/spinbox reopen on Enter
+        return False
 
     # ── internal ─────────────────────────────────────────────────────────────
 

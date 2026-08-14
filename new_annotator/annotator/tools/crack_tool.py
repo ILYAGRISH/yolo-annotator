@@ -131,7 +131,9 @@ class CrackTool(BaseTool):
 
     def set_params(self, params: dict) -> None:
         self._params.update(params)
-        self._refresh_preview(self._cursor_pos)
+        # In edit mode suppress rubber-band (same logic as on_move).
+        cursor = None if self._edit_ann is not None else self._cursor_pos
+        self._refresh_preview(cursor)
 
     # ── BaseTool lifecycle ────────────────────────────────────────────────────
 

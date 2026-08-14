@@ -19,6 +19,15 @@ class PointAnnotationItem(BaseAnnotationItem):
 
     # ── BaseAnnotationItem interface ──────────────────────────────────────────
 
+    def handle_at(self, pos: QPointF) -> int:
+        hit_r = max(PT_HIT, PT_SCREEN_R * 1.5 / max(self._lod, 0.05))
+        return 0 if (QPointF(self._x, self._y) - pos).manhattanLength() <= hit_r else -1
+
+    def move_handle(self, index: int, new_pos: QPointF):
+        self.prepareGeometryChange()
+        self._x, self._y = new_pos.x(), new_pos.y()
+        self.update()
+
     def update_from_data(self, data: dict, image_size: tuple[int, int]):
         w, h = image_size
         self.prepareGeometryChange()
@@ -34,7 +43,9 @@ class PointAnnotationItem(BaseAnnotationItem):
 
     def boundingRect(self) -> QRectF:
         m = 20.0
-        return QRectF(self._x - m, self._y - m, m * 2, m * 2)
+        # Label is drawn in screen pixels; convert ~200px budget to scene units.
+        label_w = 200.0 / max(self._lod, 0.05)
+        return QRectF(self._x - m, self._y - m, m + label_w, m * 2)
 
     def shape(self) -> QPainterPath:
         path = QPainterPath()

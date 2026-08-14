@@ -173,6 +173,10 @@ class MainWindow(QMainWindow):
         tb.setMovable(False)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, tb)
         self._toolbar = tb
+        tb.setStyleSheet(
+            "QToolButton:checked { background: #2a5ca0; border: 2px solid #6699ee;"
+            " border-radius: 3px; color: white; }"
+        )
 
         grp = QActionGroup(self)
         grp.setExclusive(True)
@@ -257,6 +261,9 @@ class MainWindow(QMainWindow):
         self._qc_panel.validate_requested.connect(self._run_validation)
         self._qc_panel.navigate_requested.connect(self._on_qc_navigate)
         self._tool_props.params_changed.connect(self._on_tool_params_changed)
+        self._tool_props.commit_requested.connect(
+            lambda: self._active_tool_obj().on_key_press(
+                Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier))
 
     # ── autosave ──────────────────────────────────────────────────────────────
 
@@ -423,8 +430,10 @@ class MainWindow(QMainWindow):
                     self._activate_tool(default_tool)
 
         _HIGHLIGHT = (
-            "QToolButton { background: rgba(80,180,80,45); "
-            "border: 1px solid #4a8a4a; border-radius: 3px; }"
+            "QToolButton { background: rgba(80,180,80,45);"
+            " border: 1px solid #4a8a4a; border-radius: 3px; }"
+            " QToolButton:checked { background: #2a5ca0;"
+            " border: 2px solid #6699ee; border-radius: 3px; color: white; }"
         )
         for tool_name, act in self._tool_act_map.items():
             if tool_name in self._plugin_tool_names:
