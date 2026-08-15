@@ -22,12 +22,12 @@ from annotator.exporters.base import BaseExporter, write_yolo_dataset
 _MARGIN = 0.05   # fractional margin around visible keypoints for auto-bbox
 
 
-def _kpt_count_for_project(project: Project) -> int:
-    """Return skeleton length from the first 'keypoints' class, or 0."""
+def _kpt_info_for_project(project: Project) -> tuple[int, list[str]]:
+    """Return (skeleton_length, keypoint_names) from the first 'keypoints' class."""
     for cls in project.classes:
         if cls.annotation_type == "keypoints" and cls.skeleton:
-            return len(cls.skeleton)
-    return 0
+            return len(cls.skeleton), [kp.name for kp in cls.skeleton]
+    return 0, []
 
 
 def _make_format_fn(project: Project):
@@ -93,9 +93,11 @@ class YoloPoseExporter(BaseExporter):
             copy_images=kwargs.get("copy_images", True),
         )
 
-        # Append kpt_shape to data.yaml
-        n = _kpt_count_for_project(project)
+        # Append kpt_shape and kpt_names to data.yaml
+        n, names = _kpt_info_for_project(project)
         if n > 0:
             yaml_path = output_dir / "data.yaml"
             with open(yaml_path, "a", encoding="utf-8") as f:
                 f.write(f"\nkpt_shape: [{n}, 3]\n")
+                if names:
+                    f.write(f"kpt_names: {names}\n")
