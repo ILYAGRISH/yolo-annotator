@@ -130,6 +130,75 @@ good, damaged, occluded
 
 ---
 
+## Экспорт датасета
+
+**File → Export Dataset (Ctrl+E)** — экспортирует все изображения и аннотации проекта в выбранный формат.
+
+### Режимы экспорта
+
+| Режим | Описание |
+|-------|----------|
+| **Single format** | Один формат → одна папка `output/images/` + `labels/` + `data.yaml` |
+| **Multi-task** | Несколько форматов → общая `images/`, отдельные `labels_detect/`, `labels_segment/`, ... |
+
+### Совместимость типов аннотаций с форматами
+
+| Тип аннотации | Detect | Segment | OBB | Pose | Point | Classify |
+|--------------|:------:|:-------:|:---:|:----:|:-----:|:--------:|
+| **BBOX** | ✓ | ✓ → полигон | — | — | — | — |
+| **POLYGON / SEGMENT** | ★ | ✓ | — | — | — | — |
+| **POLYLINE** | ★ | ✓ | — | — | — | — |
+| **MASK** | ★ | ✓ → контур | — | — | — | — |
+| **OBB** | — | — | ✓ | — | — | — |
+| **POSE (keypoints)** | — | — | — | ✓ | — | — |
+| **POINT** | — | — | — | — | ✓ | — |
+| **CLASSIFICATION** | — | — | — | — | — | ✓ |
+
+★ — только при политике `Convert`; при `Skip` (по умолчанию) — игнорируется.
+
+### Формат строки в label-файле
+
+| Формат | Строка | Примечание |
+|--------|--------|------------|
+| **YOLO Detect** | `cls cx cy w h` | нормализованные [0, 1] |
+| **YOLO Segment** | `cls x1 y1 x2 y2 … xn yn` | произвольное кол-во вершин; BBOX → 4-угловой полигон (8 чисел TL→TR→BR→BL) |
+| **YOLO OBB** | `cls x1 y1 x2 y2 x3 y3 x4 y4` | 4 угла поворота TL→TR→BR→BL |
+| **YOLO Pose** | `cls cx cy w h  kx1 ky1 v1  kx2 ky2 v2 …` | v: 0=невидим, 2=виден; bbox авто из keypoints + 5% отступ |
+| **YOLO Point** | `cls cx cy 0.01 0.01  x y 2` | 1-keypoint pose; синтетический bbox 1% |
+| **YOLO Classify** | — (нет labels/) | папочная структура `<split>/<class_name>/img.jpg` |
+
+### Политика несовместимых типов для YOLO Detect (`geometry_policy`)
+
+| Политика | Поведение |
+|----------|-----------|
+| **Skip** (по умолчанию) | Только BBOX-аннотации; всё остальное игнорируется |
+| **Convert** | POLYGON / POLYLINE → bounding box вершин; MASK → bbox из метаданных |
+
+### Структура выходной папки
+
+**Single format:**
+```
+output/
+  images/
+    train/   val/   test/
+  labels/
+    train/   val/   test/
+  data.yaml
+```
+
+**Multi-task:**
+```
+output/
+  images/
+    train/   val/              ← общие для detect/seg/obb/pose
+  labels_detect/  labels_segment/  labels_obb/  labels_pose/
+  classify/
+    train/<class_name>/        ← отдельные копии для classify
+  data_detect.yaml  data_segment.yaml  data_obb.yaml  data_pose.yaml
+```
+
+---
+
 ## Многопользовательский режим (Вариант A)
 
 Несколько разметчиков могут работать с одним проектом одновременно — каждый видит только свою часть изображений. Проект при этом находится в **общей сетевой папке** (NAS, SMB-шара).
