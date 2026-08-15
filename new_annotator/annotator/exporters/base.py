@@ -46,7 +46,7 @@ def write_yolo_dataset(project: Project,
 def _write_data_yaml(project: Project, output_dir: Path) -> None:
     splits = sorted({r.split or "train" for r in project.images})
     names = [c.name for c in sorted(project.classes, key=lambda c: c.id)]
-    lines = [f"path: {output_dir.resolve()}"]
+    lines = [f"path: {output_dir.resolve().as_posix()}"]
     for s in ("train", "val", "test"):
         if s in splits:
             lines.append(f"{s}: images/{s}")
@@ -107,7 +107,7 @@ def _write_multitask_yaml(output_dir: Path, labels_dir_name: str,
     lines = [
         f"# Multi-task export — images shared at images/{{split}}/",
         f"# Labels at {labels_dir_name}/{{split}}/",
-        f"path: {output_dir.resolve()}",
+        f"path: {output_dir.resolve().as_posix()}",
     ]
     for s in ("train", "val", "test"):
         if s in splits:
