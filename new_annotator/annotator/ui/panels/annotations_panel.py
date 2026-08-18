@@ -136,36 +136,38 @@ class AnnotationsPanel(QWidget):
 
     def _rebuild_attr_form(self):
         self._rebuilding = True
-        for _, w in self._attr_widgets:
-            w.blockSignals(True)
-        self._attr_widgets.clear()
-        while self._attr_layout.rowCount():
-            self._attr_layout.removeRow(0)
-        self._rebuilding = False
+        try:
+            for _, w in self._attr_widgets:
+                w.blockSignals(True)
+            self._attr_widgets.clear()
+            while self._attr_layout.rowCount():
+                self._attr_layout.removeRow(0)
 
-        if not self._selected_ann_id or not self._project:
-            self._attr_frame.setVisible(False)
-            return
+            if not self._selected_ann_id or not self._project:
+                self._attr_frame.setVisible(False)
+                return
 
-        ann = next((a for a in self._annotations
-                    if a.id == self._selected_ann_id), None)
-        if ann is None:
-            self._attr_frame.setVisible(False)
-            return
+            ann = next((a for a in self._annotations
+                        if a.id == self._selected_ann_id), None)
+            if ann is None:
+                self._attr_frame.setVisible(False)
+                return
 
-        cls = self._project.get_class(ann.class_id)
-        if not cls or not cls.attributes:
-            self._attr_frame.setVisible(False)
-            return
+            cls = self._project.get_class(ann.class_id)
+            if not cls or not cls.attributes:
+                self._attr_frame.setVisible(False)
+                return
 
-        saved = ann.data.get("attributes", {})
-        for attr in cls.attributes:
-            val = saved.get(attr.name, attr.default_value)
-            w = self._make_widget(attr, val)
-            self._attr_layout.addRow(f"{attr.name}:", w)
-            self._attr_widgets.append((attr, w))
+            saved = ann.data.get("attributes", {})
+            for attr in cls.attributes:
+                val = saved.get(attr.name, attr.default_value)
+                w = self._make_widget(attr, val)
+                self._attr_layout.addRow(f"{attr.name}:", w)
+                self._attr_widgets.append((attr, w))
 
-        self._attr_frame.setVisible(True)
+            self._attr_frame.setVisible(True)
+        finally:
+            self._rebuilding = False
 
     def _make_widget(self, attr, value) -> QWidget:
         if attr.attr_type == "bool":
