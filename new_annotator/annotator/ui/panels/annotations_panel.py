@@ -34,6 +34,7 @@ class AnnotationsPanel(QWidget):
         self._active_class_id: int | None = None
         self._selected_ann_id: str | None = None
         self._attr_widgets: list[tuple] = []    # [(ClassAttribute, QWidget), ...]
+        self._rebuilding: bool = False          # guard against signals during form rebuild
         self._setup_ui()
 
     def _setup_ui(self):
@@ -134,9 +135,13 @@ class AnnotationsPanel(QWidget):
     # ── attribute form ────────────────────────────────────────────────────
 
     def _rebuild_attr_form(self):
+        self._rebuilding = True
+        for _, w in self._attr_widgets:
+            w.blockSignals(True)
+        self._attr_widgets.clear()
         while self._attr_layout.rowCount():
             self._attr_layout.removeRow(0)
-        self._attr_widgets.clear()
+        self._rebuilding = False
 
         if not self._selected_ann_id or not self._project:
             self._attr_frame.setVisible(False)
@@ -210,7 +215,7 @@ class AnnotationsPanel(QWidget):
         return out
 
     def _commit_attrs(self):
-        if not self._selected_ann_id:
+        if self._rebuilding or not self._selected_ann_id:
             return
         ann = next((a for a in self._annotations
                     if a.id == self._selected_ann_id), None)
