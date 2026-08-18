@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import QTimer, pyqtSignal
 from PyQt6.QtGui import QColor, QIcon, QPixmap
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QFrame,
@@ -35,6 +35,7 @@ class AnnotationsPanel(QWidget):
         self._selected_ann_id: str | None = None
         self._attr_widgets: list[tuple] = []    # [(ClassAttribute, QWidget), ...]
         self._rebuilding: bool = False          # guard against signals during form rebuild
+        self._commit_pending: bool = False      # deferred commit already scheduled
         self._setup_ui()
 
     def _setup_ui(self):
@@ -136,6 +137,7 @@ class AnnotationsPanel(QWidget):
 
     def _rebuild_attr_form(self):
         self._rebuilding = True
+        self._commit_pending = False   # cancel any pending commit for old widgets
         try:
             for _, w in self._attr_widgets:
                 w.blockSignals(True)
@@ -217,7 +219,17 @@ class AnnotationsPanel(QWidget):
         return out
 
     def _commit_attrs(self):
-        if self._rebuilding or not self._selected_ann_id:
+        # Schedule a deferred commit so the widget's signal handler can return
+        # before refresh() destroys the widget. Multiple rapid changes collapse
+        # into one commit via _commit_pending guard.
+        if self._rebuilding or not self._selected_ann_id or self._commit_pending:
+            return
+        self._commit_pending = True
+        QTimer.singleShot(0, self._do_commit)
+
+    def _do_commit(self):
+        self._commit_pending = False
+        if self._rebuilding or not self._selected_ann_id or not self._attr_widgets:
             return
         ann = next((a for a in self._annotations
                     if a.id == self._selected_ann_id), None)
