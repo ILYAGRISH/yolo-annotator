@@ -378,7 +378,48 @@ kpt_shape: [3, 3]
 
 ---
 
-### 7.6 YOLO Point
+### 7.6 COCO Keypoints
+**Формат:** JSON per split; keypoints в пикселях `[x y v  x y v  ...]`  
+`v`: 0 = отсутствует, 2 = видима  
+bbox авто-вычисляется из видимых точек + 5% от размера изображения
+
+**Пример `annotations/keypoints_train.json`:**
+```json
+{
+  "categories": [
+    {
+      "id": 4,
+      "name": "person",
+      "supercategory": "",
+      "keypoints": ["nose", "left_eye", "right_eye"],
+      "skeleton": [[0, 1], [0, 2]]
+    }
+  ],
+  "images": [
+    {"id": 0, "file_name": "img1.jpg", "width": 1920, "height": 1080}
+  ],
+  "annotations": [
+    {
+      "id": 0,
+      "image_id": 0,
+      "category_id": 4,
+      "keypoints": [487.07, 530.17, 2, 387.93, 729.88, 2, 574.35, 731.32, 2],
+      "num_keypoints": 3,
+      "bbox": [291.93, 476.17, 378.42, 309.71],
+      "area": 116978.0,
+      "iscrowd": 0
+    }
+  ]
+}
+```
+
+> Экспортирует только POSE-аннотации; остальные типы игнорируются.  
+> `skeleton` в категории — рёбра 0-indexed, как в схеме классов.  
+> Если точка не размечена (v=0), координаты `x=0 y=0`.
+
+---
+
+### 7.8 YOLO Point
 **Формат:** YOLO 1-keypoint pose с синтетическим bbox 1%  
 `class_id  cx cy 0.01 0.01  x y 2`
 
@@ -396,7 +437,7 @@ kpt_shape: [1, 3]
 
 ---
 
-### 7.7 YOLO Classify
+### 7.9 YOLO Classify
 **Структура:** папочная — изображение копируется в `<split>/<class_name>/`
 
 ```
@@ -415,7 +456,7 @@ output/
 
 ---
 
-### 7.8 Multi-task (общий images/, несколько форматов)
+### 7.10 Multi-task (общий images/, несколько форматов)
 
 **Используем:** File → Export Dataset → режим **Multi-task**  
 **Выбираем:** любую комбинацию чекбоксов; политику несовместимых типов  

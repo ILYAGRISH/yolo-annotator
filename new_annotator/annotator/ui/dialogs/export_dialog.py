@@ -18,6 +18,7 @@ _FORMATS = [
     ("YOLO Point  (single point → 1-kpt pose)",       "yolo_point"),
     ("YOLO Classify  (image-level classification)",   "yolo_classify"),
     ("COCO Instances  (JSON with attributes)",        "coco"),
+    ("COCO Keypoints  (JSON keypoints format)",       "coco_keypoints"),
 ]
 
 _POLICIES = [

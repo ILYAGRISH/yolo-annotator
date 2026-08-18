@@ -532,6 +532,9 @@ class ProjectController(QObject):
         elif format_name == "coco":
             from annotator.exporters.coco import CocoExporter
             exp = CocoExporter()
+        elif format_name == "coco_keypoints":
+            from annotator.exporters.coco_keypoints import CocoKeypointsExporter
+            exp = CocoKeypointsExporter()
         else:
             raise ValueError(f"Unknown export format: {format_name!r}")
 

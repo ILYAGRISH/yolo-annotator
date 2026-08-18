@@ -143,16 +143,16 @@ good, damaged, occluded
 
 ### Совместимость типов аннотаций с форматами
 
-| Тип аннотации | Detect | Segment | OBB | Pose | Point | Classify |
-|--------------|:------:|:-------:|:---:|:----:|:-----:|:--------:|
-| **BBOX** | ✓ | ✓ → полигон | — | — | — | — |
-| **POLYGON / SEGMENT** | ★ | ✓ | — | — | — | — |
-| **POLYLINE** | ★ | ✓ | — | — | — | — |
-| **MASK** | ★ | ✓ → контур | — | — | — | — |
-| **OBB** | — | — | ✓ | — | — | — |
-| **POSE (keypoints)** | — | — | — | ✓ | — | — |
-| **POINT** | — | — | — | — | ✓ | — |
-| **CLASSIFICATION** | — | — | — | — | — | ✓ |
+| Тип аннотации | Detect | Segment | OBB | Pose | Point | Classify | COCO Inst. | COCO Kpt. |
+|--------------|:------:|:-------:|:---:|:----:|:-----:|:--------:|:----------:|:---------:|
+| **BBOX** | ✓ | ✓ → полигон | — | — | — | — | ✓ | — |
+| **POLYGON / SEGMENT** | ★ | ✓ | — | — | — | — | ✓ | — |
+| **POLYLINE** | ★ | ✓ | — | — | — | — | ✓ | — |
+| **MASK** | ★ | ✓ → контур | — | — | — | — | — | — |
+| **OBB** | — | — | ✓ | — | — | — | ✓ | — |
+| **POSE (keypoints)** | — | — | — | ✓ | — | — | — | ✓ |
+| **POINT** | — | — | — | — | ✓ | — | — | — |
+| **CLASSIFICATION** | — | — | — | — | — | ✓ | — | — |
 
 ★ — только при политике `Convert`; при `Skip` (по умолчанию) — игнорируется.
 
@@ -166,6 +166,8 @@ good, damaged, occluded
 | **YOLO Pose** | `cls cx cy w h  kx1 ky1 v1  kx2 ky2 v2 …` | v: 0=невидим, 2=виден; bbox авто из keypoints + 5% отступ |
 | **YOLO Point** | `cls cx cy 0.01 0.01  x y 2` | 1-keypoint pose; синтетический bbox 1% |
 | **YOLO Classify** | — (нет labels/) | папочная структура `<split>/<class_name>/img.jpg` |
+| **COCO Instances** | JSON `annotations/instances_<split>.json` | BBOX/POLYGON/OBB → segmentation + bbox; атрибуты |
+| **COCO Keypoints** | JSON `annotations/keypoints_<split>.json` | только POSE; keypoints в пикселях + skeleton в категории |
 
 ### Политика несовместимых типов для YOLO Detect (`geometry_policy`)
 
