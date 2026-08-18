@@ -455,7 +455,9 @@ class ProjectController(QObject):
         _UNIVERSAL = {"mask", "point"}
         # Explicitly compatible (schema_type, actual_ann_type)
         # CrackTool creates SEGMENT (buffered polygon) on polygon-type classes — expected
-        _COMPAT = {("polygon", "segment")}
+        # keypoints class stores annotations as AnnotationType.POSE ("pose") — expected
+        # classification class stores annotations as AnnotationType.CLASSIFY ("classify") — expected
+        _COMPAT = {("polygon", "segment"), ("keypoints", "pose"), ("classification", "classify")}
 
         if not self._project:
             return []

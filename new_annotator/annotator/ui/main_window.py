@@ -267,6 +267,9 @@ class MainWindow(QMainWindow):
             self._on_edit_crack_source)
         self._annotations_panel.classify_image_requested.connect(
             self._on_classify_image)
+        self._annotations_panel.attribute_changed.connect(
+            lambda ann_id, data: self._ctrl.update_annotation_data(
+                ann_id, data, "Edit attributes"))
         self._qc_panel.validate_requested.connect(self._run_validation)
         self._qc_panel.navigate_requested.connect(self._on_qc_navigate)
         self._tool_props.params_changed.connect(self._on_tool_params_changed)

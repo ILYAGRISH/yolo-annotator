@@ -311,7 +311,7 @@ names: ['car', 'person']
 
 ---
 
-### 7.3 YOLO OBB
+### 7.3 YOLO OBB +
 **Формат:** `class_id  x1 y1  x2 y2  x3 y3  x4 y4` (4 угла повёрнутого прямоугольника)
 
 **Пример `labels/train/img1.txt`:**
