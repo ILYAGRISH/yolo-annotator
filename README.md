@@ -60,6 +60,12 @@ cd new_annotator
 
 ## Changelog
 
+### v1.2
+- **Pascal VOC export** — full XML `<bndbox>` export with `Annotations/`, `JPEGImages/`, `ImageSets/Main/` layout; all geometry types converted to bounding box
+- **LabelMe JSON export** — LabelMe v5 format with full geometry (polygon, rectangle, linestrip, point); output grouped by split
+- **Customizable hotkeys** — reassign any tool or navigation key in Project Settings → Hotkeys; stored per project, applied instantly
+- **EN / RU localization** — switch language at runtime via Help → Language; menus, panels, buttons, filters, and dialogs all update immediately
+
 ### v1.1
 - **Subclass selector** — when annotating, a combobox appears in the Annotations panel to assign a subclass to any annotation (subclasses are defined per class in the Class Schema Editor)
 - **Drag & drop images** — drag image files or folders directly onto the Images panel to add them to the project
