@@ -2,7 +2,8 @@ from pathlib import Path
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QDragEnterEvent, QDragMoveEvent, QDropEvent
-from PyQt6.QtWidgets import (QLabel, QListWidget, QListWidgetItem, QMenu,
+from PyQt6.QtWidgets import (QComboBox, QHBoxLayout, QLabel, QLineEdit,
+                              QListWidget, QListWidgetItem, QMenu,
                               QVBoxLayout, QWidget)
 
 from annotator.domain.project import ImageRecord, Project
@@ -38,6 +39,29 @@ class ImagesPanel(QWidget):
 
         self._header = QLabel("Images")
         lay.addWidget(self._header)
+
+        # ── Filters ───────────────────────────────────────────────────────────
+        self._search = QLineEdit()
+        self._search.setPlaceholderText("Search by name…")
+        self._search.setClearButtonEnabled(True)
+        self._search.textChanged.connect(self._refresh)
+        lay.addWidget(self._search)
+
+        filter_row = QHBoxLayout()
+        filter_row.setSpacing(4)
+        self._split_filter = QComboBox()
+        self._split_filter.addItems(["All splits", "train", "val", "test"])
+        self._split_filter.setToolTip("Filter by dataset split")
+        self._split_filter.currentIndexChanged.connect(self._refresh)
+        filter_row.addWidget(self._split_filter)
+
+        self._status_filter = QComboBox()
+        self._status_filter.addItems(["All", "Annotated", "Unannotated"])
+        self._status_filter.setToolTip("Filter by annotation status")
+        self._status_filter.currentIndexChanged.connect(self._refresh)
+        filter_row.addWidget(self._status_filter)
+        lay.addLayout(filter_row)
+        # ─────────────────────────────────────────────────────────────────────
 
         self._list = QListWidget()
         self._list.currentRowChanged.connect(self._on_row)
@@ -128,16 +152,36 @@ class ImagesPanel(QWidget):
             self._header.setText("Images")
             return
 
-        if self._user_filter is None:
-            self._displayed = list(self._project.images)
-            label = f"Images ({len(self._displayed)})"
-        else:
-            self._displayed = [
-                r for r in self._project.images
-                if Path(r.path).stem in self._user_filter
-            ]
-            label = f"My Images ({len(self._displayed)})"
+        # Step 1: apply multi-user filter
+        is_leader = self._user_filter is None
+        base = (self._project.images if is_leader
+                else [r for r in self._project.images
+                      if Path(r.path).stem in self._user_filter])
+        total = len(base)
 
+        # Step 2: split filter
+        split_sel = self._split_filter.currentText()
+        if split_sel != "All splits":
+            base = [r for r in base if (r.split or "train") == split_sel]
+
+        # Step 3: annotation status filter
+        status_sel = self._status_filter.currentText()
+        if status_sel == "Annotated":
+            base = [r for r in base if r.path in self._annotated]
+        elif status_sel == "Unannotated":
+            base = [r for r in base if r.path not in self._annotated]
+
+        # Step 4: name search
+        query = self._search.text().strip().lower()
+        if query:
+            base = [r for r in base
+                    if query in Path(r.path).name.lower()]
+
+        self._displayed = base
+        shown = len(self._displayed)
+        prefix = "My Images" if not is_leader else "Images"
+        label = (f"{prefix} ({shown} / {total})"
+                 if shown != total else f"{prefix} ({total})")
         self._header.setText(label)
         for rec in self._displayed:
             self._list.addItem(self._make_item(rec))
