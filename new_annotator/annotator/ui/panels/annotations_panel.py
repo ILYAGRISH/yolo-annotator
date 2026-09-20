@@ -5,7 +5,7 @@ from PyQt6.QtGui import QColor, QIcon, QPixmap
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QFrame,
     QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-    QPushButton, QVBoxLayout, QWidget,
+    QPushButton, QSizePolicy, QVBoxLayout, QWidget,
 )
 
 from annotator.domain.annotation import Annotation, AnnotationType
@@ -68,6 +68,23 @@ class AnnotationsPanel(QWidget):
         self._attr_layout.setSpacing(4)
         af.addWidget(self._attr_form)
 
+        # ── Subclass selector ─────────────────────────────────────────────
+        self._sub_frame = QFrame()
+        self._sub_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        self._sub_frame.setVisible(False)
+        sf = QHBoxLayout(self._sub_frame)
+        sf.setContentsMargins(4, 3, 4, 3)
+        sf.setSpacing(6)
+        sub_lbl = QLabel("Subclass:")
+        sub_lbl.setStyleSheet("font-size:11px;")
+        sf.addWidget(sub_lbl)
+        self._sub_combo = QComboBox()
+        self._sub_combo.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._sub_combo.currentIndexChanged.connect(self._commit_attrs)
+        sf.addWidget(self._sub_combo)
+        lay.addWidget(self._sub_frame)
+
         lay.addWidget(self._attr_frame)
 
         # ── Bottom buttons ────────────────────────────────────────────────
@@ -114,7 +131,9 @@ class AnnotationsPanel(QWidget):
             if ann.ann_type == AnnotationType.CLASSIFY:
                 label = f"{name}  [IMAGE LABEL]"
             else:
-                label = f"{name}  [{ann.ann_type.value}]  ({self._pts_count(ann)} pts)"
+                sub = ann.data.get("subclass", "")
+                sub_str = f"  · {sub}" if sub else f"  ({self._pts_count(ann)} pts)"
+                label = f"{name}  [{ann.ann_type.value}]{sub_str}"
             self._list.addItem(QListWidgetItem(_icon(color), label))
         self._list.blockSignals(False)
         self._rebuild_attr_form()
@@ -146,17 +165,39 @@ class AnnotationsPanel(QWidget):
                 self._attr_layout.removeRow(0)
 
             if not self._selected_ann_id or not self._project:
+                self._sub_frame.setVisible(False)
                 self._attr_frame.setVisible(False)
                 return
 
             ann = next((a for a in self._annotations
                         if a.id == self._selected_ann_id), None)
             if ann is None:
+                self._sub_frame.setVisible(False)
                 self._attr_frame.setVisible(False)
                 return
 
             cls = self._project.get_class(ann.class_id)
-            if not cls or not cls.attributes:
+            if cls is None:
+                self._sub_frame.setVisible(False)
+                self._attr_frame.setVisible(False)
+                return
+
+            # ── subclass combobox ─────────────────────────────────────────
+            self._sub_combo.blockSignals(True)
+            self._sub_combo.clear()
+            if cls.subclasses:
+                self._sub_combo.addItem("— (none) —")
+                for s in cls.subclasses:
+                    self._sub_combo.addItem(s)
+                current_sub = ann.data.get("subclass", "")
+                if current_sub in cls.subclasses:
+                    self._sub_combo.setCurrentText(current_sub)
+                else:
+                    self._sub_combo.setCurrentIndex(0)
+            self._sub_combo.blockSignals(False)
+            self._sub_frame.setVisible(bool(cls.subclasses))
+
+            if not cls.attributes:
                 self._attr_frame.setVisible(False)
                 return
 
@@ -236,6 +277,9 @@ class AnnotationsPanel(QWidget):
         if ann is None:
             return
         new_data = {**ann.data, "attributes": self._collect_attrs()}
+        if self._sub_frame.isVisible():
+            idx = self._sub_combo.currentIndex()
+            new_data["subclass"] = self._sub_combo.currentText() if idx > 0 else ""
         self.attribute_changed.emit(self._selected_ann_id, new_data)
 
     # ── internal slots ────────────────────────────────────────────────────
