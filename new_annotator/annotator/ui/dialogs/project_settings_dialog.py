@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QFormLayout,
                               QScrollArea, QSpinBox, QVBoxLayout, QWidget)
 
 from annotator.domain.project import DEFAULT_HOTKEYS, Project, ProjectSettings
+from annotator.i18n import tr
 
 _EXPORT_FORMATS = [
     ("Auto  (by class types)",  "auto"),
@@ -92,7 +93,7 @@ class ProjectSettingsDialog(QDialog):
 
     def __init__(self, project: Project, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Project Settings")
+        self.setWindowTitle(tr("dlg_project_settings"))
         self.setMinimumWidth(460)
         self._project = project
         self._hk_edits: dict[str, KeyCaptureEdit] = {}
@@ -106,33 +107,33 @@ class ProjectSettingsDialog(QDialog):
         top = QFormLayout()
         top.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
         self._name = QLineEdit()
-        top.addRow("Name:", self._name)
+        top.addRow(tr("lbl_name"), self._name)
         lay.addLayout(top)
 
         # Settings group
-        sgrp = QGroupBox("Settings")
+        sgrp = QGroupBox(tr("grp_settings"))
         sform = QFormLayout(sgrp)
         sform.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
 
         self._fmt_combo = QComboBox()
         for label, _ in _EXPORT_FORMATS:
             self._fmt_combo.addItem(label)
-        sform.addRow("Auto-export format:", self._fmt_combo)
+        sform.addRow(tr("lbl_auto_export"), self._fmt_combo)
 
         self._autosave = QSpinBox()
         self._autosave.setRange(10, 3600)
         self._autosave.setSingleStep(10)
         self._autosave.setSuffix(" sec")
-        sform.addRow("Autosave interval:", self._autosave)
+        sform.addRow(tr("lbl_autosave"), self._autosave)
 
         lay.addWidget(sgrp)
 
         # Hotkeys group
-        hk_grp = QGroupBox("Hotkeys  (click a field, then press the desired key)")
+        hk_grp = QGroupBox(tr("grp_hotkeys"))
         hk_outer = QVBoxLayout(hk_grp)
         hk_outer.setContentsMargins(4, 4, 4, 4)
 
-        hint = QLabel("Esc = cancel  ·  Backspace = clear (disable)")
+        hint = QLabel(tr("hk_hint"))
         hint.setStyleSheet("color:#888; font-size:10px;")
         hk_outer.addWidget(hint)
 
@@ -163,7 +164,7 @@ class ProjectSettingsDialog(QDialog):
         lay.addWidget(hk_grp)
 
         # Info group (read-only)
-        igrp = QGroupBox("Info")
+        igrp = QGroupBox(tr("grp_info"))
         iform = QFormLayout(igrp)
 
         self._lbl_created = QLabel()
@@ -171,9 +172,9 @@ class ProjectSettingsDialog(QDialog):
         self._lbl_id = QLabel()
         self._lbl_id.setStyleSheet("color:#888; font-size:10px;")
 
-        iform.addRow("Created:", self._lbl_created)
-        iform.addRow("Modified:", self._lbl_modified)
-        iform.addRow("ID:", self._lbl_id)
+        iform.addRow(tr("lbl_created"), self._lbl_created)
+        iform.addRow(tr("lbl_modified"), self._lbl_modified)
+        iform.addRow(tr("lbl_id"), self._lbl_id)
         lay.addWidget(igrp)
 
         bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |

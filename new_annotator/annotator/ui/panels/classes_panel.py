@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
 )
 
 from annotator.domain.label_class import LabelClass
+from annotator.i18n import tr
 from annotator.domain.project import Project
 
 
@@ -35,13 +36,14 @@ class ClassesPanel(QWidget):
         lay.setSpacing(4)
 
         header = QHBoxLayout()
-        header.addWidget(QLabel("Classes"))
+        self._header_lbl = QLabel(tr("classes"))
+        header.addWidget(self._header_lbl)
         header.addStretch()
-        b_edit = QPushButton("Schema…")
-        b_edit.setFixedHeight(22)
-        b_edit.setToolTip("Open full class schema editor")
-        b_edit.clicked.connect(self.open_schema_editor)
-        header.addWidget(b_edit)
+        self._btn_schema = QPushButton(tr("btn_schema"))
+        self._btn_schema.setFixedHeight(22)
+        self._btn_schema.setToolTip("Open full class schema editor")
+        self._btn_schema.clicked.connect(self.open_schema_editor)
+        header.addWidget(self._btn_schema)
         lay.addLayout(header)
 
         self._list = QListWidget()
@@ -51,6 +53,10 @@ class ClassesPanel(QWidget):
     def load_project(self, project: Project):
         self._project = project
         self._refresh()
+
+    def retranslate(self):
+        self._header_lbl.setText(tr("classes"))
+        self._btn_schema.setText(tr("btn_schema"))
 
     def _refresh(self):
         self._list.clear()

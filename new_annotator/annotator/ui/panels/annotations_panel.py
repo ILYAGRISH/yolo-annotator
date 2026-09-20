@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
 
 from annotator.domain.annotation import Annotation, AnnotationType
 from annotator.domain.project import Project
+from annotator.i18n import tr
 
 
 def _icon(color: str) -> QIcon:
@@ -43,7 +44,7 @@ class AnnotationsPanel(QWidget):
         lay.setContentsMargins(4, 4, 4, 4)
         lay.setSpacing(4)
 
-        self._header = QLabel("Annotations")
+        self._header = QLabel(tr("annotations"))
         lay.addWidget(self._header)
 
         self._list = QListWidget()
@@ -75,9 +76,9 @@ class AnnotationsPanel(QWidget):
         sf = QHBoxLayout(self._sub_frame)
         sf.setContentsMargins(4, 3, 4, 3)
         sf.setSpacing(6)
-        sub_lbl = QLabel("Subclass:")
-        sub_lbl.setStyleSheet("font-size:11px;")
-        sf.addWidget(sub_lbl)
+        self._sub_lbl = QLabel(tr("subclass_lbl"))
+        self._sub_lbl.setStyleSheet("font-size:11px;")
+        sf.addWidget(self._sub_lbl)
         self._sub_combo = QComboBox()
         self._sub_combo.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -88,24 +89,30 @@ class AnnotationsPanel(QWidget):
         lay.addWidget(self._attr_frame)
 
         # ── Bottom buttons ────────────────────────────────────────────────
-        self._btn_classify = QPushButton("+ Classify image")
+        self._btn_classify = QPushButton(tr("btn_classify_img"))
         self._btn_classify.setVisible(False)
         self._btn_classify.clicked.connect(self._classify_image)
         lay.addWidget(self._btn_classify)
 
         row = QHBoxLayout()
-        self._btn_edit_src = QPushButton("Edit source")
+        self._btn_edit_src = QPushButton(tr("btn_edit_src"))
         self._btn_edit_src.setEnabled(False)
         self._btn_edit_src.setToolTip(
             "Edit the source polyline of a crack annotation")
         self._btn_edit_src.clicked.connect(self._edit_source)
-        btn_del = QPushButton("Delete")
-        btn_del.clicked.connect(self._delete)
+        self._btn_del = QPushButton(tr("btn_delete"))
+        self._btn_del.clicked.connect(self._delete)
         row.addWidget(self._btn_edit_src)
-        row.addWidget(btn_del)
+        row.addWidget(self._btn_del)
         lay.addLayout(row)
 
     # ── public API ────────────────────────────────────────────────────────
+
+    def retranslate(self):
+        self._sub_lbl.setText(tr("subclass_lbl"))
+        self._btn_edit_src.setText(tr("btn_edit_src"))
+        self._btn_del.setText(tr("btn_delete"))
+        self.refresh(self._annotations)
 
     def load_project(self, project: Project):
         self._project = project
@@ -121,7 +128,7 @@ class AnnotationsPanel(QWidget):
         self._annotations = list(annotations)
         self._list.blockSignals(True)
         self._list.clear()
-        self._header.setText(f"Annotations ({len(annotations)})")
+        self._header.setText(f"{tr('annotations')} ({len(annotations)})")
         for ann in annotations:
             color, name = "#888888", str(ann.class_id)
             if self._project:

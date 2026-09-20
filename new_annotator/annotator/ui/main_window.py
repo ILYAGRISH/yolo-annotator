@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (QDialog, QFileDialog, QMainWindow, QMessageBox,
 
 from annotator.controller.project_controller import ProjectController
 from annotator.domain.label_class import ANNOTATION_TYPE_DEFAULT_TOOL, ANNOTATION_TYPE_TOOLS
+from annotator.i18n import current_language, set_language, tr
 from annotator.tools.bbox_tool import BBoxTool
 from annotator.tools.crack_tool import CrackTool
 from annotator.tools.obb_tool import OBBTool
@@ -47,6 +48,7 @@ class MainWindow(QMainWindow):
         self._plugin_tool_names: set[str] = set()
         self._user_role: str = "leader"   # "leader" or "client"
         self._user_name: str = ""
+        self._tr_items: list[tuple] = []   # [(setter_callable, key), ...]
         self._setup_ui()
         self._setup_menu()
         self._setup_toolbar()
@@ -74,8 +76,8 @@ class MainWindow(QMainWindow):
         left.setSizes([420, 200])
 
         self._right_tabs = QTabWidget()
-        self._right_tabs.addTab(self._annotations_panel, "Annotations")
-        self._right_tabs.addTab(self._qc_panel, "QC")
+        self._right_tabs.addTab(self._annotations_panel, tr("tab_annotations"))
+        self._right_tabs.addTab(self._qc_panel, tr("tab_qc"))
 
         self._tool_props = ToolPropsPanel()
         center = QWidget()
@@ -98,30 +100,49 @@ class MainWindow(QMainWindow):
 
     # ── menus ─────────────────────────────────────────────────────────────────
 
+    # ── translation helpers ───────────────────────────────────────────────────
+
+    def _tmenu(self, parent, key: str):
+        """Create QMenu with translated title and register for retranslation."""
+        m = parent.addMenu(tr(key))
+        self._tr_items.append((m.setTitle, key))
+        return m
+
+    def _tact(self, menu, key: str, slot, shortcut: str = "") -> QAction:
+        """Create QAction with translated text, connect, and register for retranslation."""
+        act = QAction(tr(key), self)
+        if shortcut:
+            act.setShortcut(QKeySequence(shortcut))
+        act.triggered.connect(slot)
+        menu.addAction(act)
+        self._tr_items.append((act.setText, key))
+        return act
+
+    # ── menus ─────────────────────────────────────────────────────────────────
+
     def _setup_menu(self):
         mb = self.menuBar()
 
         # File
-        file_m = mb.addMenu("&File")
-        self._add_action(file_m, "&New Project…",   self._new_project, "Ctrl+N")
-        self._add_action(file_m, "&Open Project…",  self._open_project, "Ctrl+O")
-        self._add_action(file_m, "&Save Project",   self._ctrl.save_project, "Ctrl+S")
-        self._add_action(file_m, "&Close Project",    self._close_project)
-        self._add_action(file_m, "Project Settings…", self._open_project_settings)
-        self._add_action(file_m, "Your Name…",        self._change_user_name)
+        file_m = self._tmenu(mb, "menu_file")
+        self._tact(file_m, "act_new_project",      self._new_project,            "Ctrl+N")
+        self._tact(file_m, "act_open_project",     self._open_project,           "Ctrl+O")
+        self._tact(file_m, "act_save_project",     self._ctrl.save_project,      "Ctrl+S")
+        self._tact(file_m, "act_close_project",    self._close_project)
+        self._tact(file_m, "act_project_settings", self._open_project_settings)
+        self._tact(file_m, "act_your_name",        self._change_user_name)
         file_m.addSeparator()
-        self._add_action(file_m, "Add Images from Folder…", self._add_images)
-        self._add_action(file_m, "Split Dataset…", self._split_dataset)
-        self._assign_act = self._add_action(
-            file_m, "Assign Images…", self._open_assign_dialog)
+        self._tact(file_m, "act_add_images",       self._add_images)
+        self._tact(file_m, "act_split_dataset",    self._split_dataset)
+        self._assign_act = self._tact(file_m, "act_assign_images", self._open_assign_dialog)
         self._assign_act.setEnabled(False)
         file_m.addSeparator()
-        self._add_action(file_m, "Export Dataset…", self._export_dataset, "Ctrl+E")
+        self._tact(file_m, "act_export_dataset",   self._export_dataset,         "Ctrl+E")
         file_m.addSeparator()
-        self._add_action(file_m, "&Quit", self.close, "Ctrl+Q")
+        self._tact(file_m, "act_quit",             self.close,                   "Ctrl+Q")
 
         # Edit
-        edit_m = mb.addMenu("&Edit")
+        edit_m = self._tmenu(mb, "menu_edit")
         self._undo_act = self._ctrl.undo_stack.createUndoAction(self, "Undo")
         self._undo_act.setShortcut(QKeySequence.StandardKey.Undo)
         self._redo_act = self._ctrl.undo_stack.createRedoAction(self, "Redo")
@@ -132,7 +153,7 @@ class MainWindow(QMainWindow):
         edit_m.addAction(self._undo_act)
         edit_m.addAction(self._redo_act)
 
-        # Tools
+        # Tools (short technical names — kept in English universally)
         self._tools_menu = mb.addMenu("&Tools")
         tools_m = self._tools_menu
         self._menu_tool_acts: dict[str, QAction] = {}
@@ -146,27 +167,42 @@ class MainWindow(QMainWindow):
         self._menu_tool_acts["point"]      = self._add_action(tools_m, "Point  [.]",    lambda: self._activate_tool("point"))
         self._menu_tool_acts["brush"]      = self._add_action(tools_m, "Brush  [M]",    lambda: self._activate_tool("brush"))
 
-        # Export (populated in File menu via Ctrl+E, this menu kept as alias)
+        # Export (alias, no retranslation needed)
         mb.addMenu("&Export")
 
         # Schema
-        schema_m = mb.addMenu("&Schema")
-        self._add_action(schema_m, "Edit Class Schema…", self._open_schema_editor)
+        schema_m = self._tmenu(mb, "menu_schema")
+        self._tact(schema_m, "act_edit_schema",   self._open_schema_editor)
         schema_m.addSeparator()
-        self._add_action(schema_m, "Export class_schema.json…", self._export_schema)
-        self._add_action(schema_m, "Import class_schema.json…", self._import_schema)
+        self._tact(schema_m, "act_export_schema", self._export_schema)
+        self._tact(schema_m, "act_import_schema", self._import_schema)
 
         # QC
-        qc_m = mb.addMenu("&QC")
-        self._add_action(qc_m, "Validate Project", self._run_validation, "Ctrl+Shift+V")
+        qc_m = self._tmenu(mb, "menu_qc")
+        self._tact(qc_m, "act_validate",           self._run_validation, "Ctrl+Shift+V")
         qc_m.addSeparator()
-        self._add_action(qc_m, "Export Report (JSON)…",
-                         lambda: self._export_report("json"))
-        self._add_action(qc_m, "Export Report (CSV)…",
-                         lambda: self._export_report("csv"))
+        self._tact(qc_m, "act_export_report_json", lambda: self._export_report("json"))
+        self._tact(qc_m, "act_export_report_csv",  lambda: self._export_report("csv"))
 
-        help_m = mb.addMenu("&Help")
-        self._add_action(help_m, "About…", self._show_about)
+        # Help
+        help_m = self._tmenu(mb, "menu_help")
+        self._tact(help_m, "act_about", self._show_about)
+
+        # Language submenu
+        lang_m = help_m.addMenu("Language")
+        self._act_lang_en = QAction("English", self)
+        self._act_lang_en.setCheckable(True)
+        self._act_lang_ru = QAction("Русский", self)
+        self._act_lang_ru.setCheckable(True)
+        lang_grp = QActionGroup(self)
+        lang_grp.addAction(self._act_lang_en)
+        lang_grp.addAction(self._act_lang_ru)
+        self._act_lang_en.triggered.connect(lambda: self._set_language("EN"))
+        self._act_lang_ru.triggered.connect(lambda: self._set_language("RU"))
+        lang_m.addAction(self._act_lang_en)
+        lang_m.addAction(self._act_lang_ru)
+        self._act_lang_en.setChecked(current_language() == "EN")
+        self._act_lang_ru.setChecked(current_language() == "RU")
 
     def _add_action(self, menu, text: str, slot, shortcut: str = "") -> QAction:
         act = QAction(text, self)
@@ -216,13 +252,9 @@ class MainWindow(QMainWindow):
         tb.addAction(act_fit)
 
         tb.addSeparator()
-        hint = QLabel(
-            "  Polygon/Polyline/Crack/Pose: click=add · RMB=undo · dbl-click or Enter=finish · Esc=cancel   "
-            "BBox/OBB: drag   Select: click=pick · drag handle=move vertex · Del=delete   "
-            "Brush: drag=paint · Enter=commit · Esc=discard   "
-            "Wheel=zoom · MMB=pan   A/D=prev/next")
-        hint.setStyleSheet("color:#777;font-size:11px;")
-        tb.addWidget(hint)
+        self._toolbar_hint = QLabel(tr("toolbar_hint"))
+        self._toolbar_hint.setStyleSheet("color:#777;font-size:11px;")
+        tb.addWidget(self._toolbar_hint)
 
         self._tool_act_map = {
             "select":     self._act_select,
@@ -248,6 +280,24 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Delete"), self,
                   lambda: self._active_tool_obj().on_key_press(
                       Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier))
+
+    def _set_language(self, lang: str):
+        set_language(lang)
+        self._act_lang_en.setChecked(lang == "EN")
+        self._act_lang_ru.setChecked(lang == "RU")
+        self.retranslate()
+
+    def retranslate(self):
+        """Update all translatable UI strings to the current language."""
+        for setter, key in self._tr_items:
+            setter(tr(key))
+        self._toolbar_hint.setText(tr("toolbar_hint"))
+        self._right_tabs.setTabText(0, tr("tab_annotations"))
+        self._right_tabs.setTabText(1, tr("tab_qc"))
+        self._images_panel.retranslate()
+        self._classes_panel.retranslate()
+        self._annotations_panel.retranslate()
+        self._qc_panel.retranslate()
 
     def _apply_hotkeys(self, hk: dict):
         from annotator.domain.project import DEFAULT_HOTKEYS

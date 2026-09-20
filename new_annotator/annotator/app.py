@@ -28,6 +28,9 @@ def run():
     app.setOrganizationName("AnnotatorProject")
     _apply_dark_palette(app)
 
+    from annotator.i18n import load_saved
+    load_saved()
+
     from annotator.ui.main_window import MainWindow
     win = MainWindow()
     win.show()

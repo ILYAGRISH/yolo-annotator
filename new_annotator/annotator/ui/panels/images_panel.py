@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (QComboBox, QHBoxLayout, QLabel, QLineEdit,
                               QVBoxLayout, QWidget)
 
 from annotator.domain.project import ImageRecord, Project
+from annotator.i18n import tr
 
 _SPLIT_COLORS = {
     "train": None,          # default text color
@@ -37,12 +38,12 @@ class ImagesPanel(QWidget):
         lay.setContentsMargins(4, 4, 4, 4)
         lay.setSpacing(4)
 
-        self._header = QLabel("Images")
+        self._header = QLabel(tr("images"))
         lay.addWidget(self._header)
 
         # ── Filters ───────────────────────────────────────────────────────────
         self._search = QLineEdit()
-        self._search.setPlaceholderText("Search by name…")
+        self._search.setPlaceholderText(tr("search_placeholder"))
         self._search.setClearButtonEnabled(True)
         self._search.textChanged.connect(self._refresh)
         lay.addWidget(self._search)
@@ -50,13 +51,13 @@ class ImagesPanel(QWidget):
         filter_row = QHBoxLayout()
         filter_row.setSpacing(4)
         self._split_filter = QComboBox()
-        self._split_filter.addItems(["All splits", "train", "val", "test"])
+        self._split_filter.addItems([tr("all_splits"), "train", "val", "test"])
         self._split_filter.setToolTip("Filter by dataset split")
         self._split_filter.currentIndexChanged.connect(self._refresh)
         filter_row.addWidget(self._split_filter)
 
         self._status_filter = QComboBox()
-        self._status_filter.addItems(["All", "Annotated", "Unannotated"])
+        self._status_filter.addItems([tr("all_status"), tr("annotated"), tr("unannotated")])
         self._status_filter.setToolTip("Filter by annotation status")
         self._status_filter.currentIndexChanged.connect(self._refresh)
         filter_row.addWidget(self._status_filter)
@@ -69,9 +70,9 @@ class ImagesPanel(QWidget):
         self._list.customContextMenuRequested.connect(self._on_context_menu)
         lay.addWidget(self._list)
 
-        hint = QLabel("A / D — prev / next   RMB — set split\nDrag images or folders here to add")
-        hint.setStyleSheet("color:#666;font-size:10px;")
-        lay.addWidget(hint)
+        self._hint_lbl = QLabel(tr("images_hint"))
+        self._hint_lbl.setStyleSheet("color:#666;font-size:10px;")
+        lay.addWidget(self._hint_lbl)
 
         self.setAcceptDrops(True)
 
@@ -80,6 +81,15 @@ class ImagesPanel(QWidget):
     def load_project(self, project: Project | None):
         self._project = project
         self._annotated = self._scan_annotated(project) if project else set()
+        self._refresh()
+
+    def retranslate(self):
+        self._search.setPlaceholderText(tr("search_placeholder"))
+        self._split_filter.setItemText(0, tr("all_splits"))
+        self._status_filter.setItemText(0, tr("all_status"))
+        self._status_filter.setItemText(1, tr("annotated"))
+        self._status_filter.setItemText(2, tr("unannotated"))
+        self._hint_lbl.setText(tr("images_hint"))
         self._refresh()
 
     def set_user_filter(self, allowed_stems: set[str] | None):
@@ -149,7 +159,7 @@ class ImagesPanel(QWidget):
         self._list.clear()
         if not self._project:
             self._displayed = []
-            self._header.setText("Images")
+            self._header.setText(tr("images"))
             return
 
         # Step 1: apply multi-user filter
@@ -161,14 +171,14 @@ class ImagesPanel(QWidget):
 
         # Step 2: split filter
         split_sel = self._split_filter.currentText()
-        if split_sel != "All splits":
+        if split_sel not in (tr("all_splits"), ""):
             base = [r for r in base if (r.split or "train") == split_sel]
 
         # Step 3: annotation status filter
         status_sel = self._status_filter.currentText()
-        if status_sel == "Annotated":
+        if status_sel == tr("annotated"):
             base = [r for r in base if r.path in self._annotated]
-        elif status_sel == "Unannotated":
+        elif status_sel == tr("unannotated"):
             base = [r for r in base if r.path not in self._annotated]
 
         # Step 4: name search
@@ -179,7 +189,7 @@ class ImagesPanel(QWidget):
 
         self._displayed = base
         shown = len(self._displayed)
-        prefix = "My Images" if not is_leader else "Images"
+        prefix = tr("images")
         label = (f"{prefix} ({shown} / {total})"
                  if shown != total else f"{prefix} ({total})")
         self._header.setText(label)

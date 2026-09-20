@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QVBoxLayout, QWidget,
 )
 
+from annotator.i18n import tr
 from annotator.validation.base import ValidationReport
 
 
@@ -26,6 +27,7 @@ class QCPanel(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._has_report = False
         self._build_ui()
 
     def _build_ui(self):
@@ -33,13 +35,14 @@ class QCPanel(QWidget):
         lay.setContentsMargins(4, 4, 4, 4)
         lay.setSpacing(6)
 
-        self._btn_validate = QPushButton("▶  Validate")
+        self._btn_validate = QPushButton(tr("btn_validate"))
         self._btn_validate.setEnabled(False)
         self._btn_validate.clicked.connect(self.validate_requested)
         lay.addWidget(self._btn_validate)
 
         # Statistics group
-        stats_box = QGroupBox("Statistics")
+        self._stats_box = QGroupBox(tr("qc_stats"))
+        stats_box = self._stats_box
         sl = QVBoxLayout(stats_box)
         sl.setSpacing(2)
 
@@ -67,7 +70,7 @@ class QCPanel(QWidget):
         lay.addWidget(stats_box)
 
         # Issues
-        self._issues_header = QLabel("No validation data  —  press Validate")
+        self._issues_header = QLabel(tr("qc_no_data"))
         self._issues_header.setStyleSheet("color:#888;font-size:11px;")
         lay.addWidget(self._issues_header)
 
@@ -78,12 +81,19 @@ class QCPanel(QWidget):
 
     # ── public API ────────────────────────────────────────────────────────────
 
+    def retranslate(self):
+        self._btn_validate.setText(tr("btn_validate"))
+        self._stats_box.setTitle(tr("qc_stats"))
+        if not self._has_report:
+            self._issues_header.setText(tr("qc_no_data"))
+
     def set_project_loaded(self, loaded: bool):
         self._btn_validate.setEnabled(loaded)
         if not loaded:
             self._reset()
 
     def show_report(self, report: ValidationReport):
+        self._has_report = True
         s = report.stats
         self._lbl_coverage.setText(
             f"{s.get('annotated_images', 0)} / {s.get('total_images', 0)}"
@@ -105,7 +115,7 @@ class QCPanel(QWidget):
         err = report.error_count
         warn = report.warning_count
         if n == 0:
-            self._issues_header.setText("✔  No issues found")
+            self._issues_header.setText(tr("qc_no_issues"))
             self._issues_header.setStyleSheet("color:#55CC55;font-size:11px;")
         else:
             self._issues_header.setText(
@@ -132,8 +142,9 @@ class QCPanel(QWidget):
         self._lbl_total.setText("—")
         self._lbl_classes.setText("—")
         self._lbl_types.setText("—")
+        self._has_report = False
         self._issues_list.clear()
-        self._issues_header.setText("No validation data  —  press Validate")
+        self._issues_header.setText(tr("qc_no_data"))
         self._issues_header.setStyleSheet("color:#888;font-size:11px;")
 
     def _on_item_dblclick(self, item: QListWidgetItem):
