@@ -169,7 +169,7 @@ class ProjectController(QObject):
             return 0
         added = 0
         for p in sorted(folder.iterdir()):
-            if p.suffix.lower() in IMAGE_EXTS:
+            if p.is_file() and p.suffix.lower() in IMAGE_EXTS:
                 reader = QImageReader(str(p))
                 sz = reader.size()
                 w, h = (sz.width(), sz.height()) if sz.isValid() else (0, 0)
@@ -181,6 +181,33 @@ class ProjectController(QObject):
                 ProjectStore.save(self._project, self._project.project_path)
             self.project_changed.emit(self._project)
             self.status_message.emit(f"Added {added} images from {folder}")
+        return added
+
+    def add_images_from_paths(self, paths: list) -> int:
+        """Add images from a mixed list of files and folders (drag & drop)."""
+        if not self._project:
+            return 0
+        before = len(self._project.images)
+        for p in paths:
+            p = Path(p)
+            if p.is_dir():
+                for img in sorted(p.iterdir()):
+                    if img.is_file() and img.suffix.lower() in IMAGE_EXTS:
+                        reader = QImageReader(str(img))
+                        sz = reader.size()
+                        w, h = (sz.width(), sz.height()) if sz.isValid() else (0, 0)
+                        self._project.add_image(str(img), width=w, height=h)
+            elif p.is_file() and p.suffix.lower() in IMAGE_EXTS:
+                reader = QImageReader(str(p))
+                sz = reader.size()
+                w, h = (sz.width(), sz.height()) if sz.isValid() else (0, 0)
+                self._project.add_image(str(p), width=w, height=h)
+        added = len(self._project.images) - before
+        if added:
+            if self._project.project_path:
+                ProjectStore.save(self._project, self._project.project_path)
+            self.project_changed.emit(self._project)
+            self.status_message.emit(f"Added {added} image(s)")
         return added
 
     def set_image(self, image_path: str):

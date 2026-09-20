@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QDragEnterEvent, QDragMoveEvent, QDropEvent
 from PyQt6.QtWidgets import (QLabel, QListWidget, QListWidgetItem, QMenu,
                               QVBoxLayout, QWidget)
 
@@ -20,6 +20,7 @@ class ImagesPanel(QWidget):
 
     image_selected = pyqtSignal(str)   # absolute image path
     split_changed  = pyqtSignal()      # any ImageRecord.split was modified
+    files_dropped  = pyqtSignal(list)  # list[Path] — image files and/or folders
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -44,9 +45,11 @@ class ImagesPanel(QWidget):
         self._list.customContextMenuRequested.connect(self._on_context_menu)
         lay.addWidget(self._list)
 
-        hint = QLabel("A / D — prev / next   RMB — set split")
+        hint = QLabel("A / D — prev / next   RMB — set split\nDrag images or folders here to add")
         hint.setStyleSheet("color:#666;font-size:10px;")
         lay.addWidget(hint)
+
+        self.setAcceptDrops(True)
 
     # ── public API ────────────────────────────────────────────────────────────
 
@@ -202,3 +205,38 @@ class ImagesPanel(QWidget):
         self._displayed[row].split = split
         self._refresh_item(row)
         self.split_changed.emit()
+
+    # ── drag & drop ───────────────────────────────────────────────────────────
+
+    _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"}
+
+    def _has_valid_urls(self, event) -> bool:
+        if not event.mimeData().hasUrls():
+            return False
+        for url in event.mimeData().urls():
+            p = Path(url.toLocalFile())
+            if p.is_dir() or (p.is_file() and p.suffix.lower() in self._IMAGE_EXTS):
+                return True
+        return False
+
+    def dragEnterEvent(self, event: QDragEnterEvent):
+        if self._has_valid_urls(event):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event: QDragMoveEvent):
+        if self._has_valid_urls(event):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event: QDropEvent):
+        paths = []
+        for url in event.mimeData().urls():
+            p = Path(url.toLocalFile())
+            if p.exists():
+                paths.append(p)
+        if paths:
+            self.files_dropped.emit(paths)
+        event.acceptProposedAction()

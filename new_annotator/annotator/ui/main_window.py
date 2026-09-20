@@ -260,6 +260,7 @@ class MainWindow(QMainWindow):
 
         self._images_panel.image_selected.connect(self._ctrl.set_image)
         self._images_panel.split_changed.connect(self._ctrl.save_project)
+        self._images_panel.files_dropped.connect(self._on_images_dropped)
         self._classes_panel.class_selected.connect(self._on_class_selected)
         self._classes_panel.open_schema_editor.connect(self._open_schema_editor)
         self._annotations_panel.select_requested.connect(self._on_ann_panel_select)
@@ -876,6 +877,13 @@ class MainWindow(QMainWindow):
         folder = QFileDialog.getExistingDirectory(self, "Select image folder")
         if folder:
             self._ctrl.add_images_from_folder(Path(folder))
+
+    def _on_images_dropped(self, paths: list):
+        if not self._ctrl.project:
+            QMessageBox.information(self, "No project",
+                                    "Open or create a project first.")
+            return
+        self._ctrl.add_images_from_paths(paths)
 
     def _split_dataset(self):
         if not self._ctrl.project:
