@@ -245,7 +245,7 @@ check("partial: rest invisible", kps5[1][2] == 0 and kps5[2][2] == 0)
 # ═════════════════════════════════════════════════════════════════════════════
 section("7. YoloPoseExporter — line format")
 
-from annotator.exporters.yolo_pose import _make_format_fn, _kpt_count_for_project
+from annotator.exporters.yolo_pose import _make_format_fn, _kpt_info_for_project
 from annotator.domain.annotation import Annotation, AnnotationType
 
 class _FakeProject:
@@ -331,9 +331,9 @@ check("trimmed line not None", line3 is not None)
 parts3 = line3.split()
 check("trimmed: 1+4+3*3 fields", len(parts3) == 1 + 4 + 3*3)
 
-# kpt_count_for_project
-check("kpt_count with skeleton=3", _kpt_count_for_project(proj_skel) == 3)
-check("kpt_count no skeleton=0", _kpt_count_for_project(fake_proj) == 0)
+# kpt_info_for_project
+check("kpt_count with skeleton=3", _kpt_info_for_project(proj_skel)[0] == 3)
+check("kpt_count no skeleton=0", _kpt_info_for_project(fake_proj)[0] == 0)
 
 # ═════════════════════════════════════════════════════════════════════════════
 # §9  YoloPoseExporter — full dataset write

@@ -564,7 +564,7 @@ class ProjectController(QObject):
         from annotator.exporters.yolo_seg import _format_annotation
         from annotator.exporters.yolo_obb import _format_obb
         from annotator.exporters.yolo_pose import (_make_format_fn as _make_pose_fn,
-                                                    _kpt_count_for_project)
+                                                    _kpt_info_for_project)
         from annotator.exporters.yolo_classify import YoloClassifyExporter
 
         output_dir = Path(output_dir)
@@ -584,8 +584,13 @@ class ProjectController(QObject):
             elif job.format_name == "yolo_obb":
                 tasks.append(("labels_obb", "data_obb", _format_obb, None))
             elif job.format_name == "yolo_pose":
-                n = _kpt_count_for_project(self._project)
-                extra = f"\nkpt_shape: [{n}, 3]" if n > 0 else None
+                n, names = _kpt_info_for_project(self._project)
+                if n > 0:
+                    extra = f"\nkpt_shape: [{n}, 3]"
+                    if names:
+                        extra += f"\nkpt_names: {names}"
+                else:
+                    extra = None
                 tasks.append(("labels_pose", "data_pose",
                                _make_pose_fn(self._project), extra))
             else:
