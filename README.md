@@ -58,6 +58,16 @@ cd new_annotator
 
 **Requirements:** Python 3.13+ · Windows (PyQt6)
 
+## Changelog
+
+### v1.1
+- **Subclass selector** — when annotating, a combobox appears in the Annotations panel to assign a subclass to any annotation (subclasses are defined per class in the Class Schema Editor)
+- **Drag & drop images** — drag image files or folders directly onto the Images panel to add them to the project
+- **Image filters** — search by filename, filter by split (train / val / test) and annotation status (All / Annotated / Unannotated); header shows `Images (N / total)` when a filter is active
+
+### v1.0
+- Initial release
+
 ## Tech Stack
 
 - **UI**: PyQt6 ≥ 6.4
