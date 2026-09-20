@@ -1,21 +1,52 @@
 # YOLO Annotator
 
-A desktop image annotation tool built with PyQt6. Supports bounding boxes, polygons, polylines, OBB, keypoints, points, classification, and brush-painted segmentation masks.
+A desktop image annotation tool for preparing training datasets for computer vision tasks — detection, segmentation, OBB, pose estimation, and classification.
 
-## Project structure
+## Features
 
-```
-new_annotator/   — main application (Python 3.13, PyQt6)
-docs/            — architecture notes, roadmap, phase completion reports
-Archive/         — legacy prototypes (reference only)
-```
+- **8 annotation types**: bounding box, polygon, brush mask, OBB, keypoints/pose, polyline, point, classification
+- **8 export formats**: YOLO Detect / Segment / OBB / Pose / Point / Classify, COCO Instances, COCO Keypoints
+- **Multi-task export**: shared `images/`, separate label folders for parallel model training
+- **Auto-export**: `labels/` updated automatically on every save — no manual export step needed
+- **Dataset split**: train / val / test with configurable proportions and shuffle
+- **QC validation**: detects empty images, duplicate annotations, tiny polygons — with one-click navigation to each issue
+- **Annotation attributes**: custom fields per class (text, number, bool, select) → exported to COCO JSON
+- **Multi-user mode**: shared network folder; leader assigns images to annotators via built-in dialog
+- **Plugin system**: drop a `.py` file in `plugins/` — tool appears in the toolbar automatically
+- **Full undo / redo** for all annotation operations
 
-## Quick start
+## Annotation Types
+
+| Type             | Hotkey | Description                                      |
+|------------------|--------|--------------------------------------------------|
+| Bounding Box     | `B`    | Axis-aligned rectangle — object detection        |
+| Polygon          | `P`    | Closed contour — instance segmentation           |
+| Polyline         | `L`    | Open line — roads, cables, linear features       |
+| OBB              | `O`    | Rotated bbox — aerial images, document detection |
+| Keypoints / Pose | `K`    | Named skeleton points with edges                 |
+| Point            | `.`    | Single centroid — counting, landmarks            |
+| Classification   | —      | Image-level label with no geometry               |
+| Brush mask       | `M`    | Pixel-painted binary mask → polygon on commit    |
+
+## Export Formats
+
+| Format           | Output                                      | Notes                                               |
+|------------------|---------------------------------------------|-----------------------------------------------------|
+| YOLO Detect      | `labels/*.txt`                              | `class cx cy w h` normalised                        |
+| YOLO Segment     | `labels/*.txt`                              | polygon vertices; BBOX → 4-corner polygon (8 nums)  |
+| YOLO OBB         | `labels/*.txt`                              | 4 corner points TL→TR→BR→BL                         |
+| YOLO Pose        | `labels/*.txt`                              | bbox + keypoints `[x y v]`; `kpt_names` in data.yaml|
+| YOLO Point       | `labels/*.txt`                              | 1-keypoint pose with 1% synthetic bbox              |
+| YOLO Classify    | folder structure                            | `split/<class_name>/image.jpg`                      |
+| COCO Instances   | `annotations/instances_<split>.json`        | bbox, segmentation, per-annotation attributes       |
+| COCO Keypoints   | `annotations/keypoints_<split>.json`        | keypoints in pixels + skeleton edges in category    |
+
+## Installation
 
 ```bat
 cd new_annotator
-install.bat          # create .venv and install dependencies (first time only)
-run.bat              # launch the annotator
+install.bat        # creates .venv and installs dependencies (first time)
+run.bat            # launch the annotator
 ```
 
 Or manually:
@@ -25,20 +56,28 @@ cd new_annotator
 .venv\Scripts\python main.py
 ```
 
-## Requirements
+**Requirements:** Python 3.13+ · Windows (PyQt6)
 
-- Python 3.13+
-- See `new_annotator/requirements.txt` for full dependency list
+## Tech Stack
 
-## Annotation types
+- **UI**: PyQt6 ≥ 6.4
+- **Geometry**: shapely ≥ 2.0 (buffering, IoU, area)
+- **Image I/O**: Pillow ≥ 9.0, OpenCV 4.13
+- **Runtime**: Python 3.13, fully offline — no cloud dependencies
+- **Storage**: `.annproj/` directory — JSON metadata + PNG masks
 
-| Type           | Hotkey | Export format        |
-|----------------|--------|----------------------|
-| Bounding box   | B      | YOLO detect          |
-| Polygon        | P      | YOLO segment         |
-| Polyline       | L      | —                    |
-| OBB            | O      | YOLO OBB             |
-| Keypoints/Pose | K      | YOLO pose            |
-| Point          | .      | YOLO detect (1px)    |
-| Classification | C      | YOLO classify        |
-| Brush mask     | M      | YOLO segment         |
+## Project Structure
+
+```
+new_annotator/
+├── annotator/
+│   ├── domain/       ← data model  (Project, LabelClass, Annotation)
+│   ├── storage/      ← project load/save
+│   ├── exporters/    ← one module per export format
+│   ├── tools/        ← annotation tools (base + built-in)
+│   ├── ui/           ← PyQt6 widgets, panels, dialogs
+│   └── controller/   ← ProjectController (MVC)
+├── plugins/          ← custom tool plugins (*.py)
+├── docs/             ← About.md, hotkeys.md, Test_Help.md
+└── main.py
+```
