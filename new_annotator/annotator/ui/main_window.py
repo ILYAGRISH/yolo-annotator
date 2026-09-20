@@ -239,15 +239,37 @@ class MainWindow(QMainWindow):
     # ── shortcuts ─────────────────────────────────────────────────────────────
 
     def _setup_shortcuts(self):
-        QShortcut(QKeySequence("F"), self, self._view.fit_scene)
-        QShortcut(QKeySequence("D"), self, self._images_panel.select_next)
-        QShortcut(QKeySequence("A"), self, self._images_panel.select_prev)
+        self._sc_fit  = QShortcut(QKeySequence("F"), self, self._view.fit_scene)
+        self._sc_next = QShortcut(QKeySequence("D"), self, self._images_panel.select_next)
+        self._sc_prev = QShortcut(QKeySequence("A"), self, self._images_panel.select_prev)
         QShortcut(QKeySequence("Escape"), self,
                   lambda: self._active_tool_obj().on_key_press(
                       Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier))
         QShortcut(QKeySequence("Delete"), self,
                   lambda: self._active_tool_obj().on_key_press(
                       Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier))
+
+    def _apply_hotkeys(self, hk: dict):
+        from annotator.domain.project import DEFAULT_HOTKEYS
+        h = {**DEFAULT_HOTKEYS, **hk}
+        self._sc_fit.setKey(QKeySequence(h.get("view_fit", "")))
+        self._sc_next.setKey(QKeySequence(h.get("navigate_next", "")))
+        self._sc_prev.setKey(QKeySequence(h.get("navigate_prev", "")))
+        tool_map = {
+            "tool_select":   "select",
+            "tool_polygon":  "polygon",
+            "tool_polyline": "polyline",
+            "tool_bbox":     "bbox",
+            "tool_obb":      "obb",
+            "tool_crack":    "crack_tool",
+            "tool_pose":     "pose",
+            "tool_point":    "point",
+            "tool_brush":    "brush",
+        }
+        for hk_key, tool_name in tool_map.items():
+            act = self._tool_act_map.get(tool_name)
+            if act:
+                act.setShortcut(QKeySequence(h.get(hk_key, "")))
 
     # ── signal wiring ─────────────────────────────────────────────────────────
 
@@ -376,10 +398,13 @@ class MainWindow(QMainWindow):
             self._status.showMessage(
                 f"{project.name}  ·  {len(project.images)} images  "
                 f"·  {len(project.classes)} classes")
+            self._apply_hotkeys(project.settings.hotkeys)
         else:
             self.setWindowTitle("Annotator  —  no project")
             self._scene.clear_image()
             self._status.showMessage("Ready  —  File › New Project to get started")
+            from annotator.domain.project import DEFAULT_HOTKEYS
+            self._apply_hotkeys(DEFAULT_HOTKEYS)
 
     def _on_image_changed(self, path: str, annotations: list):
         self._scene.load_image(path)
@@ -849,9 +874,11 @@ class MainWindow(QMainWindow):
         name = dlg.project_name
         if not name:
             return
-        self._ctrl.update_project_settings(name, dlg.result_settings)
-        # Apply new autosave interval immediately
-        self._autosave_timer.setInterval(dlg.result_settings.autosave_interval_sec * 1000)
+        settings = dlg.result_settings
+        self._ctrl.update_project_settings(name, settings)
+        # Apply new autosave interval and hotkeys immediately
+        self._autosave_timer.setInterval(settings.autosave_interval_sec * 1000)
+        self._apply_hotkeys(settings.hotkeys)
 
     def _open_project(self):
         folder = QFileDialog.getExistingDirectory(self, "Open .annproj folder")

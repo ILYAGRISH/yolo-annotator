@@ -7,6 +7,21 @@ from annotator.domain.label_class import LabelClass
 
 FORMAT_VERSION = 3
 
+DEFAULT_HOTKEYS: dict[str, str] = {
+    "navigate_next":  "D",
+    "navigate_prev":  "A",
+    "view_fit":       "F",
+    "tool_select":    "V",
+    "tool_polygon":   "P",
+    "tool_polyline":  "L",
+    "tool_bbox":      "B",
+    "tool_obb":       "O",
+    "tool_crack":     "C",
+    "tool_pose":      "K",
+    "tool_point":     ".",
+    "tool_brush":     "M",
+}
+
 _DEFAULT_COLORS = [
     "#FF4444", "#44DD44", "#4488FF", "#FFDD00",
     "#FF44FF", "#00DDDD", "#FF8800", "#8844FF",
@@ -36,20 +51,24 @@ class ProjectSettings:
     default_export_format: str = "auto"
     autosave_interval_sec: int = 60
     image_folder: str = ""
+    hotkeys: dict = field(default_factory=lambda: dict(DEFAULT_HOTKEYS))
 
     def to_dict(self) -> dict:
         return {
             "default_export_format": self.default_export_format,
             "autosave_interval_sec": self.autosave_interval_sec,
             "image_folder": self.image_folder,
+            "hotkeys": self.hotkeys,
         }
 
     @classmethod
     def from_dict(cls, d: dict) -> "ProjectSettings":
+        hk = {**DEFAULT_HOTKEYS, **d.get("hotkeys", {})}
         return cls(
             default_export_format=d.get("default_export_format", "auto"),
             autosave_interval_sec=d.get("autosave_interval_sec", 60),
             image_folder=d.get("image_folder", ""),
+            hotkeys=hk,
         )
 
 
