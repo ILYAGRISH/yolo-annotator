@@ -32,7 +32,10 @@ Thumbs.db
 desktop.ini
 
 # Project-specific: sample data, project files, masks
-Archive/Example/
+Archive/
+
+# Claude AI workflow instructions (internal)
+CLAUDE.md
 *.annproj
 masks/
 *.annproj/
