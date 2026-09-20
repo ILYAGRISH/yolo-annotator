@@ -321,7 +321,7 @@ names: ['car', 'person']
 
 ---
 
-### 7.4 YOLO Pose
+### 7.4 YOLO Pose +
 **Формат:** `class_id  cx cy w h  kx1 ky1 v1  kx2 ky2 v2  ...`  
 `v`: 0 = не размечена, 2 = видима  
 bbox = авто-вычисляется из видимых точек + 5% отступ
@@ -344,7 +344,7 @@ kpt_shape: [3, 3]
 
 ---
 
-### 7.5 COCO Instances
+### 7.5 COCO Instances +
 **Формат:** JSON per split; атрибуты включены; bbox в пикселях `[x, y, w, h]`
 
 **Пример `annotations/instances_train.json`:**
@@ -378,7 +378,7 @@ kpt_shape: [3, 3]
 
 ---
 
-### 7.6 COCO Keypoints
+### 7.6 COCO Keypoints +
 **Формат:** JSON per split; keypoints в пикселях `[x y v  x y v  ...]`  
 `v`: 0 = отсутствует, 2 = видима  
 bbox авто-вычисляется из видимых точек + 5% от размера изображения
@@ -419,7 +419,7 @@ bbox авто-вычисляется из видимых точек + 5% от р
 
 ---
 
-### 7.8 YOLO Point
+### 7.8 YOLO Point +
 **Формат:** YOLO 1-keypoint pose с синтетическим bbox 1%  
 `class_id  cx cy 0.01 0.01  x y 2`
 
@@ -437,7 +437,7 @@ kpt_shape: [1, 3]
 
 ---
 
-### 7.9 YOLO Classify
+### 7.9 YOLO Classify +
 **Структура:** папочная — изображение копируется в `<split>/<class_name>/`
 
 ```
@@ -456,7 +456,7 @@ output/
 
 ---
 
-### 7.10 Multi-task (общий images/, несколько форматов)
+### 7.10 Multi-task (общий images/, несколько форматов) +
 
 **Используем:** File → Export Dataset → режим **Multi-task**  
 **Выбираем:** любую комбинацию чекбоксов; политику несовместимых типов  
