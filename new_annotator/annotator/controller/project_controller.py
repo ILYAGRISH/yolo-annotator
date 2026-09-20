@@ -562,6 +562,12 @@ class ProjectController(QObject):
         elif format_name == "coco_keypoints":
             from annotator.exporters.coco_keypoints import CocoKeypointsExporter
             exp = CocoKeypointsExporter()
+        elif format_name == "pascal_voc":
+            from annotator.exporters.pascal_voc import PascalVocExporter
+            exp = PascalVocExporter()
+        elif format_name == "labelme":
+            from annotator.exporters.labelme import LabelMeExporter
+            exp = LabelMeExporter()
         else:
             raise ValueError(f"Unknown export format: {format_name!r}")
 

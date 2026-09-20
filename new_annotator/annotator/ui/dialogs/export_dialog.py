@@ -19,6 +19,8 @@ _FORMATS = [
     ("YOLO Classify  (image-level classification)",   "yolo_classify"),
     ("COCO Instances  (JSON with attributes)",        "coco"),
     ("COCO Keypoints  (JSON keypoints format)",       "coco_keypoints"),
+    ("Pascal VOC  (XML bndbox per image)",            "pascal_voc"),
+    ("LabelMe JSON  (polygon / rectangle / point)",  "labelme"),
 ]
 
 _POLICIES = [
