@@ -165,7 +165,8 @@ class MainWindow(QMainWindow):
         self._add_action(qc_m, "Export Report (CSV)…",
                          lambda: self._export_report("csv"))
 
-        mb.addMenu("&Help")
+        help_m = mb.addMenu("&Help")
+        self._add_action(help_m, "About…", self._show_about)
 
     def _add_action(self, menu, text: str, slot, shortcut: str = "") -> QAction:
         act = QAction(text, self)
@@ -600,6 +601,20 @@ class MainWindow(QMainWindow):
             f"{ext.upper()} files (*.{ext})")
         if path:
             self._ctrl.export_validation_report(Path(path), fmt)
+
+    # ── Help ─────────────────────────────────────────────────────────────────
+
+    def _show_about(self):
+        QMessageBox.about(
+            self, "About YOLO Annotator",
+            "<h3>YOLO Annotator</h3>"
+            "<p><b>Version:</b> 1.0</p>"
+            "<p><b>Author:</b> Ilya Grishutin</p>"
+            "<p>Desktop image annotation tool for preparing<br>"
+            "training datasets for computer vision tasks.</p>"
+            "<p><a href='https://github.com/ILYAGRISH/yolo-annotator'>"
+            "github.com/ILYAGRISH/yolo-annotator</a></p>"
+        )
 
     def _on_qc_navigate(self, image_path: str, ann_id: str):
         self._ctrl.set_image(image_path)
