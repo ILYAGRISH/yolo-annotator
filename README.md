@@ -5,7 +5,7 @@ A desktop image annotation tool for preparing training datasets for computer vis
 ## Features
 
 - **8 annotation types**: bounding box, polygon, brush mask, OBB, keypoints/pose, polyline, point, classification
-- **10 export formats**: YOLO Detect / Segment / OBB / Pose / Point / Classify, COCO Instances, COCO Keypoints, Pascal VOC, LabelMe JSON
+- **11 export formats**: YOLO Detect / Segment / OBB / Pose / Point / Classify, COCO Instances, COCO Keypoints, Pascal VOC, LabelMe JSON, Semantic Masks
 - **Import existing datasets**: load a labeled YOLO dataset (Detect / OBB / Segment / Point / Classify) into any open project — class names resolved automatically from `data.yaml` or `classes.txt`
 - **Multi-task export**: shared `images/`, separate label folders for parallel model training
 - **Auto-export**: `labels/` updated automatically on every save — no manual export step needed
@@ -45,6 +45,7 @@ A desktop image annotation tool for preparing training datasets for computer vis
 | COCO Keypoints   | `annotations/keypoints_<split>.json`        | keypoints in pixels + skeleton edges in category    |
 | Pascal VOC       | `Annotations/*.xml`                         | `<bndbox>` per object; full VOC directory layout    |
 | LabelMe JSON     | `<split>/<stem>.json`                       | LabelMe v5 — polygon, rectangle, linestrip, point   |
+| Semantic Masks   | `masks/<split>/<stem>.png` + `classes.txt`  | pixel mask per image; three modes: binary / index / color |
 
 ## Import
 
@@ -85,6 +86,9 @@ cd new_annotator
 **Requirements:** Python 3.13+ · Windows (PyQt6)
 
 ## Changelog
+
+### v1.4
+- **Semantic Masks export** — pixel-level mask PNG per image alongside the original; three modes: **Binary** (0/255, single label), **Index** (0/1/2… by class order), **Color** (RGB, each class in its project color); `classes.txt` legend included; supports brush masks, polygons, bboxes, OBB, and polylines (adaptive thickness — useful for crack annotations)
 
 ### v1.3
 - **YOLO dataset import** — load an existing labeled dataset into any open project via File → Import Dataset…; supports Detect, OBB, Segment, Point, and Classify formats; class names resolved automatically from `data.yaml` or `classes.txt`; three conflict modes (skip / replace / merge) for images that already have annotations
