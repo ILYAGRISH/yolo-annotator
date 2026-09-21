@@ -526,7 +526,8 @@ class ProjectController(QObject):
     def export_dataset(self, output_dir: Path,
                        format_name: str,
                        copy_images: bool = True,
-                       geometry_policy: str = "skip") -> None:
+                       geometry_policy: str = "skip",
+                       mask_mode: str = "index") -> None:
         """Export the full dataset in the requested format."""
         if not self._project:
             raise RuntimeError("No project open")
@@ -578,7 +579,7 @@ class ProjectController(QObject):
         output_dir.mkdir(parents=True, exist_ok=True)
         exp.export(self._project, output_dir,
                    all_annotations=all_anns, copy_images=copy_images,
-                   geometry_policy=geometry_policy)
+                   geometry_policy=geometry_policy, mask_mode=mask_mode)
         self.status_message.emit(f"Exported [{exp.name}] → {output_dir}")
 
     def export_multitask(self, output_dir: Path,

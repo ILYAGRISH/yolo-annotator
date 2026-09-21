@@ -7,20 +7,20 @@ Output layout:
   │   ├── train/  img001.jpg ...
   │   └── val/
   ├── masks/
-  │   ├── train/  img001.png ...   ← grayscale PNG, pixel = class index (1-based)
+  │   ├── train/  img001.png ...
   │   └── val/
-  └── classes.txt                  ← index → class name
+  └── classes.txt
 
-Pixel values:
-  0           = background
-  1, 2, 3 …  = class index in project.classes order
+Three mask modes (mask_mode kwarg):
+  "binary"  — grayscale PNG, any annotation = 255, background = 0
+  "index"   — grayscale PNG, pixel value = class index (1-based), background = 0
+  "color"   — RGB PNG, each class drawn in its project color, background = black
 
-Supported annotation types (all composited onto one mask per image):
-  MASK    — uses stored polygon contour
-  SEGMENT — filled polygon
-  BBOX    — filled rectangle
-  OBB     — filled rotated rectangle (4 corners)
-  POLYLINE — drawn with adaptive thickness (useful for crack annotations)
+Supported annotation types:
+  MASK, SEGMENT — filled polygon
+  BBOX          — filled rectangle
+  OBB           — filled rotated rectangle
+  POLYLINE      — drawn with adaptive thickness (for crack annotations)
 """
 from __future__ import annotations
 
@@ -33,6 +33,13 @@ from PIL import Image as PilImage, ImageDraw
 from annotator.domain.annotation import Annotation, AnnotationType
 from annotator.domain.project import ImageRecord, Project
 from annotator.exporters.base import BaseExporter
+
+_MASK_MODES = ("binary", "index", "color")
+
+
+def _hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
+    h = hex_color.lstrip("#")
+    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
 
 
 class SemanticMasksExporter(BaseExporter):
@@ -48,19 +55,43 @@ class SemanticMasksExporter(BaseExporter):
     def export(self, project: Project, output_dir: Path, **kwargs):
         all_annotations: dict[str, list[Annotation]] = kwargs.get("all_annotations", {})
         copy_images: bool = kwargs.get("copy_images", True)
+        mask_mode: str = kwargs.get("mask_mode", "index")
 
-        # class_id → pixel value (1-based index in project.classes)
-        class_pixel: dict[int, int] = {
-            c.id: idx + 1 for idx, c in enumerate(project.classes)
-        }
+        if mask_mode not in _MASK_MODES:
+            mask_mode = "index"
+
+        # Build fill map: class_id → pixel value (int or RGB tuple)
+        if mask_mode == "binary":
+            pil_mode = "L"
+            background = 0
+            class_fill: dict[int, int | tuple] = {c.id: 255 for c in project.classes}
+        elif mask_mode == "color":
+            pil_mode = "RGB"
+            background = (0, 0, 0)
+            class_fill = {c.id: _hex_to_rgb(c.color) for c in project.classes}
+        else:  # index
+            pil_mode = "L"
+            background = 0
+            class_fill = {c.id: idx + 1 for idx, c in enumerate(project.classes)}
 
         # Write classes.txt legend
-        classes_txt = output_dir / "classes.txt"
-        with open(classes_txt, "w", encoding="utf-8") as f:
-            f.write("# index: class_name  (pixel value = index)\n")
-            f.write("0: background\n")
-            for idx, c in enumerate(project.classes):
-                f.write(f"{idx + 1}: {c.name}\n")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        with open(output_dir / "classes.txt", "w", encoding="utf-8") as f:
+            if mask_mode == "binary":
+                f.write("# binary mode: 0 = background, 255 = annotation\n")
+                for c in project.classes:
+                    f.write(f"255: {c.name}\n")
+            elif mask_mode == "color":
+                f.write("# color mode: RGB value per class\n")
+                f.write("(0,0,0): background\n")
+                for c in project.classes:
+                    rgb = _hex_to_rgb(c.color)
+                    f.write(f"({rgb[0]},{rgb[1]},{rgb[2]}): {c.name}\n")
+            else:
+                f.write("# index mode: pixel value = class index (0 = background)\n")
+                f.write("0: background\n")
+                for idx, c in enumerate(project.classes):
+                    f.write(f"{idx + 1}: {c.name}\n")
 
         for img_rec in project.images:
             anns = all_annotations.get(img_rec.path, [])
@@ -70,8 +101,8 @@ class SemanticMasksExporter(BaseExporter):
             masks_dir.mkdir(parents=True, exist_ok=True)
 
             stem = Path(img_rec.path).stem
-            mask = _render_mask(img_rec, anns, class_pixel,
-                                project.project_path)
+            mask = _render_mask(img_rec, anns, class_fill,
+                                pil_mode, background, project.project_path)
             mask.save(masks_dir / f"{stem}.png")
 
             if copy_images:
@@ -85,34 +116,31 @@ class SemanticMasksExporter(BaseExporter):
 # ── rendering ─────────────────────────────────────────────────────────────────
 
 def _image_size(img_rec: ImageRecord) -> tuple[int, int]:
-    """Return (width, height), loading from disk if not stored."""
     if img_rec.width > 0 and img_rec.height > 0:
         return img_rec.width, img_rec.height
     try:
         with PilImage.open(img_rec.path) as im:
-            return im.size  # (w, h)
+            return im.size
     except Exception:
-        return 640, 480  # fallback
+        return 640, 480
 
 
 def _render_mask(img_rec: ImageRecord,
                  anns: list[Annotation],
-                 class_pixel: dict[int, int],
+                 class_fill: dict,
+                 pil_mode: str,
+                 background,
                  project_path: Path | None) -> PilImage.Image:
-    """Render all annotations for one image into a single grayscale mask."""
     w, h = _image_size(img_rec)
-    mask = PilImage.new("L", (w, h), 0)
+    mask = PilImage.new(pil_mode, (w, h), background)
     draw = ImageDraw.Draw(mask)
-
-    # Adaptive polyline thickness for crack-style annotations
     line_width = max(3, min(w, h) // 150)
 
     for ann in anns:
-        fill = class_pixel.get(ann.class_id, 1)
+        fill = class_fill.get(ann.class_id, 255 if pil_mode == "L" else (255, 255, 255))
         t = ann.ann_type
 
         if t == AnnotationType.MASK:
-            # Use the polygon contour stored alongside the mask PNG
             pts = _norm_to_px(ann.data.get("polygon", []), w, h)
             if len(pts) >= 3:
                 draw.polygon(pts, fill=fill)

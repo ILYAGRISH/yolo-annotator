@@ -728,7 +728,8 @@ class MainWindow(QMainWindow):
                     Path(dlg.output_dir), dlg.export_jobs, dlg.copy_images)
             else:
                 self._ctrl.export_dataset(
-                    Path(dlg.output_dir), dlg.format_name, dlg.copy_images)
+                    Path(dlg.output_dir), dlg.format_name, dlg.copy_images,
+                    mask_mode=dlg.mask_mode)
         except Exception as exc:
             QMessageBox.critical(self, "Export error", str(exc))
 

@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QDialog,
                               QDialogButtonBox, QFileDialog, QFormLayout,
                               QGroupBox, QHBoxLayout, QLabel, QLineEdit,
                               QMessageBox, QPushButton, QRadioButton,
-                              QVBoxLayout)
+                              QVBoxLayout, QWidget)
 
 from annotator.domain.project import Project
 from annotator.exporters.export_job import ExportJob
@@ -61,7 +61,20 @@ class ExportDatasetDialog(QDialog):
         self._fmt_combo = QComboBox()
         for label, _ in _FORMATS:
             self._fmt_combo.addItem(label)
+        self._fmt_combo.currentIndexChanged.connect(self._on_fmt_changed)
         single_lay.addRow("Format:", self._fmt_combo)
+
+        self._mask_mode_combo = QComboBox()
+        self._mask_mode_combo.addItem("Binary  (0 / 255  —  background / annotation)", "binary")
+        self._mask_mode_combo.addItem("Index   (0 / 1 / 2 …  —  class index)",         "index")
+        self._mask_mode_combo.addItem("Color   (RGB, each class in its project color)", "color")
+        self._mask_mode_combo.setCurrentIndex(1)  # default: index
+        self._mask_mode_label = single_lay.labelForField  # placeholder, set below
+        self._mask_row_label = QLabel("Mask mode:")
+        single_lay.addRow(self._mask_row_label, self._mask_mode_combo)
+        self._mask_row_label.setVisible(False)
+        self._mask_mode_combo.setVisible(False)
+
         lay.addWidget(self._single_group)
 
         # ── Multi-task section ─────────────────────────────────────────────────
@@ -133,6 +146,10 @@ class ExportDatasetDialog(QDialog):
         return _FORMATS[self._fmt_combo.currentIndex()][1]
 
     @property
+    def mask_mode(self) -> str:
+        return self._mask_mode_combo.currentData()
+
+    @property
     def export_jobs(self) -> list[ExportJob]:
         policy = _POLICIES[self._policy_combo.currentIndex()][1]
         jobs = []
@@ -157,6 +174,11 @@ class ExportDatasetDialog(QDialog):
         return self._copy_cb.isChecked()
 
     # ── internal ──────────────────────────────────────────────────────────────
+
+    def _on_fmt_changed(self, index: int):
+        is_masks = _FORMATS[index][1] == "semantic_masks"
+        self._mask_row_label.setVisible(is_masks)
+        self._mask_mode_combo.setVisible(is_masks)
 
     def _on_mode_changed(self, single_checked: bool):
         self._single_group.setVisible(single_checked)
