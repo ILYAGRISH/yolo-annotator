@@ -5,13 +5,16 @@ A desktop image annotation tool for preparing training datasets for computer vis
 ## Features
 
 - **8 annotation types**: bounding box, polygon, brush mask, OBB, keypoints/pose, polyline, point, classification
-- **8 export formats**: YOLO Detect / Segment / OBB / Pose / Point / Classify, COCO Instances, COCO Keypoints
+- **10 export formats**: YOLO Detect / Segment / OBB / Pose / Point / Classify, COCO Instances, COCO Keypoints, Pascal VOC, LabelMe JSON
+- **Import existing datasets**: load a labeled YOLO dataset (Detect / OBB / Segment / Point / Classify) into any open project — class names resolved automatically from `data.yaml` or `classes.txt`
 - **Multi-task export**: shared `images/`, separate label folders for parallel model training
 - **Auto-export**: `labels/` updated automatically on every save — no manual export step needed
 - **Dataset split**: train / val / test with configurable proportions and shuffle
 - **QC validation**: detects empty images, duplicate annotations, tiny polygons — with one-click navigation to each issue
 - **Annotation attributes**: custom fields per class (text, number, bool, select) → exported to COCO JSON
 - **Multi-user mode**: shared network folder; leader assigns images to annotators via built-in dialog
+- **Customizable hotkeys**: reassign any tool or navigation key per project in Project Settings
+- **EN / RU localization**: switch language at runtime via Help → Language
 - **Plugin system**: drop a `.py` file in `plugins/` — tool appears in the toolbar automatically
 - **Full undo / redo** for all annotation operations
 
@@ -40,6 +43,29 @@ A desktop image annotation tool for preparing training datasets for computer vis
 | YOLO Classify    | folder structure                            | `split/<class_name>/image.jpg`                      |
 | COCO Instances   | `annotations/instances_<split>.json`        | bbox, segmentation, per-annotation attributes       |
 | COCO Keypoints   | `annotations/keypoints_<split>.json`        | keypoints in pixels + skeleton edges in category    |
+| Pascal VOC       | `Annotations/*.xml`                         | `<bndbox>` per object; full VOC directory layout    |
+| LabelMe JSON     | `<split>/<stem>.json`                       | LabelMe v5 — polygon, rectangle, linestrip, point   |
+
+## Import
+
+Re-annotate or extend an existing labeled dataset without re-creating it from scratch.
+
+**File → Import Dataset…**
+
+| Source format  | What is read                                    |
+|----------------|-------------------------------------------------|
+| YOLO Detect    | `class cx cy w h` → bounding boxes             |
+| YOLO OBB       | 4 corner points → oriented bounding boxes      |
+| YOLO Segment   | polygon vertices → instance segmentation masks |
+| YOLO Point     | 1-keypoint pose → point annotations            |
+| YOLO Classify  | `split/<class_name>/image.jpg` folder structure |
+
+**Class resolution**: class names are read from `data.yaml` (field `names:`) or `classes.txt`. Existing project classes are matched by name; unmatched names create new classes automatically.
+
+**Conflict modes** (when an image already has annotations):
+- **Skip** — keep existing, skip the image
+- **Replace** — overwrite with imported annotations
+- **Merge** — add imported annotations on top of existing ones
 
 ## Installation
 
@@ -59,6 +85,9 @@ cd new_annotator
 **Requirements:** Python 3.13+ · Windows (PyQt6)
 
 ## Changelog
+
+### v1.3
+- **YOLO dataset import** — load an existing labeled dataset into any open project via File → Import Dataset…; supports Detect, OBB, Segment, Point, and Classify formats; class names resolved automatically from `data.yaml` or `classes.txt`; three conflict modes (skip / replace / merge) for images that already have annotations
 
 ### v1.2
 - **Pascal VOC export** — full XML `<bndbox>` export with `Annotations/`, `JPEGImages/`, `ImageSets/Main/` layout; all geometry types converted to bounding box
