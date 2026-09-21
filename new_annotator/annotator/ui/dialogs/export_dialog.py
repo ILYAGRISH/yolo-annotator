@@ -21,6 +21,7 @@ _FORMATS = [
     ("COCO Keypoints  (JSON keypoints format)",       "coco_keypoints"),
     ("Pascal VOC  (XML bndbox per image)",            "pascal_voc"),
     ("LabelMe JSON  (polygon / rectangle / point)",  "labelme"),
+    ("Semantic Masks  (grayscale PNG per image)",    "semantic_masks"),
 ]
 
 _POLICIES = [

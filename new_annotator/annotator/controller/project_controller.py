@@ -568,6 +568,9 @@ class ProjectController(QObject):
         elif format_name == "labelme":
             from annotator.exporters.labelme import LabelMeExporter
             exp = LabelMeExporter()
+        elif format_name == "semantic_masks":
+            from annotator.exporters.semantic_masks import SemanticMasksExporter
+            exp = SemanticMasksExporter()
         else:
             raise ValueError(f"Unknown export format: {format_name!r}")
 
