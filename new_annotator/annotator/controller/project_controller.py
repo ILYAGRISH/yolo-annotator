@@ -640,6 +640,55 @@ class ProjectController(QObject):
         task_names = " + ".join(j.format_name for j in jobs)
         self.status_message.emit(f"Multi-task export [{task_names}] → {output_dir}")
 
+    def import_yolo_dataset(self, dataset_root: Path, class_names: list[str],
+                            ann_type: str, conflict_mode: str) -> dict:
+        """
+        Import a YOLO dataset into the current project.
+
+        ann_type:      "detect" | "obb" | "segment" | "point" | "classify"
+        conflict_mode: "skip" | "replace" | "merge"
+
+        Returns a dict with import stats.
+        """
+        if not self._project:
+            raise RuntimeError("No project open")
+        self._flush_current_image()
+
+        from annotator.importers.yolo_importer import YoloImporter
+        importer = YoloImporter()
+
+        if ann_type == "classify":
+            result = importer.import_classify(
+                self._project, dataset_root, class_names, conflict_mode)
+        else:
+            result = importer.import_detect(
+                self._project, dataset_root, class_names, ann_type, conflict_mode)
+
+        # Save updated project (new images + possibly new classes)
+        if self._project.project_path:
+            ProjectStore.save(self._project, self._project.project_path)
+
+        # Reload current image annotations if it was affected
+        if self._current_image:
+            self._annotations = ProjectStore.load_annotations(
+                self._project, self._current_image)
+            self.annotations_changed.emit(list(self._annotations))
+
+        self.project_changed.emit(self._project)
+        self.status_message.emit(
+            f"Import complete — {result.annotations_added} annotation(s) added"
+            + (f", {result.classes_created} class(es) created" if result.classes_created else "")
+            + (f", {result.images_skipped} image(s) skipped" if result.images_skipped else "")
+        )
+        return {
+            "images_found": result.images_found,
+            "labels_found": result.labels_found,
+            "annotations_added": result.annotations_added,
+            "images_skipped": result.images_skipped,
+            "classes_created": result.classes_created,
+            "warnings": result.warnings,
+        }
+
     def export_validation_report(self, path: Path, fmt: str = "json") -> None:
         from annotator.validation.validator import Validator
         report = self.run_validation()

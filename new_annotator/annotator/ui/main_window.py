@@ -134,6 +134,7 @@ class MainWindow(QMainWindow):
         file_m.addSeparator()
         self._tact(file_m, "act_add_images",       self._add_images)
         self._tact(file_m, "act_split_dataset",    self._split_dataset)
+        self._tact(file_m, "act_import_dataset",   self._import_dataset)
         self._assign_act = self._tact(file_m, "act_assign_images", self._open_assign_dialog)
         self._assign_act.setEnabled(False)
         file_m.addSeparator()
@@ -976,6 +977,41 @@ class MainWindow(QMainWindow):
         if dlg.exec() == QDialog.DialogCode.Accepted:
             self._ctrl.split_dataset(
                 dlg.val_pct, dlg.test_pct, dlg.mode, dlg.shuffle)
+
+    def _import_dataset(self):
+        if not self._ctrl.project:
+            QMessageBox.information(self, "No project",
+                                    "Open or create a project first.")
+            return
+        from annotator.ui.dialogs.import_dataset_dialog import ImportDatasetDialog
+        dlg = ImportDatasetDialog(self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        if not dlg.dataset_folder or not dlg.class_names:
+            return
+        try:
+            stats = self._ctrl.import_yolo_dataset(
+                dlg.dataset_folder, dlg.class_names,
+                dlg.ann_type, dlg.conflict_mode,
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Import error", str(exc))
+            return
+
+        warnings = stats.get("warnings", [])
+        msg = (
+            f"Import complete.\n\n"
+            f"Images found:        {stats['images_found']}\n"
+            f"Label files found:   {stats['labels_found']}\n"
+            f"Annotations added:   {stats['annotations_added']}\n"
+            f"Images skipped:      {stats['images_skipped']}\n"
+            f"Classes created:     {stats['classes_created']}"
+        )
+        if warnings:
+            msg += "\n\nWarnings:\n" + "\n".join(f"  • {w}" for w in warnings[:10])
+            if len(warnings) > 10:
+                msg += f"\n  … and {len(warnings) - 10} more"
+        QMessageBox.information(self, "Import complete", msg)
 
     # ── close ─────────────────────────────────────────────────────────────────
 
