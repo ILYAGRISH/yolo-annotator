@@ -36,6 +36,10 @@ Archive/
 
 # Claude AI workflow instructions (internal)
 CLAUDE.md
+
+# Article draft and planning docs (local only)
+paper.md
+plan.md
 *.annproj
 masks/
 *.annproj/

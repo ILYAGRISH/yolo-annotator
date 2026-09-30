@@ -1,11 +1,13 @@
 # YOLO Annotator
 
-A desktop image annotation tool for preparing training datasets for computer vision tasks — detection, segmentation, OBB, pose estimation, and classification.
+A desktop image annotation tool for preparing training datasets for computer vision tasks — detection, instance / semantic / panoptic segmentation, OBB, pose estimation, and classification.
 
 ## Features
 
-- **8 annotation types**: bounding box, polygon, brush mask, OBB, keypoints/pose, polyline, point, classification
-- **11 export formats**: YOLO Detect / Segment / OBB / Pose / Point / Classify, COCO Instances, COCO Keypoints, Pascal VOC, LabelMe JSON, Semantic Masks
+- **9 annotation types**: bounding box, polygon, brush mask, semantic region, OBB, keypoints/pose, polyline, point, classification
+- **Semantic mode**: paint classes directly — the brush *is* the class, all strokes of a class merge into one region, every pixel belongs to at most one class
+- **Panoptic segmentation**: mark each class as *thing* (instances) or *stuff* (regions) and export both layers together
+- **12 export formats**: YOLO Detect / Segment / OBB / Pose / Point / Classify, COCO Instances (polygons or RLE), COCO Keypoints, COCO Panoptic, Pascal VOC, LabelMe JSON, Semantic Masks
 - **Import existing datasets**: load a labeled YOLO dataset (Detect / OBB / Segment / Point / Classify) into any open project — class names resolved automatically from `data.yaml` or `classes.txt`
 - **Multi-task export**: shared `images/`, separate label folders for parallel model training
 - **Auto-export**: `labels/` updated automatically on every save — no manual export step needed
@@ -30,6 +32,7 @@ A desktop image annotation tool for preparing training datasets for computer vis
 | Point            | `.`    | Single centroid — counting, landmarks            |
 | Classification   | —      | Image-level label with no geometry               |
 | Brush mask       | `M`    | Pixel-painted binary mask → polygon on commit    |
+| Semantic region  | `S`    | Class-painted region; one layer per class/image  |
 
 ## Export Formats
 
@@ -41,11 +44,12 @@ A desktop image annotation tool for preparing training datasets for computer vis
 | YOLO Pose        | `labels/*.txt`                              | bbox + keypoints `[x y v]`; `kpt_names` in data.yaml|
 | YOLO Point       | `labels/*.txt`                              | 1-keypoint pose with 1% synthetic bbox              |
 | YOLO Classify    | folder structure                            | `split/<class_name>/image.jpg`                      |
-| COCO Instances   | `annotations/instances_<split>.json`        | bbox, segmentation, per-annotation attributes       |
+| COCO Instances   | `annotations/instances_<split>.json`        | bbox, segmentation, attributes; masks as polygons or RLE |
 | COCO Keypoints   | `annotations/keypoints_<split>.json`        | keypoints in pixels + skeleton edges in category    |
+| COCO Panoptic    | `annotations/panoptic_<split>.json` + PNGs  | things + stuff; segment id = R + 256·G + 256²·B     |
 | Pascal VOC       | `Annotations/*.xml`                         | `<bndbox>` per object; full VOC directory layout    |
 | LabelMe JSON     | `<split>/<stem>.json`                       | LabelMe v5 — polygon, rectangle, linestrip, point   |
-| Semantic Masks   | `masks/<split>/<stem>.png` + `classes.txt`  | pixel mask per image; three modes: binary / index / color |
+| Semantic Masks   | `masks/<split>/<stem>.png` + `classes.txt`  | pixel mask per image; three modes: binary / index / color; stuff below, instances on top |
 
 ## Import
 
@@ -87,6 +91,15 @@ cd new_annotator
 
 ## Changelog
 
+### v1.5 — 2026-09-30
+- **Semantic mode** — new class type `semantic` and **Semantic brush** tool (`S`): paint a class directly, all strokes of the class merge into a single region layer per image (stored as a PNG). Each stroke is committed on mouse release and undone in one step. Layers never overlap: *overwrite* takes pixels from other classes, *keep* paints only into unlabeled pixels, *erase* unlabels pixels of every semantic class. Semantic layers render pixel-exact (holes and disconnected parts included) underneath instance annotations
+- **Panoptic segmentation** — per-class **Panoptic role** (`auto` / `thing` / `stuff`) in the Class Schema Editor; `auto` treats semantic classes as stuff and everything else as things
+- **COCO Panoptic export** — `annotations/panoptic_<split>.json` + one RGB PNG per image; stuff classes merge into one segment per image, every thing annotation is its own segment, things are drawn over stuff
+- **COCO Instances: "Masks as" option** — export brush masks and semantic layers as **polygons** or pixel-exact **RLE** (holes preserved); RLE is written in the pycocotools format without adding pycocotools as a dependency
+- **Exports now handle every region of a mask** — Semantic Masks renders brush masks and semantic layers from their PNG; YOLO Segment, COCO and LabelMe emit one polygon per connected region
+- **Unused mask cleanup** — on project open, mask PNGs no longer referenced by any annotation are moved to `masks/_orphaned/` (only if older than 24 h) and deleted on the next open
+- **Fixes** — brush masks were missing from COCO Instances export; OBB rotation was ignored in COCO export; YOLO Detect with the *Convert* policy crashed on brush masks
+
 ### v1.4
 - **Semantic Masks export** — pixel-level mask PNG per image alongside the original; three modes: **Binary** (0/255, single label), **Index** (0/1/2… by class order), **Color** (RGB, each class in its project color); `classes.txt` legend included; supports brush masks, polygons, bboxes, OBB, and polylines (adaptive thickness — useful for crack annotations)
 
@@ -111,7 +124,7 @@ cd new_annotator
 
 - **UI**: PyQt6 ≥ 6.4
 - **Geometry**: shapely ≥ 2.0 (buffering, IoU, area)
-- **Image I/O**: Pillow ≥ 9.0, OpenCV 4.13
+- **Image I/O**: Pillow ≥ 9.0, OpenCV 4.13, NumPy
 - **Runtime**: Python 3.13, fully offline — no cloud dependencies
 - **Storage**: `.annproj/` directory — JSON metadata + PNG masks
 
