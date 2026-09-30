@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
 )
 
 from annotator.domain.label_class import (
-    ANNOTATION_TYPES, ClassAttribute, DisplayStyle,
+    ANNOTATION_TYPES, PANOPTIC_ROLES, ClassAttribute, DisplayStyle,
     LabelClass, SkeletonKeypoint,
 )
 
@@ -137,6 +137,15 @@ class ClassSchemaEditorDialog(QDialog):
         type_row.addWidget(self._type_label)
         type_row.addStretch()
         form.addRow("Annotation type:", type_container)
+
+        self._role_combo = QComboBox()
+        self._role_combo.addItems(PANOPTIC_ROLES)
+        self._role_combo.setToolTip(
+            "Panoptic export: thing = every annotation is a separate instance,\n"
+            "stuff = all annotations of the class merge into one region.\n"
+            "auto = semantic classes are stuff, all others are things.")
+        self._role_combo.currentTextChanged.connect(self._sync_role)
+        form.addRow("Panoptic role:", self._role_combo)
 
         rl.addLayout(form)
 
@@ -355,6 +364,11 @@ class ClassSchemaEditorDialog(QDialog):
 
         self._update_type_ui(c.annotation_type)
 
+        self._role_combo.blockSignals(True)
+        self._role_combo.setCurrentText(
+            c.panoptic_role if c.panoptic_role in PANOPTIC_ROLES else "auto")
+        self._role_combo.blockSignals(False)
+
         self._sub_list.clear()
         for s in c.subclasses:
             self._sub_list.addItem(s)
@@ -410,6 +424,11 @@ class ClassSchemaEditorDialog(QDialog):
             return
         c.annotation_type = text
         self._update_type_ui(text)
+
+    def _sync_role(self, text: str):
+        c = self._current_class()
+        if c is not None:
+            c.panoptic_role = text
 
     def _sync_style(self):
         c = self._current_class()

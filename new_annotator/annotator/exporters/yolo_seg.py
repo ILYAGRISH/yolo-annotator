@@ -11,6 +11,7 @@ Writes one .txt file per image into a labels/ folder alongside the images:
 Line format per annotation:
   SEGMENT / POLYLINE → class_id  x1 y1 x2 y2 ... xn yn   (YOLO seg polygon)
   BBOX               → class_id  x1 y1 x2 y2 x3 y3 x4 y4 (4-corner polygon)
+  SEMANTIC           → one polygon line per connected region of the layer
 
 All coordinates are normalized [0, 1] as required by YOLO.
 """
@@ -48,6 +49,12 @@ def _format_annotation(ann: Annotation) -> str | None:
             return None
         coords = " ".join(f"{x:.6f} {y:.6f}" for x, y in pts)
         return f"{ann.class_id} {coords}"
+
+    if ann.ann_type == AnnotationType.SEMANTIC:
+        # one line per connected region of the class layer
+        lines = [f"{ann.class_id} " + " ".join(f"{x:.6f} {y:.6f}" for x, y in poly)
+                 for poly in ann.data.get("polygons", []) if len(poly) >= 3]
+        return "\n".join(lines) or None
 
     if ann.ann_type == AnnotationType.BBOX:
         d = ann.data

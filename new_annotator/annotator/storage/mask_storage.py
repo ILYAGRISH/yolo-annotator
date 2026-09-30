@@ -5,12 +5,36 @@ Layout inside .annproj/:
   masks/<image_stem>_<ann_id>.png   binary mask, same resolution as source image
                                      white (255) = object, black (0) = background
 
+  masks/<image_stem>_sem<class_id>_<rev>.png
+                                     SEMANTIC layer; a new <rev> is written on
+                                     every edit so undo can point back to the
+                                     previous (immutable) file
+
 mask_png_path stored in annotation.data is always relative to project_path root:
   "masks/img001_<uuid>.png"
 """
 from __future__ import annotations
 
+import uuid
+from collections import OrderedDict
 from pathlib import Path
+
+# Decoded mask bitmaps keyed by absolute path. Mask files are never rewritten
+# in place (every save gets a fresh name), so entries never go stale.
+_BITMAP_CACHE: "OrderedDict[str, object]" = OrderedDict()
+_BITMAP_CACHE_BUDGET = 256 * 1024 * 1024   # bytes
+
+# Connected regions smaller than this (in pixels) are dropped from polygons.
+_MIN_REGION_PX = 4.0
+
+
+def _cache_put(key: str, arr) -> None:
+    _BITMAP_CACHE[key] = arr
+    _BITMAP_CACHE.move_to_end(key)
+    total = sum(a.nbytes for a in _BITMAP_CACHE.values())
+    while total > _BITMAP_CACHE_BUDGET and len(_BITMAP_CACHE) > 1:
+        _, old = _BITMAP_CACHE.popitem(last=False)
+        total -= old.nbytes
 
 
 class MaskStorage:
@@ -34,6 +58,23 @@ class MaskStorage:
         Image.fromarray(arr, mode="L").save(self._masks_dir / fname)
         return f"masks/{fname}"
 
+    def save_semantic_mask(self, image_stem: str, class_id: int, bitmap) -> str:
+        """
+        Save a SEMANTIC layer bitmap under a fresh revision name.
+        Returns relative path: "masks/<stem>_sem<class_id>_<rev>.png".
+        """
+        import numpy as np
+        from PIL import Image
+
+        fname = f"{image_stem}_sem{class_id}_{uuid.uuid4().hex[:12]}.png"
+        arr = np.asarray(bitmap, dtype=np.uint8)
+        path = self._masks_dir / fname
+        Image.fromarray(arr, mode="L").save(path)
+        cached = arr.copy()
+        cached.setflags(write=False)
+        _cache_put(str(path), cached)
+        return f"masks/{fname}"
+
     def load_mask(self, mask_png_path: str):
         """
         Load mask PNG, return (H,W) uint8 numpy array, or None if file missing.
@@ -45,6 +86,24 @@ class MaskStorage:
         if not path.exists():
             return None
         return np.array(Image.open(path).convert("L"), dtype=np.uint8)
+
+    def load_mask_cached(self, mask_png_path: str):
+        """
+        Like load_mask(), but served from a process-wide LRU cache.
+        The returned array is READ-ONLY — copy it before modifying.
+        """
+        path = self._project_path / mask_png_path
+        key = str(path)
+        arr = _BITMAP_CACHE.get(key)
+        if arr is not None:
+            _BITMAP_CACHE.move_to_end(key)
+            return arr
+        arr = self.load_mask(mask_png_path)
+        if arr is None:
+            return None
+        arr.setflags(write=False)
+        _cache_put(key, arr)
+        return arr
 
     # ── bitmap ↔ polygon ──────────────────────────────────────────────────────
 
@@ -74,6 +133,47 @@ class MaskStorage:
         approx = cv2.approxPolyDP(largest, eps, True)
         return [[float(pt[0][0]) / image_w, float(pt[0][1]) / image_h]
                 for pt in approx]
+
+    @staticmethod
+    def mask_to_polygons(bitmap, image_w: int,
+                         image_h: int) -> list[list[list[float]]]:
+        """
+        Outer contour of EVERY connected region (largest first), normalized.
+        Regions under _MIN_REGION_PX are dropped. Holes are not represented.
+        Pass image_w = image_h = 1 to get pixel coordinates.
+        """
+        import cv2
+        import numpy as np
+
+        arr = np.asarray(bitmap, dtype=np.uint8)
+        contours, _ = cv2.findContours(
+            arr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        polys: list[tuple[float, list[list[float]]]] = []
+        for cnt in contours:
+            area = cv2.contourArea(cnt)
+            if area < _MIN_REGION_PX:
+                continue
+            eps = max(1.0, 0.001 * cv2.arcLength(cnt, True))
+            approx = cv2.approxPolyDP(cnt, eps, True)
+            if len(approx) < 3:
+                continue
+            polys.append((area, [[float(pt[0][0]) / image_w,
+                                  float(pt[0][1]) / image_h] for pt in approx]))
+        polys.sort(key=lambda t: t[0], reverse=True)
+        return [p for _, p in polys]
+
+    def semantic_data(self, image_stem: str, class_id: int, bitmap,
+                      image_w: int, image_h: int) -> dict:
+        """Save a SEMANTIC layer and return its geometry fields for ann.data."""
+        import numpy as np
+
+        arr = np.asarray(bitmap, dtype=np.uint8)
+        return {
+            "mask_png_path": self.save_semantic_mask(image_stem, class_id, arr),
+            "polygons": self.mask_to_polygons(arr, image_w, image_h),
+            "bbox": self.mask_to_bbox(arr, image_w, image_h),
+            "area": float(np.count_nonzero(arr)) / float(max(1, arr.size)),
+        }
 
     def polygon_to_mask(self, polygon: list[list[float]],
                         image_w: int, image_h: int):

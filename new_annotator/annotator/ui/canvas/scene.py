@@ -92,7 +92,8 @@ class AnnotationScene(QGraphicsScene):
             item = self._make_item(ann, project)
             if item is None:
                 continue
-            item.setZValue(1)
+            # semantic "stuff" layers sit under instance annotations
+            item.setZValue(0.5 if ann.ann_type.value == "semantic" else 1)
             self.addItem(item)
             self._ann_items[ann.id] = item
             if ann.id == prev_selected_id:
@@ -160,6 +161,18 @@ class AnnotationScene(QGraphicsScene):
             from annotator.ui.canvas.items.mask_item import MaskAnnotationItem
             pts = [(x * w, y * h) for x, y in ann.data.get("polygon", [])]
             item = MaskAnnotationItem(ann.id, pts, color, label)
+
+        elif ann.ann_type == AnnotationType.SEMANTIC:
+            from annotator.ui.canvas.items.semantic_item import SemanticAnnotationItem
+            rel = ann.data.get("mask_png_path", "")
+            bitmap = None
+            if project and project.project_path and rel:
+                from annotator.storage.mask_storage import MaskStorage
+                bitmap = MaskStorage(project.project_path).load_mask_cached(rel)
+            polys = [[(x * w, y * h) for x, y in poly]
+                     for poly in ann.data.get("polygons", [])]
+            item = SemanticAnnotationItem(ann.id, bitmap, rel, (w, h),
+                                          polys, color, label)
 
         if item is not None and cls is not None:
             item.line_width = float(cls.display_style.line_width)

@@ -137,6 +137,10 @@ class AnnotationsPanel(QWidget):
                     color, name = cls.color, cls.name
             if ann.ann_type == AnnotationType.CLASSIFY:
                 label = f"{name}  [IMAGE LABEL]"
+            elif ann.ann_type == AnnotationType.SEMANTIC:
+                regions = len(ann.data.get("polygons", []))
+                area = ann.data.get("area", 0.0) * 100
+                label = f"{name}  [semantic]  ({regions} reg · {area:.1f}%)"
             else:
                 sub = ann.data.get("subclass", "")
                 sub_str = f"  · {sub}" if sub else f"  ({self._pts_count(ann)} pts)"

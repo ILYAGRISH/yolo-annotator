@@ -3,7 +3,13 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-ANNOTATION_TYPES = ["bbox", "polygon", "polyline", "obb", "keypoints", "point", "mask", "classification"]
+ANNOTATION_TYPES = ["bbox", "polygon", "polyline", "obb", "keypoints", "point", "mask", "semantic", "classification"]
+
+# Role of a class in panoptic segmentation:
+#   thing — countable objects, every annotation is its own instance segment
+#   stuff — amorphous regions, all annotations of the class merge into one segment
+#   auto  — "semantic" classes are stuff, every other type is a thing
+PANOPTIC_ROLES = ["auto", "thing", "stuff"]
 
 # Drawing tools compatible with each annotation_type (enforced in UI and toolbar)
 ANNOTATION_TYPE_TOOLS: dict[str, list[str]] = {
@@ -14,6 +20,7 @@ ANNOTATION_TYPE_TOOLS: dict[str, list[str]] = {
     "keypoints":      ["pose"],
     "point":          ["point"],
     "mask":           ["brush"],
+    "semantic":       ["semantic_brush"],
     "classification": [],
 }
 
@@ -26,6 +33,7 @@ ANNOTATION_TYPE_DEFAULT_TOOL: dict[str, str | None] = {
     "keypoints":      "pose",
     "point":          "point",
     "mask":           "brush",
+    "semantic":       "semantic_brush",
     "classification": None,   # no drawing tool
 }
 
@@ -111,6 +119,13 @@ class LabelClass:
     attributes: list[ClassAttribute] = field(default_factory=list)
     display_style: DisplayStyle = field(default_factory=DisplayStyle)
     skeleton: list[SkeletonKeypoint] = field(default_factory=list)
+    panoptic_role: str = "auto"     # one of PANOPTIC_ROLES
+
+    @property
+    def is_stuff(self) -> bool:
+        if self.panoptic_role in ("thing", "stuff"):
+            return self.panoptic_role == "stuff"
+        return self.annotation_type == "semantic"
 
     def to_dict(self) -> dict:
         return {
@@ -123,6 +138,7 @@ class LabelClass:
             "attributes": [a.to_dict() for a in self.attributes],
             "display_style": self.display_style.to_dict(),
             "skeleton": [kp.to_dict() for kp in self.skeleton],
+            "panoptic_role": self.panoptic_role,
         }
 
     @classmethod
@@ -138,6 +154,7 @@ class LabelClass:
             attributes=[ClassAttribute.from_dict(a) for a in d.get("attributes", [])],
             display_style=DisplayStyle.from_dict(ds) if ds else DisplayStyle(),
             skeleton=[SkeletonKeypoint.from_dict(k) for k in d.get("skeleton", [])],
+            panoptic_role=d.get("panoptic_role", "auto"),
         )
 
     @staticmethod

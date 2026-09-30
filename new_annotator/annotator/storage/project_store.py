@@ -6,11 +6,15 @@ Directory layout:
   ├── project.json          # metadata, settings  (no classes since v3)
   ├── class_schema.json     # all class definitions (since v3)
   ├── images.json           # image inventory
-  └── annotations/
-      ├── <image_stem>.json # per-image annotations
-      └── ...
+  ├── annotations/
+  │   ├── <image_stem>.json # per-image annotations
+  │   └── ...
+  └── masks/                # MASK / SEMANTIC bitmaps (see MaskStorage)
+      └── _orphaned/        # unreferenced masks awaiting deletion
 """
 import json
+import shutil
+import time
 from pathlib import Path
 
 from annotator.domain.annotation import Annotation
@@ -23,6 +27,8 @@ PROJECT_FILE = "project.json"
 SCHEMA_FILE = "class_schema.json"
 IMAGES_FILE = "images.json"
 ASSIGNMENTS_FILE = "assignments.json"
+MASKS_DIR = "masks"
+ORPHANED_DIR = "_orphaned"
 
 
 def _migrate_project(data: dict, from_version: int) -> dict:
@@ -131,6 +137,61 @@ class ProjectStore:
             with open(ann_file, "r", encoding="utf-8") as f:
                 result[img_path] = [Annotation.from_dict(d) for d in json.load(f)]
         return result
+
+    @staticmethod
+    def collect_mask_garbage(project_path: Path, min_age_hours: float = 24.0) -> int:
+        """
+        Two-stage cleanup of mask PNGs that no annotation references.
+
+          1. masks/_orphaned/: files referenced again are moved back, the rest deleted
+          2. masks/*.png unreferenced AND older than min_age_hours → moved to _orphaned/
+
+        So a file is only deleted after staying unreferenced for min_age_hours
+        and one further run. The age check protects masks another user has just
+        painted but whose annotation JSON is not autosaved yet (multi-user).
+        Aborts (returns -1) if any annotation file cannot be read.
+        Returns the number of files moved to _orphaned/.
+        """
+        project_path = Path(project_path)
+        masks_dir = project_path / MASKS_DIR
+        if not masks_dir.is_dir():
+            return 0
+
+        referenced: set[str] = set()
+        ann_dir = project_path / ANNOTS_DIR
+        if ann_dir.is_dir():
+            for ann_file in ann_dir.glob("*.json"):
+                try:
+                    with open(ann_file, "r", encoding="utf-8") as f:
+                        items = json.load(f)
+                except (OSError, ValueError):
+                    return -1
+                if not isinstance(items, list) or not all(isinstance(d, dict) for d in items):
+                    return -1
+                for d in items:
+                    rel = (d.get("data") or {}).get("mask_png_path")
+                    if rel:
+                        referenced.add(Path(rel).name)
+
+        orphan_dir = masks_dir / ORPHANED_DIR
+        if orphan_dir.is_dir():
+            for f in orphan_dir.iterdir():
+                if not f.is_file():
+                    continue
+                if f.name in referenced:
+                    shutil.move(str(f), str(masks_dir / f.name))
+                else:
+                    f.unlink()
+
+        cutoff = time.time() - min_age_hours * 3600
+        moved = 0
+        for f in masks_dir.glob("*.png"):
+            if f.name in referenced or f.stat().st_mtime > cutoff:
+                continue
+            orphan_dir.mkdir(exist_ok=True)
+            shutil.move(str(f), str(orphan_dir / f.name))
+            moved += 1
+        return moved
 
     @staticmethod
     def save_all_annotations(project: Project, all_annotations: dict[str, list[Annotation]]):

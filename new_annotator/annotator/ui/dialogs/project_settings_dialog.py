@@ -32,6 +32,7 @@ _HOTKEY_LABELS: list[tuple[str, str]] = [
     ("tool_pose",      "Tool: Pose"),
     ("tool_point",     "Tool: Point"),
     ("tool_brush",     "Tool: Brush"),
+    ("tool_semantic",  "Tool: Semantic brush"),
 ]
 
 

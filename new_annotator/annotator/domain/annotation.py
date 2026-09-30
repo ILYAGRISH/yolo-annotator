@@ -13,6 +13,7 @@ class AnnotationType(Enum):
     CLASSIFY = "classify"  # image-level label (Phase 3)
     POINT = "point"        # single keypoint — counting, landmarks
     MASK = "mask"          # brush-painted binary mask → polygon contour
+    SEMANTIC = "semantic"  # per-class region layer ("stuff"): one per class per image
 
 
 @dataclass
@@ -29,6 +30,11 @@ class Annotation:
       POSE     → {"keypoints": [[x,y,vis], ...]}
       POINT    → {"x": float, "y": float}          normalized [0,1]
       MASK     → {"mask_png_path": str, "polygon": [[x,y],...], "bbox": [cx,cy,w,h]}
+      SEMANTIC → {"mask_png_path": str, "polygons": [[[x,y],...], ...],
+                  "bbox": [cx,cy,w,h], "area": float}
+                 PNG is the source of truth; polygons = outer contours of every
+                 connected region (holes are only preserved in the PNG);
+                 area = fraction of image pixels covered.
     """
     id: str
     class_id: int

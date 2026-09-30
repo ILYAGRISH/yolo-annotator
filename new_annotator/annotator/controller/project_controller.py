@@ -11,6 +11,7 @@ Sits between UI and domain:
 import copy
 import json
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 
 from PyQt6.QtCore import QObject, pyqtSignal
@@ -84,6 +85,11 @@ class ProjectController(QObject):
         project = ProjectStore.load(project_dir)
         self._activate_project(project)
         self.status_message.emit(f"Opened: {project_dir}")
+        if project.project_path:
+            try:
+                ProjectStore.collect_mask_garbage(project.project_path)
+            except OSError as exc:
+                self.status_message.emit(f"Mask cleanup skipped: {exc}")
         return project
 
     def update_project_settings(self, name: str, settings) -> None:
@@ -304,6 +310,15 @@ class ProjectController(QObject):
         if ann:
             self._undo_stack.push(
                 UpdateAnnotationCmd(self, ann_id, ann.data, new_data, text))
+
+    @contextmanager
+    def edit_group(self, text: str):
+        """Group every add/delete/update issued inside into ONE undo step."""
+        self._undo_stack.beginMacro(text)
+        try:
+            yield
+        finally:
+            self._undo_stack.endMacro()
 
     def select_annotation(self, ann_id: str):
         self.annotation_selected.emit(ann_id)
@@ -527,7 +542,8 @@ class ProjectController(QObject):
                        format_name: str,
                        copy_images: bool = True,
                        geometry_policy: str = "skip",
-                       mask_mode: str = "index") -> None:
+                       mask_mode: str = "index",
+                       seg_format: str = "polygon") -> None:
         """Export the full dataset in the requested format."""
         if not self._project:
             raise RuntimeError("No project open")
@@ -572,6 +588,9 @@ class ProjectController(QObject):
         elif format_name == "semantic_masks":
             from annotator.exporters.semantic_masks import SemanticMasksExporter
             exp = SemanticMasksExporter()
+        elif format_name == "coco_panoptic":
+            from annotator.exporters.coco_panoptic import CocoPanopticExporter
+            exp = CocoPanopticExporter()
         else:
             raise ValueError(f"Unknown export format: {format_name!r}")
 
@@ -579,7 +598,8 @@ class ProjectController(QObject):
         output_dir.mkdir(parents=True, exist_ok=True)
         exp.export(self._project, output_dir,
                    all_annotations=all_anns, copy_images=copy_images,
-                   geometry_policy=geometry_policy, mask_mode=mask_mode)
+                   geometry_policy=geometry_policy, mask_mode=mask_mode,
+                   seg_format=seg_format)
         self.status_message.emit(f"Exported [{exp.name}] → {output_dir}")
 
     def export_multitask(self, output_dir: Path,

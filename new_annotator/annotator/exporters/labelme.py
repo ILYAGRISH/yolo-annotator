@@ -15,6 +15,7 @@ Supported annotation types:
   OBB       → "polygon"    4 rotated corners in pixels
   POINT     → "point"      [[x,y]] in pixels
   MASK      → "polygon"    stored polygon contour in pixels
+  SEMANTIC  → one "polygon" per connected region of the class layer
   POSE      → one "point" per visible keypoint  (label = "class_kptname")
   CLASSIFY  → skipped (no geometry)
 """
@@ -102,6 +103,11 @@ def _ann_to_shapes(ann: Annotation, w: int, h: int, project: Project) -> list[di
             shapes.append(_shape(f"{label}_{kname}", "point",
                                  [[round(kx * w, 2), round(ky * h, 2)]]))
         return shapes
+
+    if t == AnnotationType.SEMANTIC:
+        return [_shape(label, "polygon",
+                       [[round(x * w, 2), round(y * h, 2)] for x, y in poly])
+                for poly in ann.data.get("polygons", []) if len(poly) >= 3]
 
     if t == AnnotationType.MASK:
         pts = ann.data.get("polygon", [])

@@ -16,8 +16,10 @@ Three mask modes (mask_mode kwarg):
   "index"   — grayscale PNG, pixel value = class index (1-based), background = 0
   "color"   — RGB PNG, each class drawn in its project color, background = black
 
-Supported annotation types:
-  MASK, SEGMENT — filled polygon
+Supported annotation types (drawn in this order — instances win overlaps):
+  SEMANTIC      — pixel-exact from the layer PNG ("stuff", painted first)
+  MASK          — pixel-exact from its PNG (falls back to the stored polygon)
+  SEGMENT       — filled polygon
   BBOX          — filled rectangle
   OBB           — filled rotated rectangle
   POLYLINE      — drawn with adaptive thickness (for crack annotations)
@@ -136,14 +138,22 @@ def _render_mask(img_rec: ImageRecord,
     draw = ImageDraw.Draw(mask)
     line_width = max(3, min(w, h) // 150)
 
-    for ann in anns:
+    # stuff first, things on top
+    ordered = ([a for a in anns if a.ann_type == AnnotationType.SEMANTIC]
+               + [a for a in anns if a.ann_type != AnnotationType.SEMANTIC])
+
+    for ann in ordered:
         fill = class_fill.get(ann.class_id, 255 if pil_mode == "L" else (255, 255, 255))
         t = ann.ann_type
 
-        if t == AnnotationType.MASK:
-            pts = _norm_to_px(ann.data.get("polygon", []), w, h)
-            if len(pts) >= 3:
-                draw.polygon(pts, fill=fill)
+        if t == AnnotationType.SEMANTIC:
+            _paste_png(mask, ann, fill, project_path)
+
+        elif t == AnnotationType.MASK:
+            if not _paste_png(mask, ann, fill, project_path):
+                pts = _norm_to_px(ann.data.get("polygon", []), w, h)
+                if len(pts) >= 3:
+                    draw.polygon(pts, fill=fill)
 
         elif t == AnnotationType.SEGMENT:
             pts = _norm_to_px(ann.data.get("points", []), w, h)
@@ -175,6 +185,24 @@ def _render_mask(img_rec: ImageRecord,
             draw.polygon(corners, fill=fill)
 
     return mask
+
+
+def _paste_png(mask: PilImage.Image, ann: Annotation, fill,
+               project_path: Path | None) -> bool:
+    """Fill the pixels of the annotation's PNG bitmap. False if unavailable."""
+    rel = ann.data.get("mask_png_path")
+    if not rel or project_path is None:
+        return False
+    src = Path(project_path) / rel
+    if not src.exists():
+        return False
+    with PilImage.open(src) as im:
+        m = im.convert("L")
+    if m.size != mask.size:
+        m = m.resize(mask.size, PilImage.Resampling.NEAREST)
+    m = m.point(lambda v: 255 if v > 0 else 0)
+    mask.paste(fill, (0, 0, mask.width, mask.height), m)
+    return True
 
 
 def _norm_to_px(points: list, w: int, h: int) -> list[tuple[int, int]]:

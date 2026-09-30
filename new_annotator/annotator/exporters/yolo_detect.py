@@ -21,11 +21,11 @@ from annotator.exporters.base import BaseExporter, write_yolo_dataset
 def _get_bbox_from_ann(ann: Annotation):
     """Compute (cx, cy, w, h) from a non-BBOX annotation, or return None."""
     if ann.ann_type == AnnotationType.MASK:
-        b = ann.data.get("bbox")
-        if b:
-            x, y, w, h = b["x"], b["y"], b["w"], b["h"]
+        b = ann.data.get("bbox")  # [cx, cy, w, h] normalized
+        if b and len(b) == 4:
+            cx, cy, w, h = b
             if w > 0 and h > 0:
-                return x + w / 2, y + h / 2, w, h
+                return cx, cy, w, h
     if ann.ann_type in (AnnotationType.SEGMENT, AnnotationType.POLYLINE):
         pts = ann.data.get("points", [])
         if len(pts) >= 2:

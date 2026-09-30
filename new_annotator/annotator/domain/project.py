@@ -20,6 +20,7 @@ DEFAULT_HOTKEYS: dict[str, str] = {
     "tool_pose":      "K",
     "tool_point":     ".",
     "tool_brush":     "M",
+    "tool_semantic":  "S",
 }
 
 _DEFAULT_COLORS = [

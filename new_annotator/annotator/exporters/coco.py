@@ -11,6 +11,11 @@ Supported annotation types:
   SEGMENT / POLYLINE  → segmentation (flat polygon in pixels)
   BBOX                → bbox [x, y, w, h]
   OBB                 → 4 rotated corners as segmentation polygon
+  MASK / SEMANTIC     → rasterized from the PNG (pixel-exact), then
+                        seg_format="polygon": one polygon per connected region
+                                              (holes dropped)
+                        seg_format="rle":     COCO compressed RLE (holes kept)
+                        SEMANTIC = one annotation per class layer
 
 Attributes are exported as an extra "attributes" field on each annotation.
 source_geometry and tool_params are never written to output.
@@ -25,6 +30,10 @@ from pathlib import Path
 from annotator.domain.annotation import Annotation, AnnotationType
 from annotator.domain.project import Project
 from annotator.exporters.base import BaseExporter
+from annotator.exporters.raster import bbox_xywh, rasterize, rle_encode
+from annotator.storage.mask_storage import MaskStorage
+
+SEG_FORMATS = ("polygon", "rle")
 
 
 def _image_size(img_rec, img_path: Path) -> tuple[int, int]:
@@ -39,7 +48,8 @@ def _image_size(img_rec, img_path: Path) -> tuple[int, int]:
 
 
 def _ann_to_coco(ann: Annotation, img_id: int, ann_id: int,
-                 w: int, h: int, project: Project) -> dict | None:
+                 w: int, h: int, project: Project,
+                 seg_format: str = "polygon") -> dict | None:
     """Convert one Annotation to a COCO annotation dict, or None to skip."""
     t = ann.ann_type
     base: dict = {
@@ -64,6 +74,23 @@ def _ann_to_coco(ann: Annotation, img_id: int, ann_id: int,
                         round(bw, 2), round(bh, 2)]
         base["area"] = round(bw * bh, 2)
 
+    elif t in (AnnotationType.MASK, AnnotationType.SEMANTIC):
+        if w <= 0 or h <= 0:
+            return None
+        mask = rasterize(ann, w, h, project.project_path)
+        if mask is None or not mask.any():
+            return None
+        if seg_format == "rle":
+            base["segmentation"] = rle_encode(mask)
+        else:
+            polys = MaskStorage.mask_to_polygons(mask.astype("uint8") * 255, 1, 1)
+            if not polys:
+                return None
+            base["segmentation"] = [[v for x, y in poly for v in (x, y)]
+                                    for poly in polys]
+        base["bbox"] = bbox_xywh(mask)
+        base["area"] = float(mask.sum())
+
     elif t == AnnotationType.BBOX:
         d = ann.data
         bx, by = d["x"] * w, d["y"] * h
@@ -77,7 +104,7 @@ def _ann_to_coco(ann: Annotation, img_id: int, ann_id: int,
         d = ann.data
         cx, cy = d["cx"] * w, d["cy"] * h
         hw, hh = d["w"] * w / 2, d["h"] * h / 2
-        rad = math.radians(d.get("angle", 0.0))
+        rad = math.radians(d.get("angle_deg", d.get("angle", 0.0)))
         cos_a, sin_a = math.cos(rad), math.sin(rad)
         corners = [(-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)]
         rotated = [
@@ -122,6 +149,9 @@ class CocoExporter(BaseExporter):
     def export(self, project: Project, output_dir: Path, **kwargs) -> None:
         all_annotations: dict = kwargs.get("all_annotations", {})
         copy_images: bool = kwargs.get("copy_images", True)
+        seg_format: str = kwargs.get("seg_format", "polygon")
+        if seg_format not in SEG_FORMATS:
+            seg_format = "polygon"
 
         output_dir = Path(output_dir)
         ann_dir = output_dir / "annotations"
@@ -154,7 +184,7 @@ class CocoExporter(BaseExporter):
 
                 for ann in all_annotations.get(img_rec.path, []):
                     coco_ann = _ann_to_coco(ann, img_id, ann_id,
-                                            iw, ih, project)
+                                            iw, ih, project, seg_format)
                     if coco_ann is not None:
                         coco_anns.append(coco_ann)
                         ann_id += 1

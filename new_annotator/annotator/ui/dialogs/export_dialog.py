@@ -18,6 +18,7 @@ _FORMATS = [
     ("YOLO Point  (single point → 1-kpt pose)",       "yolo_point"),
     ("YOLO Classify  (image-level classification)",   "yolo_classify"),
     ("COCO Instances  (JSON with attributes)",        "coco"),
+    ("COCO Panoptic  (things + stuff, PNG + JSON)",   "coco_panoptic"),
     ("COCO Keypoints  (JSON keypoints format)",       "coco_keypoints"),
     ("Pascal VOC  (XML bndbox per image)",            "pascal_voc"),
     ("LabelMe JSON  (polygon / rectangle / point)",  "labelme"),
@@ -74,6 +75,16 @@ class ExportDatasetDialog(QDialog):
         single_lay.addRow(self._mask_row_label, self._mask_mode_combo)
         self._mask_row_label.setVisible(False)
         self._mask_mode_combo.setVisible(False)
+
+        self._seg_fmt_combo = QComboBox()
+        self._seg_fmt_combo.addItem("Polygons  (editable, holes are lost)",       "polygon")
+        self._seg_fmt_combo.addItem("RLE  (pixel-exact masks, keeps holes)",      "rle")
+        self._seg_fmt_combo.setToolTip("Applies to brush masks and semantic layers;\n"
+                                       "other shapes are always exported as polygons.")
+        self._seg_row_label = QLabel("Masks as:")
+        single_lay.addRow(self._seg_row_label, self._seg_fmt_combo)
+        self._seg_row_label.setVisible(False)
+        self._seg_fmt_combo.setVisible(False)
 
         lay.addWidget(self._single_group)
 
@@ -150,6 +161,10 @@ class ExportDatasetDialog(QDialog):
         return self._mask_mode_combo.currentData()
 
     @property
+    def seg_format(self) -> str:
+        return self._seg_fmt_combo.currentData()
+
+    @property
     def export_jobs(self) -> list[ExportJob]:
         policy = _POLICIES[self._policy_combo.currentIndex()][1]
         jobs = []
@@ -179,6 +194,9 @@ class ExportDatasetDialog(QDialog):
         is_masks = _FORMATS[index][1] == "semantic_masks"
         self._mask_row_label.setVisible(is_masks)
         self._mask_mode_combo.setVisible(is_masks)
+        is_coco = _FORMATS[index][1] == "coco"
+        self._seg_row_label.setVisible(is_coco)
+        self._seg_fmt_combo.setVisible(is_coco)
 
     def _on_mode_changed(self, single_checked: bool):
         self._single_group.setVisible(single_checked)

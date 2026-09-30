@@ -19,6 +19,7 @@ from annotator.tools.crack_tool import CrackTool
 from annotator.tools.obb_tool import OBBTool
 from annotator.tools.polygon_tool import PolygonTool, PolylineTool
 from annotator.tools.brush_tool import BrushTool
+from annotator.tools.semantic_tool import SemanticBrushTool
 from annotator.tools.point_tool import PointTool
 from annotator.tools.pose_tool import PoseTool
 from annotator.tools.select_tool import SelectTool
@@ -167,6 +168,7 @@ class MainWindow(QMainWindow):
         self._menu_tool_acts["pose"]       = self._add_action(tools_m, "Pose  [K]",     lambda: self._activate_tool("pose"))
         self._menu_tool_acts["point"]      = self._add_action(tools_m, "Point  [.]",    lambda: self._activate_tool("point"))
         self._menu_tool_acts["brush"]      = self._add_action(tools_m, "Brush  [M]",    lambda: self._activate_tool("brush"))
+        self._menu_tool_acts["semantic_brush"] = self._add_action(tools_m, "Semantic brush  [S]", lambda: self._activate_tool("semantic_brush"))
 
         # Export (alias, no retranslation needed)
         mb.addMenu("&Export")
@@ -246,6 +248,7 @@ class MainWindow(QMainWindow):
         self._act_pose       = _tool_action("✿ Pose",     "pose",       "K")
         self._act_point      = _tool_action("• Point",    "point",      ".")
         self._act_brush      = _tool_action("⬤ Brush",    "brush",      "M")
+        self._act_semantic   = _tool_action("▦ Semantic", "semantic_brush", "S")
 
         tb.addSeparator()
         act_fit = QAction("⊞ Fit  [F]", self)
@@ -267,6 +270,7 @@ class MainWindow(QMainWindow):
             "pose":       self._act_pose,
             "point":      self._act_point,
             "brush":      self._act_brush,
+            "semantic_brush": self._act_semantic,
         }
 
     # ── shortcuts ─────────────────────────────────────────────────────────────
@@ -316,6 +320,7 @@ class MainWindow(QMainWindow):
             "tool_pose":     "pose",
             "tool_point":    "point",
             "tool_brush":    "brush",
+            "tool_semantic": "semantic_brush",
         }
         for hk_key, tool_name in tool_map.items():
             act = self._tool_act_map.get(tool_name)
@@ -406,6 +411,7 @@ class MainWindow(QMainWindow):
             "pose":       PoseTool(),
             "point":      PointTool(),
             "brush":      BrushTool(),
+            "semantic_brush": SemanticBrushTool(),
         }
 
     def _activate_tool(self, name: str):
@@ -729,7 +735,7 @@ class MainWindow(QMainWindow):
             else:
                 self._ctrl.export_dataset(
                     Path(dlg.output_dir), dlg.format_name, dlg.copy_images,
-                    mask_mode=dlg.mask_mode)
+                    mask_mode=dlg.mask_mode, seg_format=dlg.seg_format)
         except Exception as exc:
             QMessageBox.critical(self, "Export error", str(exc))
 
