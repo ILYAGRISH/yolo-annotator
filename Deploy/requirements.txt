@@ -1,5 +1,10 @@
-PyQt6>=6.4.0
-Pillow>=9.0.0
-shapely>=2.0.0
-numpy>=1.26.0
-opencv-python>=4.8.0
+# Pinned versions verified on Python 3.13 / Windows 11 (2026-09-30):
+# fresh install via Deploy\setup_venv.bat, all test suites passing.
+# To upgrade: raise the pins, reinstall, rerun the tests.
+PyQt6==6.11.0
+PyQt6-Qt6==6.11.2
+PyQt6-sip==13.12.0
+Pillow==12.3.0
+shapely==2.1.2
+numpy==2.5.3
+opencv-python==5.0.0.93
