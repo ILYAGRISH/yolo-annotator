@@ -189,7 +189,8 @@ check("from_dict type is SEGMENT", ann2.ann_type == AnnotationType.SEGMENT)
 print("\n=== 7. Export: source_geometry NOT in YOLO output ===")
 
 from annotator.exporters.yolo_seg import _format_annotation as fmt_seg
-from annotator.exporters.yolo_detect import _format_detect
+from annotator.exporters.yolo_detect import _make_detect_fn
+_format_detect = _make_detect_fn("skip")   # BBOX only (default geometry_policy)
 
 # YOLO seg should output only class_id + polygon points, not source_geometry
 line = fmt_seg(ann)

@@ -19,7 +19,8 @@ _app = QApplication.instance() or QApplication(sys.argv)
 from annotator.domain.annotation import Annotation, AnnotationType
 from annotator.domain.label_class import LabelClass
 from annotator.domain.project import Project, ImageRecord
-from annotator.exporters.yolo_detect import YoloDetectExporter, _format_detect
+from annotator.exporters.yolo_detect import YoloDetectExporter, _make_detect_fn
+_format_detect = _make_detect_fn("skip")   # BBOX only (default geometry_policy)
 from annotator.exporters.yolo_obb import YoloObbExporter, _format_obb, _rotate_pt
 from annotator.exporters.yolo_seg import _format_annotation as _format_seg
 from annotator.exporters.base import write_yolo_dataset
