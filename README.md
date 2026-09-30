@@ -74,6 +74,10 @@ Re-annotate or extend an existing labeled dataset without re-creating it from sc
 
 ## Installation
 
+**On another computer (recommended):** take the ready-to-run [`Deploy/`](Deploy/) folder — download the repository ZIP or sparse-checkout just that folder, then run `setup_venv.bat` once and start the app with `run.bat`. Step-by-step guide: [Deploy/README.md](Deploy/README.md).
+
+**From the development sources:**
+
 ```bat
 cd new_annotator
 install.bat        # creates .venv and installs dependencies (first time)
@@ -141,5 +145,11 @@ new_annotator/
 │   └── controller/   ← ProjectController (MVC)
 ├── plugins/          ← custom tool plugins (*.py)
 ├── docs/             ← About.md, hotkeys.md, Test_Help.md
+├── build_deploy.py   ← refreshes ../Deploy from these sources
 └── main.py
+
+Deploy/               ← ready-to-run copy for other computers
+├── setup_venv.bat    ← creates .venv and installs requirements
+├── run.bat           ← starts the app
+└── About.md          ← user guide (RU)
 ```
