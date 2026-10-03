@@ -618,8 +618,13 @@ Panoptic role у всех оставить `auto`.
 | PNG-файлы | `.annproj/masks/<stem>_sem<cls>_<rev>.png`, новый файл после каждого мазка |
 
 ### 11.2 Экспорт Semantic Masks (stuff + things)
-**Делаем:** Export → Semantic Masks → Mask mode: **Index**
-**Получаем:** в `masks/train/<img>.png` машина нарисована **поверх** неба; все несвязные куски дороги присутствуют; дырки в слоях сохранены
+**Делаем:** Export → Semantic Masks → Mask mode: **Color** (для визуальной проверки)
+**Получаем:** в `masks/train/<img>.png` каждый класс своим цветом; машина нарисована **поверх** неба/дороги; все несвязные куски дороги присутствуют; дырки в слоях сохранены
+
+**Затем:** тот же экспорт в режиме **Index**
+**Получаем:** `classes.txt` с легендой `0: background, 1: road, …`; маска **выглядит почти чёрной** — это норма: значение пикселя = номер класса (1, 2, 3…), а не яркость. Геометрия та же, что в режиме Color.
+
+> Проверить Index-маску численно: `python -c "import numpy as np; from PIL import Image; print(np.unique(np.array(Image.open('masks/train/<img>.png')), return_counts=True))"` — должны быть значения 0…N по числу классов.
 
 ### 11.3 COCO Panoptic
 **Используем:** проект из 11.1 — road / sky (semantic) и car (mask), пара машин поверх дороги
