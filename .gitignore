@@ -50,3 +50,6 @@ docs/mask-storage-prompt.md
 # Qt compiled resources
 *.qmlc
 *.jsc
+
+# Promotion drafts (local only)
+promo/
