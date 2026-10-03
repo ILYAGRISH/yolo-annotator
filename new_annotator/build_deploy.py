@@ -8,6 +8,7 @@ Run after every release:
 Copied from the production sources (old copies are replaced):
     annotator/, plugins/, main.py, requirements.txt   ← new_annotator/
     About.md                                          ← docs/About.md
+    LICENSE                                           ← LICENSE
 
 Deploy-only files are never touched: setup_venv.bat, run.bat, README.md,
 .gitattributes (and a local .venv, if any).
@@ -24,7 +25,7 @@ DEPLOY = ROOT / "Deploy"
 
 DIRS = ["annotator", "plugins"]
 FILES = ["main.py", "requirements.txt"]
-DOCS = {ROOT / "docs" / "About.md": "About.md"}
+DOCS = {ROOT / "docs" / "About.md": "About.md", ROOT / "LICENSE": "LICENSE"}
 
 _IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo")
 

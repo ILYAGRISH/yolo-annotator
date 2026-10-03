@@ -704,6 +704,7 @@ class MainWindow(QMainWindow):
             "<h3>YOLO Annotator</h3>"
             "<p><b>Version:</b> 1.5</p>"
             "<p><b>Author:</b> Ilya Grishutin</p>"
+            "<p><b>License:</b> GPL-3.0</p>"
             "<p>Desktop image annotation tool for preparing<br>"
             "training datasets for computer vision tasks.</p>"
             "<p><a href='https://github.com/ILYAGRISH/yolo-annotator'>"

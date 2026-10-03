@@ -64,6 +64,10 @@ Projects (`*.annproj`) are stored wherever you create them, not inside `Deploy` 
 | Setup failed half-way / установка прервалась | `setup_venv.bat --clean` — recreates `.venv` from scratch / пересоздаёт `.venv` с нуля |
 | The app closes with an error / программа закрывается с ошибкой | The console window stays open — copy the error text / окно консоли остаётся открытым — скопируйте текст ошибки |
 
+## License / Лицензия
+
+GPL-3.0 — see / см. `LICENSE`.
+
 ## Documentation / Документация
 
 - `About.md` — full user guide: annotation types, tools, semantic / panoptic mode, export formats, limitations (RU)

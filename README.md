@@ -96,14 +96,18 @@ cd new_annotator
 
 ## Changelog
 
-### v1.5 — 2026-09-30
+### v1.5 — 2026-10-03
 - **Semantic mode** — new class type `semantic` and **Semantic brush** tool (`S`): paint a class directly, all strokes of the class merge into a single region layer per image (stored as a PNG). Each stroke is committed on mouse release and undone in one step. Layers never overlap: *overwrite* takes pixels from other classes, *keep* paints only into unlabeled pixels, *erase* unlabels pixels of every semantic class. Semantic layers render pixel-exact (holes and disconnected parts included) underneath instance annotations
 - **Panoptic segmentation** — per-class **Panoptic role** (`auto` / `thing` / `stuff`) in the Class Schema Editor; `auto` treats semantic classes as stuff and everything else as things
 - **COCO Panoptic export** — `annotations/panoptic_<split>.json` + one RGB PNG per image; stuff classes merge into one segment per image, every thing annotation is its own segment, things are drawn over stuff
 - **COCO Instances: "Masks as" option** — export brush masks and semantic layers as **polygons** or pixel-exact **RLE** (holes preserved); RLE is written in the pycocotools format without adding pycocotools as a dependency
 - **Exports now handle every region of a mask** — Semantic Masks renders brush masks and semantic layers from their PNG; YOLO Segment, COCO and LabelMe emit one polygon per connected region
 - **Unused mask cleanup** — on project open, mask PNGs no longer referenced by any annotation are moved to `masks/_orphaned/` (only if older than 24 h) and deleted on the next open
-- **Fixes** — brush masks were missing from COCO Instances export; OBB rotation was ignored in COCO export; YOLO Detect with the *Convert* policy crashed on brush masks
+- **File → Open Recent** — the last 10 projects; the Open dialog starts in the folder of the last one
+- **Brush size ring** — a dashed circle under the cursor shows the brush size for both Brush and Semantic brush
+- **Deploy folder** — ready-to-run copy with `setup_venv.bat` / `run.bat`; dependency versions pinned
+- **License** — the project is now released under GPL-3.0
+- **Fixes** — brush masks were missing from COCO Instances export; OBB rotation was ignored in COCO export; YOLO Detect with the *Convert* policy crashed on brush masks; the Annotations panel was emptied after editing the class schema; `requirements.txt` was missing NumPy and OpenCV
 
 ### v1.4
 - **Semantic Masks export** — pixel-level mask PNG per image alongside the original; three modes: **Binary** (0/255, single label), **Index** (0/1/2… by class order), **Color** (RGB, each class in its project color); `classes.txt` legend included; supports brush masks, polygons, bboxes, OBB, and polylines (adaptive thickness — useful for crack annotations)
@@ -154,3 +158,8 @@ Deploy/               ← ready-to-run copy for other computers
 ├── run.bat           ← starts the app
 └── About.md          ← user guide (RU)
 ```
+
+## License
+
+[GPL-3.0](LICENSE) — free to use, modify and redistribute; derivative works must stay open source under the same license.
+The UI is built on PyQt6, which is itself licensed under GPL-3.0.
