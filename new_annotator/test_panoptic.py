@@ -13,6 +13,8 @@ from pathlib import Path
 # ── headless Qt ───────────────────────────────────────────────────────────────
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 sys.path.insert(0, str(Path(__file__).parent))
+# keep app settings (language, recent projects) away from the real user ones
+os.environ["ANNOTATOR_SETTINGS"] = str(Path(tempfile.mkdtemp()) / "settings.ini")
 
 from PyQt6.QtWidgets import QApplication
 _app = QApplication.instance() or QApplication(sys.argv)

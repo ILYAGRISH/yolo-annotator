@@ -215,7 +215,7 @@ class AssignImagesDialog(QDialog):
             self._my_name_label.setText("")
 
     def _change_leader_name(self):
-        from PyQt6.QtCore import QSettings
+        from annotator.app_settings import app_settings
         name, ok = QInputDialog.getText(
             self, "Change your name",
             "Enter your new display name:",
@@ -232,7 +232,7 @@ class AssignImagesDialog(QDialog):
         elif new_name not in self._users:
             self._users[new_name] = set()
         self._leader_name = new_name
-        QSettings("Annotator", "App").setValue("user_name", new_name)
+        app_settings().setValue("user_name", new_name)
         self._update_my_name_label()
         self._full_refresh()
         # Re-select new name

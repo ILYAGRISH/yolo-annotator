@@ -19,6 +19,7 @@ A desktop image annotation tool for preparing training datasets for computer vis
 - **EN / RU localization**: switch language at runtime via Help → Language
 - **Plugin system**: drop a `.py` file in `plugins/` — tool appears in the toolbar automatically
 - **Full undo / redo** for all annotation operations
+- **Recent projects**: File → Open Recent lists the last 10 projects
 
 ## Annotation Types
 

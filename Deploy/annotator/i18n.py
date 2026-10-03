@@ -51,6 +51,11 @@ _EN: dict[str, str] = {
     # File menu actions
     "act_new_project":      "&New Project…",
     "act_open_project":     "&Open Project…",
+    "menu_recent":          "Open &Recent",
+    "act_clear_recent":     "Clear List",
+    "recent_empty":         "(no recent projects)",
+    "recent_missing_title": "Project not found",
+    "recent_missing_text":  "The project folder no longer exists or is not available:\n{path}\n\nIt has been removed from the recent list.",
     "act_save_project":     "&Save Project",
     "act_close_project":    "&Close Project",
     "act_project_settings": "Project Settings…",
@@ -140,6 +145,11 @@ _RU: dict[str, str] = {
     # File menu actions
     "act_new_project":      "&Новый проект…",
     "act_open_project":     "&Открыть проект…",
+    "menu_recent":          "Открыть &недавние",
+    "act_clear_recent":     "Очистить список",
+    "recent_empty":         "(нет недавних проектов)",
+    "recent_missing_title": "Проект не найден",
+    "recent_missing_text":  "Папка проекта больше не существует или недоступна:\n{path}\n\nПроект убран из списка недавних.",
     "act_save_project":     "&Сохранить",
     "act_close_project":    "&Закрыть проект",
     "act_project_settings": "Настройки проекта…",
@@ -209,8 +219,8 @@ def set_language(lang: str) -> None:
         return
     _LANG = lang
     try:
-        from PyQt6.QtCore import QSettings
-        QSettings("Annotator", "App").setValue("language", lang)
+        from annotator.app_settings import app_settings
+        app_settings().setValue("language", lang)
     except Exception:
         pass
 
@@ -219,8 +229,8 @@ def load_saved() -> None:
     """Load language preference from QSettings (call once at startup)."""
     global _LANG
     try:
-        from PyQt6.QtCore import QSettings
-        saved = QSettings("Annotator", "App").value("language", "EN")
+        from annotator.app_settings import app_settings
+        saved = app_settings().value("language", "EN")
         if saved in _STRINGS:
             _LANG = saved
     except Exception:

@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (QDialog, QFileDialog, QMainWindow, QMessageBox,
 from annotator.controller.project_controller import ProjectController
 from annotator.domain.label_class import ANNOTATION_TYPE_DEFAULT_TOOL, ANNOTATION_TYPE_TOOLS
 from annotator.i18n import current_language, set_language, tr
+from annotator.storage import recent_projects
 from annotator.tools.bbox_tool import BBoxTool
 from annotator.tools.crack_tool import CrackTool
 from annotator.tools.obb_tool import OBBTool
@@ -128,6 +129,8 @@ class MainWindow(QMainWindow):
         file_m = self._tmenu(mb, "menu_file")
         self._tact(file_m, "act_new_project",      self._new_project,            "Ctrl+N")
         self._tact(file_m, "act_open_project",     self._open_project,           "Ctrl+O")
+        self._recent_menu = self._tmenu(file_m, "menu_recent")
+        self._recent_menu.aboutToShow.connect(self._populate_recent_menu)
         self._tact(file_m, "act_save_project",     self._ctrl.save_project,      "Ctrl+S")
         self._tact(file_m, "act_close_project",    self._close_project)
         self._tact(file_m, "act_project_settings", self._open_project_settings)
@@ -807,9 +810,9 @@ class MainWindow(QMainWindow):
             self._images_panel.set_assignments(assignments)
 
     def _ask_user_name(self) -> str:
-        from PyQt6.QtCore import QSettings
+        from annotator.app_settings import app_settings
         from PyQt6.QtWidgets import QInputDialog
-        settings = QSettings("Annotator", "App")
+        settings = app_settings()
         last = settings.value("user_name", "")
         name, ok = QInputDialog.getText(
             self, "Enter your name",
@@ -822,9 +825,9 @@ class MainWindow(QMainWindow):
         return ""
 
     def _change_user_name(self):
-        from PyQt6.QtCore import QSettings
+        from annotator.app_settings import app_settings
         from PyQt6.QtWidgets import QInputDialog
-        settings = QSettings("Annotator", "App")
+        settings = app_settings()
         current = self._user_name or settings.value("user_name", "")
         name, ok = QInputDialog.getText(
             self, "Your name", "Enter your display name:", text=current)
@@ -850,9 +853,9 @@ class MainWindow(QMainWindow):
 
     def _leader_display_name(self, hostname: str) -> str:
         """Return saved display name for leader. Asks once if not yet set."""
-        from PyQt6.QtCore import QSettings
+        from annotator.app_settings import app_settings
         from PyQt6.QtWidgets import QInputDialog
-        settings = QSettings("Annotator", "App")
+        settings = app_settings()
         saved = settings.value("user_name", "")
         if saved:
             return saved
@@ -903,6 +906,8 @@ class MainWindow(QMainWindow):
             if self._ctrl.project:
                 self._ctrl.project.leader_machine = socket.gethostname()
                 self._ctrl.save_project()
+                if self._ctrl.project.project_path:
+                    recent_projects.add(self._ctrl.project.project_path)
             self._user_role = "leader"
             self._user_name = self._leader_display_name(socket.gethostname())
             self._images_panel.set_user_filter(None)
@@ -947,7 +952,9 @@ class MainWindow(QMainWindow):
         self._apply_hotkeys(settings.hotkeys)
 
     def _open_project(self):
-        folder = QFileDialog.getExistingDirectory(self, "Open .annproj folder")
+        recent = recent_projects.load()
+        start_dir = str(Path(recent[0]).parent) if recent else ""
+        folder = QFileDialog.getExistingDirectory(self, "Open .annproj folder", start_dir)
         if not folder:
             return
         path = Path(folder)
@@ -955,12 +962,46 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Not a project",
                                 "Selected folder is not a valid .annproj project.")
             return
+        self._open_project_path(path)
+
+    def _open_project_path(self, path: Path):
         try:
             self._reset_multiuser()
             self._ctrl.open_project(path)
             self._apply_multiuser_role()
+            recent_projects.add(path)
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
+
+    # ── recent projects ───────────────────────────────────────────────────────
+
+    def _populate_recent_menu(self):
+        """Rebuilt every time File → Open Recent is shown."""
+        m = self._recent_menu
+        m.clear()
+        paths = recent_projects.load()
+        if not paths:
+            m.addAction(tr("recent_empty")).setEnabled(False)
+            return
+        for i, p in enumerate(paths, 1):
+            name = Path(p).name
+            if name.lower().endswith(".annproj"):
+                name = name[:-len(".annproj")]
+            name, shown = name.replace("&", "&&"), p.replace("&", "&&")
+            num = f"&{i}" if i < 10 else str(i)          # Alt+digit opens it
+            act = m.addAction(f"{num}  {name}\t{shown}")  # path in the right column
+            act.setToolTip(p)
+            act.triggered.connect(lambda _=False, path=p: self._open_recent(path))
+        m.addSeparator()
+        m.addAction(tr("act_clear_recent"), recent_projects.clear)
+
+    def _open_recent(self, path: str):
+        if not recent_projects.is_project(path):
+            recent_projects.remove(path)
+            QMessageBox.warning(self, tr("recent_missing_title"),
+                                tr("recent_missing_text").format(path=path))
+            return
+        self._open_project_path(Path(path))
 
     def _add_images(self):
         if not self._ctrl.project:
