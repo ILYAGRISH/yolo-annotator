@@ -2,6 +2,12 @@
 
 A desktop image annotation tool for preparing training datasets for computer vision tasks — detection, instance / semantic / panoptic segmentation, OBB, pose estimation, and classification.
 
+![YOLO Annotator demo: semantic brush paints house, sky, trees and road; the brush adds car masks on top](docs/images/Annotation.gif)
+
+*The Semantic brush (`S`) paints house, sky, trees and road as class regions; the Brush (`M`) then adds the cars as separate instances on top.*
+
+**Download for Windows:** [latest release](https://github.com/ILYAGRISH/yolo-annotator/releases/latest) · unzip → `setup_venv.bat` → `run.bat`
+
 ## Features
 
 - **9 annotation types**: bounding box, polygon, brush mask, semantic region, OBB, keypoints/pose, polyline, point, classification
