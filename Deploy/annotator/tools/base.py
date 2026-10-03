@@ -54,3 +54,35 @@ class BaseTool(ABC):
         p = QPen(QColor(color), width, style or Qt.PenStyle.SolidLine)
         p.setCosmetic(True)
         return p
+
+
+class BrushRing:
+    """
+    Dashed circle that follows the cursor and shows the brush radius in image
+    pixels — so its on-screen size tracks the zoom, like the stroke itself.
+    Used by BrushTool and SemanticBrushTool.
+    """
+
+    def __init__(self):
+        self._item = None
+        self._scene = None
+
+    def update(self, scene, pos, radius: float):
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtWidgets import QGraphicsEllipseItem
+        if scene is None:
+            return
+        if self._item is None or self._item.scene() is not scene:
+            self._item = QGraphicsEllipseItem()
+            self._item.setPen(BaseTool._cosmetic_pen("#FFFFFF", 1.0, Qt.PenStyle.DashLine))
+            self._item.setZValue(6)
+            scene.addItem(self._item)
+            self._scene = scene
+        self._item.setRect(pos.x() - radius, pos.y() - radius, 2 * radius, 2 * radius)
+
+    def remove(self):
+        if self._item is not None and self._scene is not None:
+            if self._item.scene() is self._scene:
+                self._scene.removeItem(self._item)
+        self._item = None
+        self._scene = None

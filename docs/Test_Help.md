@@ -169,10 +169,11 @@
 ### Brush / Mask [M]
 **Используем:** класс любого типа; клавиша `M`  
 **Делаем:**
-1. Рисуем кистью: ЛКМ + drag → закрашиваем область
-2. **Tool Props:** `Brush size` (px) и `Mode` (draw / erase)
-3. Enter или double-click → commit → маска сохраняется
-4. Esc → discard (без потери данных, см. Re-edit)
+1. Наводим курсор на изображение → под ним пунктирный круг размером с кисть; меняем `Brush size` → круг меняется
+2. Рисуем кистью: ЛКМ + drag → закрашиваем область
+3. **Tool Props:** `Brush size` (px) и `Mode` (draw / erase)
+4. Enter или double-click → commit → маска сохраняется
+5. Esc → discard (без потери данных, см. Re-edit)
 
 **Получаем:** аннотация типа MASK; в Annotations Panel отображается как MASK; PNG-файл сохраняется в `.annproj/masks/`
 

@@ -30,10 +30,10 @@ from pathlib import Path
 import numpy as np
 from PyQt6.QtCore import Qt, QPointF
 from PyQt6.QtGui import QColor, QPainterPath, QPen
-from PyQt6.QtWidgets import QGraphicsEllipseItem, QGraphicsPathItem
+from PyQt6.QtWidgets import QGraphicsPathItem
 
 from annotator.domain.annotation import Annotation, AnnotationType
-from annotator.tools.base import BaseTool
+from annotator.tools.base import BaseTool, BrushRing
 
 _PREVIEW_ALPHA = 140
 _ERASE_PREVIEW = "#FFFFFF"
@@ -104,7 +104,7 @@ class SemanticBrushTool(BaseTool):
         self._stroke: np.ndarray | None = None        # (H, W) uint8, 255 = brushed
         self._preview: QGraphicsPathItem | None = None
         self._path: QPainterPath | None = None
-        self._ring: QGraphicsEllipseItem | None = None
+        self._ring = BrushRing()
         self._last_pos: QPointF | None = None
 
     # ── BaseTool interface ────────────────────────────────────────────────────
@@ -124,7 +124,7 @@ class SemanticBrushTool(BaseTool):
 
     def deactivate(self):
         self._cancel_stroke()
-        self._remove_ring()
+        self._ring.remove()
         self._scene = None
         self._ctrl = None
 
@@ -171,7 +171,7 @@ class SemanticBrushTool(BaseTool):
     def on_move(self, pos, modifiers):
         if not self._scene:
             return
-        self._update_ring(pos)
+        self._ring.update(self._scene, pos, self._radius())
         if self._stroke is None or self._last_pos is None:
             return
         clamped = self._clamp(pos)
@@ -233,24 +233,6 @@ class SemanticBrushTool(BaseTool):
         self._path = None
         self._stroke = None
         self._last_pos = None
-
-    # ── brush-size ring ───────────────────────────────────────────────────────
-
-    def _update_ring(self, pos: QPointF):
-        r = self._radius()
-        if self._ring is None or self._ring.scene() is not self._scene:
-            self._ring = QGraphicsEllipseItem()
-            self._ring.setPen(self._cosmetic_pen("#FFFFFF", 1.0,
-                                                 Qt.PenStyle.DashLine))
-            self._ring.setZValue(6)
-            self._scene.addItem(self._ring)
-        self._ring.setRect(pos.x() - r, pos.y() - r, 2 * r, 2 * r)
-
-    def _remove_ring(self):
-        if self._ring is not None and self._scene is not None:
-            if self._ring.scene() is self._scene:
-                self._scene.removeItem(self._ring)
-        self._ring = None
 
     # ── commit ────────────────────────────────────────────────────────────────
 

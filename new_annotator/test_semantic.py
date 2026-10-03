@@ -325,6 +325,31 @@ check("yolo_detect convert: MASK bbox list no longer crashes",
 check("yolo_detect: semantic layers skipped",
       not any(ln.split()[0] in ("0", str(sky_cls.id)) for ln in det))
 
+# ═════════════════════════════════════════════════════════════════════════════
+# §7  Brush-size ring (BrushTool + SemanticBrushTool)
+# ═════════════════════════════════════════════════════════════════════════════
+section("7. Brush-size ring")
+
+from PyQt6.QtWidgets import QGraphicsEllipseItem
+from annotator.tools.brush_tool import BrushTool
+
+def rings():
+    return [i for i in scene.items() if isinstance(i, QGraphicsEllipseItem)]
+
+for label, t in (("Brush", BrushTool()), ("Semantic", SemanticBrushTool())):
+    scene.set_tool(t, ctrl)
+    t.set_params({"brush_size": 15})
+    t.on_move(QPointF(50, 40), NOMOD)
+    r = rings()
+    check(f"{label}: ring shown on hover", len(r) == 1)
+    check(f"{label}: ring radius = brush size",
+          bool(r) and r[0].rect().getRect() == (35.0, 25.0, 30.0, 30.0))
+    t.on_move(QPointF(120, 60), NOMOD)
+    check(f"{label}: ring follows cursor (no duplicates)",
+          len(rings()) == 1 and rings()[0].rect().center() == QPointF(120, 60))
+    scene.set_tool(__import__("annotator.tools.select_tool", fromlist=["SelectTool"]).SelectTool(), ctrl)
+    check(f"{label}: ring removed on tool switch", rings() == [])
+
 scene.set_tool(__import__("annotator.tools.select_tool", fromlist=["SelectTool"]).SelectTool(), ctrl)
 shutil.rmtree(tmp, ignore_errors=True)
 

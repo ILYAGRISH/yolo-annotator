@@ -36,7 +36,7 @@ from PyQt6.QtGui import QColor, QImage, QPixmap
 from PyQt6.QtWidgets import QGraphicsPixmapItem
 
 from annotator.domain.annotation import Annotation, AnnotationType
-from annotator.tools.base import BaseTool
+from annotator.tools.base import BaseTool, BrushRing
 
 _OVERLAY_ALPHA = 160   # semi-transparent overlay (0-255)
 
@@ -59,6 +59,7 @@ class BrushTool(BaseTool):
         self._has_content: bool = False
         self._img_size: tuple[int, int] = (1, 1)      # (W, H)
         self._editing_ann = None                       # original Annotation being re-edited; restored on Esc
+        self._ring = BrushRing()                       # brush-size circle under the cursor
 
     # ── BaseTool interface ────────────────────────────────────────────────────
 
@@ -82,6 +83,7 @@ class BrushTool(BaseTool):
             self._ctrl.add_annotation(self._editing_ann)
             self._editing_ann = None
         self._remove_overlay()
+        self._ring.remove()
         self._mask_bitmap = None
         self._has_content = False
         self._painting = False
@@ -122,7 +124,10 @@ class BrushTool(BaseTool):
         self._paint_stroke(clamped, clamped)
 
     def on_move(self, pos, modifiers):
-        if not self._scene or not self._painting:
+        if not self._scene:
+            return
+        self._ring.update(self._scene, pos, max(1, int(self._params.get("brush_size", 20))))
+        if not self._painting:
             return
         clamped = self._clamp(pos)
         if self._last_pos is not None:
