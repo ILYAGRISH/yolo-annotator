@@ -294,5 +294,57 @@ shutil.rmtree(tmp, ignore_errors=True)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+# §7  Schema edit keeps the Annotations panel (regression: panel emptied)
+# ═════════════════════════════════════════════════════════════════════════════
+section("7. Schema edit keeps annotations in the panel")
+
+import copy
+from annotator.ui.main_window import MainWindow
+
+tmp2 = Path(tempfile.mkdtemp())
+img2 = tmp2 / "scene.png"
+Image.new("RGB", (120, 80), (40, 40, 40)).save(img2)
+win = MainWindow()
+c = win._ctrl
+pr = c.create_project("schema", tmp2 / "proj")
+bays = pr.classes[0]; bays.name = "bays"; bays.annotation_type = "polygon"
+other = pr.add_class("other"); other.annotation_type = "polygon"
+c.add_images_from_paths([str(img2)])
+c.set_image(str(img2))
+for cid in (bays.id, bays.id, other.id):
+    c.add_annotation(Annotation.new(cid, AnnotationType.SEGMENT,
+                     {"points": [[0.1, 0.1], [0.5, 0.1], [0.3, 0.6]]}))
+win._classes_panel._list.setCurrentRow(0)
+panel = win._annotations_panel
+
+def editor_ok(mutate):
+    """Same steps as MainWindow._open_schema_editor after the dialog is accepted."""
+    classes = copy.deepcopy(c.project.classes)
+    mutate(classes)
+    c.project.classes = classes
+    c.save_project()
+    c.project_changed.emit(c.project)
+
+check("before: panel lists 3 annotations", panel._list.count() == 3)
+editor_ok(lambda cl: setattr(cl[0], "panoptic_role", "stuff"))
+check("role auto -> stuff: panel still lists 3", panel._list.count() == 3)
+check("role change persisted", c.project.get_class(bays.id).panoptic_role == "stuff")
+editor_ok(lambda cl: setattr(cl[0], "color", "#00FF00"))
+items = [i for i in win._scene._ann_items.values()]
+check("color change: canvas rebuilt with new color",
+      sum(1 for i in items if i.class_color == "#00FF00") == 2)
+check("active class restored after edit",
+      panel._active_class_id == win._classes_panel.current_class_id)
+
+c.delete_class(other.id, reassign_to=None)
+check("class deletion: remaining annotations still listed", panel._list.count() == 2)
+
+c.create_project("fresh", tmp2 / "proj2")
+check("opening another project still clears the panel", panel._list.count() == 0)
+win.close()
+shutil.rmtree(tmp2, ignore_errors=True)
+
+
+# ═════════════════════════════════════════════════════════════════════════════
 print(f"\n{'=' * 60}\n  {_pass} passed, {_fail} failed\n{'=' * 60}")
 sys.exit(1 if _fail else 0)

@@ -445,8 +445,16 @@ class MainWindow(QMainWindow):
         self._images_panel.load_project(project)
         self._classes_panel.load_project(project)
         self._annotations_panel.load_project(project)
-        self._annotations_panel.refresh([])
-        self._annotations_panel.set_active_class(None)
+        # project_changed also fires after schema edits / class deletion on the
+        # SAME project: keep showing the current image (open / close clear it
+        # in the controller before emitting, so this is [] for them).
+        anns = self._ctrl.current_annotations if project is not None else []
+        self._annotations_panel.refresh(anns)
+        if project is not None and self._ctrl.current_image:
+            self._scene.rebuild_annotations(anns, project)   # new class colors / names
+        cid = self._classes_panel.current_class_id
+        self._annotations_panel.set_active_class(
+            project.get_class(cid) if project is not None and cid is not None else None)
         self._qc_panel.set_project_loaded(project is not None)
         self._assign_act.setEnabled(
             project is not None and self._user_role == "leader")
