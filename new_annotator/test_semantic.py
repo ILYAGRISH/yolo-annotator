@@ -351,6 +351,27 @@ for label, t in (("Brush", BrushTool()), ("Semantic", SemanticBrushTool())):
     check(f"{label}: ring removed on tool switch", rings() == [])
 
 scene.set_tool(__import__("annotator.tools.select_tool", fromlist=["SelectTool"]).SelectTool(), ctrl)
+# ═════════════════════════════════════════════════════════════════════════════
+# §8  Annotations panel labels (regression: "car [mask] (0 pts)")
+# ═════════════════════════════════════════════════════════════════════════════
+section("8. Annotations panel labels")
+
+from annotator.ui.panels.annotations_panel import AnnotationsPanel
+
+ctrl.add_annotation(Annotation.new(car_cls.id, AnnotationType.BBOX,
+                                   {"x": 0.1, "y": 0.1, "w": 0.2, "h": 0.2}))
+panel = AnnotationsPanel()
+panel.load_project(ctrl.project)
+panel.refresh(ctrl.current_annotations)
+labels = [panel._list.item(i).text() for i in range(panel._list.count())]
+mask_labels = [t for t in labels if "[mask]" in t]
+check("mask label shows contour points, not 0",
+      bool(mask_labels) and all("(0 pts)" not in t and " pts)" in t for t in mask_labels))
+check("bbox label has no meaningless point count",
+      any("[bbox]" in t and "pts" not in t for t in labels))
+check("semantic label shows regions and area",
+      any("[semantic]" in t and "reg" in t and "%" in t for t in labels))
+
 shutil.rmtree(tmp, ignore_errors=True)
 
 

@@ -143,7 +143,7 @@ class AnnotationsPanel(QWidget):
                 label = f"{name}  [semantic]  ({regions} reg · {area:.1f}%)"
             else:
                 sub = ann.data.get("subclass", "")
-                sub_str = f"  · {sub}" if sub else f"  ({self._pts_count(ann)} pts)"
+                sub_str = f"  · {sub}" if sub else self._geometry_hint(ann)
                 label = f"{name}  [{ann.ann_type.value}]{sub_str}"
             self._list.addItem(QListWidgetItem(_icon(color), label))
         self._list.blockSignals(False)
@@ -296,8 +296,16 @@ class AnnotationsPanel(QWidget):
     # ── internal slots ────────────────────────────────────────────────────
 
     @staticmethod
-    def _pts_count(ann: Annotation) -> int:
-        return len(ann.data.get("points", []))
+    def _geometry_hint(ann: Annotation) -> str:
+        """'  (N pts)' where a point count means something; '' for boxes / points."""
+        t = ann.ann_type
+        if t in (AnnotationType.SEGMENT, AnnotationType.POLYLINE):
+            return f"  ({len(ann.data.get('points', []))} pts)"
+        if t == AnnotationType.MASK:                 # contour of the painted mask
+            return f"  ({len(ann.data.get('polygon', []))} pts)"
+        if t == AnnotationType.POSE:
+            return f"  ({len(ann.data.get('keypoints', []))} kpts)"
+        return ""
 
     def _on_row(self, row: int):
         if 0 <= row < len(self._annotations):
