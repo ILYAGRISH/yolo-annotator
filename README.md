@@ -8,6 +8,18 @@ A desktop image annotation tool for preparing training datasets for computer vis
 
 **Download for Windows:** [latest release](https://github.com/ILYAGRISH/yolo-annotator/releases/latest) · unzip → `setup_venv.bat` → `run.bat`
 
+## Screenshots
+
+![Main window: semantic layers for house, sky, trees and road; car instances painted with the brush](docs/images/Main_en.jpg)
+*Main window — semantic regions (house, sky, trees, road) with car instances on top; the Annotations panel lists every layer and instance.*
+
+| | |
+|---|---|
+| ![Street scene with boxes, polygons, a polyline, a crack, oriented boxes, points and an image label](docs/images/all_types1.jpg) | ![Plaza scene with keypoint skeletons, brush masks, oriented boxes, boxes, polygons and points](docs/images/all_types2.jpg) |
+| Boxes (cars), polygons (buildings), polyline (lane marking), Crack tool (road crack), OBB (road signs), points (people) and an image-level label | Keypoint skeletons (people, 11 points), brush masks (trees), OBB (clouds), boxes, polygons and points (dogs) |
+| ![Export dialog with the list of 12 formats](docs/images/Export_en.jpg) | ![Source photo next to its exported semantic mask](docs/images/Pair.jpg) |
+| Export dialog — 12 formats, including COCO RLE and COCO Panoptic | Semantic Masks export (color mode) next to the source photo |
+
 ## Features
 
 - **9 annotation types**: bounding box, polygon, brush mask, semantic region, OBB, keypoints/pose, polyline, point, classification
