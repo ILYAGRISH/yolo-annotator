@@ -6,6 +6,8 @@ SEMANTIC layer on the current image — there are no per-stroke instances.
 
 Workflow:
   - Left-click / drag → paint (or erase) a stroke; it is committed on release
+  - Shift+click        → straight line from the end of the previous stroke
+                         (a dashed guide shows it while Shift is held)
   - Esc while dragging → cancel the current stroke
   - Ctrl+Z             → undo the whole stroke (all touched layers at once)
 
@@ -33,7 +35,7 @@ from PyQt6.QtGui import QColor, QPainterPath, QPen
 from PyQt6.QtWidgets import QGraphicsPathItem
 
 from annotator.domain.annotation import Annotation, AnnotationType
-from annotator.tools.base import BaseTool, BrushRing
+from annotator.tools.base import BaseTool, BrushRing, ShiftLine
 
 _PREVIEW_ALPHA = 140
 _ERASE_PREVIEW = "#FFFFFF"
@@ -105,6 +107,7 @@ class SemanticBrushTool(BaseTool):
         self._preview: QGraphicsPathItem | None = None
         self._path: QPainterPath | None = None
         self._ring = BrushRing()
+        self._shift = ShiftLine()                     # Shift+click straight lines
         self._last_pos: QPointF | None = None
 
     # ── BaseTool interface ────────────────────────────────────────────────────
@@ -125,6 +128,7 @@ class SemanticBrushTool(BaseTool):
     def deactivate(self):
         self._cancel_stroke()
         self._ring.remove()
+        self._shift.reset()
         self._scene = None
         self._ctrl = None
 
@@ -164,8 +168,10 @@ class SemanticBrushTool(BaseTool):
         w, h = self._scene.image_size
         self._stroke = np.zeros((h, w), dtype=np.uint8)
         clamped = self._clamp(pos)
-        self._start_preview(clamped)
-        self._paint_segment(clamped, clamped)
+        start = self._shift.start_point(clamped, modifiers, self._image_key())
+        self._shift.hide_guide()
+        self._start_preview(start)
+        self._paint_segment(start, clamped)
         self._last_pos = clamped
 
     def on_move(self, pos, modifiers):
@@ -173,6 +179,7 @@ class SemanticBrushTool(BaseTool):
             return
         self._ring.update(self._scene, pos, self._radius())
         if self._stroke is None or self._last_pos is None:
+            self._shift.update_guide(self._scene, self._clamp(pos), modifiers, self._image_key())
             return
         clamped = self._clamp(pos)
         self._paint_segment(self._last_pos, clamped)
@@ -184,6 +191,7 @@ class SemanticBrushTool(BaseTool):
         clamped = self._clamp(pos)
         if self._last_pos is not None:
             self._paint_segment(self._last_pos, clamped)
+        self._shift.set_anchor(clamped, self._image_key())
         stroke = self._stroke
         self._cancel_stroke()
         self._commit(stroke > 0)
@@ -305,6 +313,9 @@ class SemanticBrushTool(BaseTool):
         return bmp
 
     # ── helpers ───────────────────────────────────────────────────────────────
+
+    def _image_key(self):
+        return self._ctrl.current_image if self._ctrl else None
 
     def _class_is_semantic(self) -> bool:
         if not self._ctrl or not self._ctrl.project:

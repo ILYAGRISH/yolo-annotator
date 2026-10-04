@@ -102,6 +102,10 @@ cd new_annotator
 
 ## Changelog
 
+### Unreleased
+- **Shift+click straight lines** in Brush and Semantic brush (Photoshop-style): a straight stroke from the end of the previous one, chainable, with a dashed guide while Shift is held
+- **Fix** — the Annotations panel showed a meaningless "(0 pts)" for masks, boxes, OBBs, points and poses
+
 ### v1.5 — 2026-10-03
 - **Semantic mode** — new class type `semantic` and **Semantic brush** tool (`S`): paint a class directly, all strokes of the class merge into a single region layer per image (stored as a PNG). Each stroke is committed on mouse release and undone in one step. Layers never overlap: *overwrite* takes pixels from other classes, *keep* paints only into unlabeled pixels, *erase* unlabels pixels of every semantic class. Semantic layers render pixel-exact (holes and disconnected parts included) underneath instance annotations
 - **Panoptic segmentation** — per-class **Panoptic role** (`auto` / `thing` / `stuff`) in the Class Schema Editor; `auto` treats semantic classes as stuff and everything else as things

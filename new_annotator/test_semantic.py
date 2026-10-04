@@ -372,6 +372,72 @@ check("bbox label has no meaningless point count",
 check("semantic label shows regions and area",
       any("[semantic]" in t and "reg" in t and "%" in t for t in labels))
 
+# ═════════════════════════════════════════════════════════════════════════════
+# §9  Shift+click straight lines (both brushes)
+# ═════════════════════════════════════════════════════════════════════════════
+section("9. Shift+click straight lines")
+
+from PyQt6.QtWidgets import QGraphicsLineItem
+from annotator.tools.base import ShiftLine
+
+SHIFT = Qt.KeyboardModifier.ShiftModifier
+
+def guides():
+    return [i for i in scene.items() if isinstance(i, QGraphicsLineItem)]
+
+def click(t, x, y, mods=NOMOD):
+    t.on_press(QPointF(x, y), mods, LB)
+    t.on_release(QPointF(x, y), mods, LB)
+
+sl = ShiftLine()
+sl.set_anchor(QPointF(10, 10), "a.jpg")
+check("ShiftLine: anchor used on Shift for the same image",
+      sl.start_point(QPointF(50, 50), SHIFT, "a.jpg") == QPointF(10, 10))
+check("ShiftLine: no Shift -> start at the click",
+      sl.start_point(QPointF(50, 50), NOMOD, "a.jpg") == QPointF(50, 50))
+check("ShiftLine: other image -> anchor ignored",
+      sl.start_point(QPointF(50, 50), SHIFT, "b.jpg") == QPointF(50, 50))
+
+# Semantic brush
+sem = SemanticBrushTool()
+scene.set_tool(sem, ctrl)
+sem.set_params({"brush_size": 3, "mode": "draw", "overlap": "overwrite"})
+sem.set_class(sky_cls.id)
+click(sem, 110, 92)
+sem.on_move(QPointF(185, 92), SHIFT)
+g = guides()
+check("semantic: dashed guide while Shift held",
+      len(g) == 1 and g[0].line().p1() == QPointF(110, 92))
+sem.on_move(QPointF(185, 92), NOMOD)
+check("semantic: guide hidden without Shift", guides() == [])
+n_undo = ctrl.undo_stack.count()
+click(sem, 185, 92, SHIFT)
+sky_bm = bitmap(next(a for a in sem_anns() if a.class_id == sky_cls.id))
+check("semantic: Shift+click paints the straight line", sky_bm[92, 150] == 255)
+check("semantic: straight line is one undo step", ctrl.undo_stack.count() == n_undo + 1)
+check("semantic: guide removed after the click", guides() == [])
+click(sem, 185, 60, SHIFT)                     # chain from the last end point
+sky_bm = bitmap(next(a for a in sem_anns() if a.class_id == sky_cls.id))
+check("semantic: Shift+clicks chain a polyline", sky_bm[76, 185] == 255)
+
+# Mask brush
+br = BrushTool()
+scene.set_tool(br, ctrl)
+br.set_params({"brush_size": 3, "mode": "draw"})
+br.set_class(car_cls.id)
+click(br, 110, 97)
+click(br, 185, 97, SHIFT)
+check("brush: Shift+click paints the straight line", br._mask_bitmap[97, 150] == 255)
+br.on_key_press(Qt.Key.Key_Return, NOMOD)       # commit the mask
+check("brush: commit clears the canvas", not br._mask_bitmap.any())
+click(br, 150, 70, SHIFT)
+check("brush: after commit Shift+click does not connect to the old mask",
+      br._mask_bitmap[70, 150] == 255 and br._mask_bitmap[97, 185] == 0
+      and not br._mask_bitmap[80:95, :].any())
+br.on_key_press(Qt.Key.Key_Escape, NOMOD)
+scene.set_tool(__import__("annotator.tools.select_tool", fromlist=["SelectTool"]).SelectTool(), ctrl)
+check("guide removed on tool switch", guides() == [])
+
 shutil.rmtree(tmp, ignore_errors=True)
 
 

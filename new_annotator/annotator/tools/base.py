@@ -86,3 +86,65 @@ class BrushRing:
                 self._scene.removeItem(self._item)
         self._item = None
         self._scene = None
+
+
+class ShiftLine:
+    """
+    Photoshop-style straight strokes for brush tools: after a stroke ends,
+    Shift+click paints a straight line from that end point to the click
+    (repeat to chain a polyline). While Shift is held, a dashed guide shows
+    where the line will go. The anchor belongs to one image — switching
+    images never connects strokes across them.
+    """
+
+    def __init__(self):
+        self._anchor = None          # QPointF, image pixels
+        self._image = None           # image the anchor belongs to
+        self._item = None            # QGraphicsLineItem guide
+        self._scene = None
+
+    @staticmethod
+    def held(modifiers) -> bool:
+        from PyQt6.QtCore import Qt
+        return bool(modifiers & Qt.KeyboardModifier.ShiftModifier)
+
+    def set_anchor(self, pos, image) -> None:
+        from PyQt6.QtCore import QPointF
+        self._anchor = QPointF(pos)
+        self._image = image
+
+    def anchor_for(self, image):
+        """The anchor if it belongs to `image`, else None."""
+        return self._anchor if self._anchor is not None and image == self._image else None
+
+    def start_point(self, pos, modifiers, image):
+        """Where a new stroke starts: the anchor on Shift+click, else `pos`."""
+        anchor = self.anchor_for(image) if self.held(modifiers) else None
+        return anchor if anchor is not None else pos
+
+    def update_guide(self, scene, pos, modifiers, image) -> None:
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtWidgets import QGraphicsLineItem
+        anchor = self.anchor_for(image)
+        if scene is None or anchor is None or not self.held(modifiers):
+            self.hide_guide()
+            return
+        if self._item is None or self._item.scene() is not scene:
+            self._item = QGraphicsLineItem()
+            self._item.setPen(BaseTool._cosmetic_pen("#FFFFFF", 1.0, Qt.PenStyle.DashLine))
+            self._item.setZValue(6)
+            scene.addItem(self._item)
+            self._scene = scene
+        self._item.setLine(anchor.x(), anchor.y(), pos.x(), pos.y())
+
+    def hide_guide(self) -> None:
+        if self._item is not None and self._scene is not None:
+            if self._item.scene() is self._scene:
+                self._scene.removeItem(self._item)
+        self._item = None
+        self._scene = None
+
+    def reset(self) -> None:
+        self._anchor = None
+        self._image = None
+        self.hide_guide()

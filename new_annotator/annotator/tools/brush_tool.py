@@ -3,6 +3,8 @@ BrushTool — paint binary segmentation masks with a circular brush.
 
 Workflow:
   - Left-click / drag → draw stroke (erase in Erase mode)
+  - Shift+click        → straight line from the end of the previous stroke
+                         of the current mask (dashed guide while Shift is held)
   - Enter / double-click → commit mask as new MASK annotation
   - Esc                  → discard all current strokes
 
@@ -36,7 +38,7 @@ from PyQt6.QtGui import QColor, QImage, QPixmap
 from PyQt6.QtWidgets import QGraphicsPixmapItem
 
 from annotator.domain.annotation import Annotation, AnnotationType
-from annotator.tools.base import BaseTool, BrushRing
+from annotator.tools.base import BaseTool, BrushRing, ShiftLine
 
 _OVERLAY_ALPHA = 160   # semi-transparent overlay (0-255)
 
@@ -60,6 +62,7 @@ class BrushTool(BaseTool):
         self._img_size: tuple[int, int] = (1, 1)      # (W, H)
         self._editing_ann = None                       # original Annotation being re-edited; restored on Esc
         self._ring = BrushRing()                       # brush-size circle under the cursor
+        self._shift = ShiftLine()                      # Shift+click straight lines
 
     # ── BaseTool interface ────────────────────────────────────────────────────
 
@@ -84,6 +87,7 @@ class BrushTool(BaseTool):
             self._editing_ann = None
         self._remove_overlay()
         self._ring.remove()
+        self._shift.reset()
         self._mask_bitmap = None
         self._has_content = False
         self._painting = False
@@ -120,14 +124,17 @@ class BrushTool(BaseTool):
             return
         self._painting = True
         clamped = self._clamp(pos)
+        start = self._shift.start_point(clamped, modifiers, self._image_key())
+        self._shift.hide_guide()
         self._last_pos = clamped
-        self._paint_stroke(clamped, clamped)
+        self._paint_stroke(start, clamped)
 
     def on_move(self, pos, modifiers):
         if not self._scene:
             return
         self._ring.update(self._scene, pos, max(1, int(self._params.get("brush_size", 20))))
         if not self._painting:
+            self._shift.update_guide(self._scene, self._clamp(pos), modifiers, self._image_key())
             return
         clamped = self._clamp(pos)
         if self._last_pos is not None:
@@ -138,7 +145,9 @@ class BrushTool(BaseTool):
         if button != Qt.MouseButton.LeftButton:
             return
         if self._painting and self._last_pos is not None:
-            self._paint_stroke(self._last_pos, self._clamp(pos))
+            clamped = self._clamp(pos)
+            self._paint_stroke(self._last_pos, clamped)
+            self._shift.set_anchor(clamped, self._image_key())
         self._painting = False
         self._last_pos = None
 
@@ -183,6 +192,7 @@ class BrushTool(BaseTool):
         self._has_content = False
         self._painting = False
         self._last_pos = None
+        self._shift.reset()          # a new mask never continues the previous one
 
     # ── painting (cv2 + numpy) ────────────────────────────────────────────────
 
@@ -387,6 +397,9 @@ class BrushTool(BaseTool):
         self._reset_canvas()
 
     # ── helpers ───────────────────────────────────────────────────────────────
+
+    def _image_key(self):
+        return self._ctrl.current_image if self._ctrl else None
 
     def _refresh_class_color(self):
         if self._ctrl and self._ctrl.project:
