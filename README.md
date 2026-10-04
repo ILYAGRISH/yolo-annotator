@@ -104,7 +104,11 @@ cd new_annotator
 
 ### Unreleased
 - **Shift+click straight lines** in Brush and Semantic brush (Photoshop-style): a straight stroke from the end of the previous one, chainable, with a dashed guide while Shift is held
+- **Pose keypoints can be dragged** with the Select tool (nearest keypoint is picked, visibility kept)
 - **Fix** — the Annotations panel showed a meaningless "(0 pts)" for masks, boxes, OBBs, points and poses
+- **Fix** — crash when clicking a keypoint of a selected pose (`'PoseAnnotationItem' object has no attribute 'handle_at'`)
+- **Fix** — a pose could not be selected where two keypoints overlap (e.g. head and neck)
+- **Fix** — dragging a vertex or handle with Select erased the annotation's attributes and subclass
 
 ### v1.5 — 2026-10-03
 - **Semantic mode** — new class type `semantic` and **Semantic brush** tool (`S`): paint a class directly, all strokes of the class merge into a single region layer per image (stored as a PNG). Each stroke is committed on mouse release and undone in one step. Layers never overlap: *overwrite* takes pixels from other classes, *keep* paints only into unlabeled pixels, *erase* unlabels pixels of every semantic class. Semantic layers render pixel-exact (holes and disconnected parts included) underneath instance annotations

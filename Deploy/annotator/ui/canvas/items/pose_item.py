@@ -24,6 +24,28 @@ class PoseAnnotationItem(BaseAnnotationItem):
         self.label = label
         self._lod: float = 1.0
 
+    # ── SelectTool compatibility ──────────────────────────────────────────────
+
+    def handle_at(self, pos: QPointF) -> int:
+        """Index of the visible keypoint NEAREST to pos within the hit radius, or -1.
+        Nearest (not first) matters: shoulders, neck and head often sit close."""
+        hit_r = max(KP_HIT, KP_SCREEN_R * 1.5 / max(self._lod, 0.05))
+        best, best_d = -1, hit_r
+        for i, (x, y, v) in enumerate(self._keypoints):
+            if v <= 0:
+                continue
+            d = (QPointF(x, y) - pos).manhattanLength()
+            if d <= best_d:
+                best, best_d = i, d
+        return best
+
+    def move_handle(self, index: int, new_pos: QPointF):
+        """Drag keypoint `index`; its visibility flag is kept."""
+        self.prepareGeometryChange()
+        _, _, v = self._keypoints[index]
+        self._keypoints[index] = (new_pos.x(), new_pos.y(), v)
+        self.update()
+
     # ── BaseAnnotationItem interface ──────────────────────────────────────────
 
     def update_from_data(self, data: dict, image_size: tuple[int, int]):
@@ -51,6 +73,9 @@ class PoseAnnotationItem(BaseAnnotationItem):
 
     def shape(self) -> QPainterPath:
         path = QPainterPath()
+        # WindingFill: with the default OddEvenFill, where two keypoint circles
+        # overlap (head / neck) the overlap becomes a hole and is not clickable
+        path.setFillRule(Qt.FillRule.WindingFill)
         for x, y, v in self._keypoints:
             if v > 0:
                 path.addEllipse(QPointF(x, y), KP_HIT, KP_HIT)

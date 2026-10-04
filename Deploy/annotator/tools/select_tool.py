@@ -5,6 +5,9 @@ from PyQt6.QtCore import Qt, QPointF
 
 from annotator.tools.base import BaseTool
 
+# Non-geometry fields of annotation.data that a vertex / handle drag must keep.
+_KEEP_ON_EDIT = ("attributes", "subclass")
+
 
 class SelectTool(BaseTool):
 
@@ -41,7 +44,9 @@ class SelectTool(BaseTool):
         # 1 — check if we're on a handle of the already-selected item
         selected = self._scene.get_selected_item() if self._scene else None
         if selected is not None:
-            handle = selected.handle_at(pos)
+            # items without handles (e.g. from plugins) are selectable, not draggable
+            handle_at = getattr(selected, "handle_at", None)
+            handle = handle_at(pos) if handle_at else -1
             if handle >= 0:
                 self._drag_item = selected
                 self._drag_handle = handle
@@ -76,7 +81,11 @@ class SelectTool(BaseTool):
     def on_release(self, pos, modifiers, button):
         if self._drag_item is not None and self._drag_orig_data is not None:
             ann_id = self._drag_item.annotation_id
+            # to_data() returns geometry only — keep the user's metadata
             new_data = self._drag_item.to_data(self._scene.image_size)
+            for key in _KEEP_ON_EDIT:
+                if key in self._drag_orig_data:
+                    new_data[key] = copy.deepcopy(self._drag_orig_data[key])
             if self._ctrl and new_data != self._drag_orig_data:
                 self._ctrl.update_annotation_data(
                     ann_id, new_data, "Move vertex")
