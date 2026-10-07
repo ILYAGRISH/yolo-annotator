@@ -121,6 +121,7 @@ cd new_annotator
 - **Fix** — crash when clicking a keypoint of a selected pose (`'PoseAnnotationItem' object has no attribute 'handle_at'`)
 - **Fix** — a pose could not be selected where two keypoints overlap (e.g. head and neck)
 - **Fix** — dragging a vertex or handle with Select erased the annotation's attributes and subclass
+- **Fix** — crash in the Schema editor when deleting the last class in the list; deleting or moving a class could also copy unsaved skeleton edges into its neighbour
 
 ### v1.5 — 2026-10-03
 - **Semantic mode** — new class type `semantic` and **Semantic brush** tool (`S`): paint a class directly, all strokes of the class merge into a single region layer per image (stored as a PNG). Each stroke is committed on mouse release and undone in one step. Layers never overlap: *overwrite* takes pixels from other classes, *keep* paints only into unlabeled pixels, *erase* unlabels pixels of every semantic class. Semantic layers render pixel-exact (holes and disconnected parts included) underneath instance annotations
