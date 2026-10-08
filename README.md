@@ -25,7 +25,7 @@ A desktop image annotation tool for preparing training datasets for computer vis
 - **9 annotation types**: bounding box, polygon, brush mask, semantic region, OBB, keypoints/pose, polyline, point, classification
 - **Semantic mode**: paint classes directly — the brush *is* the class, all strokes of a class merge into one region, every pixel belongs to at most one class
 - **Panoptic segmentation**: mark each class as *thing* (instances) or *stuff* (regions) and export both layers together
-- **Pre-labelling with your YOLO model**: detect / segment / OBB / pose / classify models label the current image (`Ctrl+L`) or the whole dataset; you review and fix. Runs in a separate ML process — PyTorch never enters the app
+- **Pre-labelling with your YOLO model**: detect / segment / OBB / pose / classify models label the current image (`Ctrl+L`) or the whole dataset; you review and fix — unreviewed ones are dashed on the canvas, **R / Shift+R** accept, **U** jumps to the next image to review, export can skip what is not reviewed. Runs in a separate ML process — PyTorch never enters the app
 - **SAM — label by clicking**: click an object and Segment Anything outlines it — into a polygon, mask, box or rotated box; ~20 ms per click on a GPU. It also turns boxes (yours or a detector's) into outlines in bulk
 - **12 export formats**: YOLO Detect / Segment / OBB / Pose / Point / Classify, COCO Instances (polygons or RLE), COCO Keypoints, COCO Panoptic, Pascal VOC, LabelMe JSON, Semantic Masks
 - **Import existing datasets**: load a labeled YOLO dataset (Detect / OBB / Segment / Point / Classify) into any open project — class names resolved automatically from `data.yaml` or `classes.txt`
@@ -117,6 +117,9 @@ cd new_annotator
 **Optional ML environment** (for model features — YOLO pre-labelling, SAM): `setup_ml_env.bat` creates a separate `.venv-ml` with PyTorch (CUDA build when an NVIDIA GPU is found, `--cpu` otherwise) and Ultralytics. Or point **ML → ML Settings…** at any existing Python / conda environment that has `ultralytics`. The annotator itself never imports PyTorch.
 
 ## Changelog
+
+### Unreleased
+- **Review of pre-labelled annotations** — model annotations (🤖) start *unreviewed*: dashed outline, paler fill and 🤖 on the canvas, an orange row in the Annotations panel, **🤖N** next to each image in the list. New **Review** menu: **R** accepts the selected annotation and moves to the next unreviewed one, **Shift+R** accepts the whole image and jumps to the next image to review, **U** goes there without accepting; editing an annotation accepts it too (one Ctrl+Z). Accepted ones show **✓🤖** and who accepted them. Image filter **🤖 Unreviewed**, QC rule *Unreviewed* and a **🤖 Review** line in the statistics, export option **Skip unreviewed 🤖 annotations**. A new pre-labelling run (replace mode, Ctrl+L) and *Remove Model Annotations* now keep accepted annotations. Stored in annotation meta — old projects open unchanged
 
 ### v1.8 — 2026-10-08
 - **SAM — label by clicking** — new **✧ SAM** tool (`I`): click an object and Segment Anything (SAM 2.1, MobileSAM… via Ultralytics) outlines it; right-click excludes, drag gives a box hint, Backspace undoes a click, **Enter** accepts into the current class (one Ctrl+Z). The class type decides the result: polygon, brush mask, box, **tight rotated OBB** or point. The image is encoded once when opened, so every click takes ~20 ms on an RTX 5060 Ti. Choose the weights in **ML → ML Settings…** (or on first use); no new dependencies. SAM annotations are manual ones (no 🤖)

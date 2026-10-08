@@ -134,7 +134,7 @@ _EN = {
     "pl_count":           "{n} images",
     "pl_existing":        "Images that already have annotations:",
     "pl_ex_skip":         "skip them",
-    "pl_ex_replace":      "replace earlier model annotations (manual ones are kept)",
+    "pl_ex_replace":      "replace earlier unreviewed model annotations (manual and accepted ones are kept)",
     "pl_ex_add":          "add to existing annotations",
     "pl_btn_current":     "Current image",
     "pl_btn_run":         "Run on {n} images",
@@ -162,12 +162,12 @@ _EN = {
     "pl_quick_done":      "Pre-label ({model}): +{n} annotations in {sec} s",
     "pl_quick_busy":      "Pre-labelling is already running…",
     "rm_title":           "Remove model annotations",
-    "rm_text":            "Annotations made by a model (🤖): {cur} on this image, {all} in all your images.\n"
-                          "Manual annotations are never touched.",
+    "rm_text":            "Unreviewed annotations made by a model (🤖): {cur} on this image, {all} in all your images.\n"
+                          "Manual and accepted (✓🤖) annotations are never touched.",
     "rm_current":         "This image",
     "rm_all":             "All images",
     "rm_done":            "Removed {n} model annotations",
-    "rm_none":            "No model annotations found.",
+    "rm_none":            "No unreviewed model annotations found.",
 }
 
 _RU = {
@@ -299,7 +299,7 @@ _RU = {
     "pl_count":           "изображений: {n}",
     "pl_existing":        "Изображения, где уже есть разметка:",
     "pl_ex_skip":         "пропускать",
-    "pl_ex_replace":      "заменять прежнюю разметку модели (ручная сохраняется)",
+    "pl_ex_replace":      "заменять прежнюю непроверенную разметку модели (ручная и принятая сохраняются)",
     "pl_ex_add":          "добавлять к имеющейся разметке",
     "pl_btn_current":     "Текущее изображение",
     "pl_btn_run":         "Разметить {n} изобр.",
@@ -327,12 +327,12 @@ _RU = {
     "pl_quick_done":      "Предразметка ({model}): +{n} аннотаций за {sec} с",
     "pl_quick_busy":      "Предразметка уже идёт…",
     "rm_title":           "Удалить разметку модели",
-    "rm_text":            "Аннотаций, сделанных моделью (🤖): на этом изображении — {cur}, во всех ваших изображениях — {all}.\n"
-                          "Ручная разметка не затрагивается.",
+    "rm_text":            "Непроверенных аннотаций, сделанных моделью (🤖): на этом изображении — {cur}, во всех ваших изображениях — {all}.\n"
+                          "Ручная и принятая (✓🤖) разметка не затрагивается.",
     "rm_current":         "Это изображение",
     "rm_all":             "Все изображения",
     "rm_done":            "Удалено аннотаций модели: {n}",
-    "rm_none":            "Аннотаций модели не найдено.",
+    "rm_none":            "Непроверенных аннотаций модели не найдено.",
 }
 
 

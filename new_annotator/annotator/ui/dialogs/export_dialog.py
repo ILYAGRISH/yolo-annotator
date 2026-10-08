@@ -33,12 +33,14 @@ _POLICIES = [
 
 class ExportDatasetDialog(QDialog):
 
-    def __init__(self, project: Project, ann_counts: dict, parent=None):
+    def __init__(self, project: Project, ann_counts: dict, parent=None,
+                 unreviewed: tuple[int, int] = (0, 0)):
         super().__init__(parent)
         self.setWindowTitle("Export Dataset")
         self.setMinimumWidth(520)
         self._project = project
         self._ann_counts = ann_counts
+        self._unreviewed = unreviewed      # (annotations, images) not reviewed yet
         self._out_dir = ""
         self._setup_ui()
 
@@ -126,6 +128,15 @@ class ExportDatasetDialog(QDialog):
         self._copy_cb = QCheckBox("Copy images to output folder")
         self._copy_cb.setChecked(True)
         form.addRow("", self._copy_cb)
+        n_ann, n_img = self._unreviewed
+        self._reviewed_cb = QCheckBox(
+            f"Skip unreviewed 🤖 annotations  ({n_ann} on {n_img} image"
+            f"{'s' if n_img != 1 else ''})")
+        self._reviewed_cb.setToolTip(
+            "Pre-labelled (model) annotations nobody has accepted or edited yet.\n"
+            "Review › Next image to review (U) walks through them.")
+        self._reviewed_cb.setVisible(n_ann > 0)
+        form.addRow("", self._reviewed_cb)
         lay.addLayout(form)
 
         # ── Summary ────────────────────────────────────────────────────────────
@@ -187,6 +198,10 @@ class ExportDatasetDialog(QDialog):
     @property
     def copy_images(self) -> bool:
         return self._copy_cb.isChecked()
+
+    @property
+    def reviewed_only(self) -> bool:
+        return self._unreviewed[0] > 0 and self._reviewed_cb.isChecked()
 
     # ── internal ──────────────────────────────────────────────────────────────
 

@@ -33,6 +33,9 @@ _HOTKEY_LABELS: list[tuple[str, str]] = [
     ("tool_point",     "Tool: Point"),
     ("tool_brush",     "Tool: Brush"),
     ("tool_semantic",  "Tool: Semantic brush"),
+    ("review_accept",     "Review: accept selected"),
+    ("review_accept_all", "Review: accept image → next"),
+    ("review_next",       "Review: next image to review"),
 ]
 
 

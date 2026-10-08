@@ -60,7 +60,7 @@ class PointAnnotationItem(BaseAnnotationItem):
         color = QColor(self.class_color)
         color.setAlpha(230 if selected else 200)
 
-        border_pen = QPen(Qt.GlobalColor.white, 1.5)
+        border_pen = QPen(Qt.GlobalColor.white, 1.5, self.outline_style)
         border_pen.setCosmetic(True)
         painter.setPen(border_pen)
         painter.setBrush(QBrush(color))

@@ -21,6 +21,9 @@ DEFAULT_HOTKEYS: dict[str, str] = {
     "tool_point":     ".",
     "tool_brush":     "M",
     "tool_semantic":  "S",
+    "review_accept":      "R",
+    "review_accept_all":  "Shift+R",
+    "review_next":        "U",
 }
 
 _DEFAULT_COLORS = [

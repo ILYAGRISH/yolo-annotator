@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
 
 from annotator.domain.annotation import Annotation, AnnotationType
 from annotator.domain.project import Project
+from annotator.domain.review import count_unreviewed, is_model, is_reviewed
 from annotator.i18n import tr
 
 
@@ -128,7 +129,10 @@ class AnnotationsPanel(QWidget):
         self._annotations = list(annotations)
         self._list.blockSignals(True)
         self._list.clear()
-        self._header.setText(f"{tr('annotations')} ({len(annotations)})")
+        unrev = count_unreviewed(annotations)
+        self._header.setText(f"{tr('annotations')} ({len(annotations)})"
+                             + (f"  ·  🤖 {tr('unreviewed_n').format(n=unrev)}"
+                                if unrev else ""))
         for ann in annotations:
             color, name = "#888888", str(ann.class_id)
             if self._project:
@@ -146,10 +150,23 @@ class AnnotationsPanel(QWidget):
                 sub_str = f"  · {sub}" if sub else self._geometry_hint(ann)
                 label = f"{name}  [{ann.ann_type.value}]{sub_str}"
             item = QListWidgetItem(_icon(color), label + self._source_hint(ann))
-            if ann.meta.get("source") == "model":
-                item.setToolTip(f"model: {ann.meta.get('model', '?')}  ·  "
-                                f"confidence {ann.meta.get('confidence', '?')}")
+            if is_model(ann):
+                tip = (f"model: {ann.meta.get('model', '?')}  ·  "
+                       f"confidence {ann.meta.get('confidence', '?')}\n")
+                if is_reviewed(ann):
+                    by = ann.meta.get("reviewed_by", "")
+                    tip += tr("reviewed_tip") + (f": {by}" if by else "")
+                else:
+                    tip += tr("unreviewed_tip")
+                    item.setForeground(QColor("#E0A040"))
+                item.setToolTip(tip)
             self._list.addItem(item)
+        # keep the selected row across rebuilds (accept / edit) — arrow keys
+        # go on from where they were instead of the first row
+        row = next((i for i, a in enumerate(self._annotations)
+                    if a.id == self._selected_ann_id), -1)
+        if row >= 0:
+            self._list.setCurrentRow(row)
         self._list.blockSignals(False)
         self._rebuild_attr_form()
 
@@ -313,11 +330,13 @@ class AnnotationsPanel(QWidget):
 
     @staticmethod
     def _source_hint(ann: Annotation) -> str:
-        """'  · 🤖 0.87' for annotations made by a model (meta.source == "model")."""
-        if ann.meta.get("source") != "model":
+        """'  · 🤖 0.87' for annotations made by a model (meta.source == "model"),
+        '  · ✓🤖 0.87' once reviewed."""
+        if not is_model(ann):
             return ""
+        mark = "✓🤖" if is_reviewed(ann) else "🤖"
         conf = ann.meta.get("confidence")
-        return f"  · 🤖 {conf:.2f}" if isinstance(conf, (int, float)) else "  · 🤖"
+        return f"  · {mark} {conf:.2f}" if isinstance(conf, (int, float)) else f"  · {mark}"
 
     def _on_row(self, row: int):
         if 0 <= row < len(self._annotations):
@@ -341,6 +360,11 @@ class AnnotationsPanel(QWidget):
 
     def _delete(self):
         self.delete_selected()
+
+    def selected_annotation_id(self) -> str:
+        """Id of the annotation selected in the list ('' = none)."""
+        r = self._list.currentRow()
+        return self._annotations[r].id if 0 <= r < len(self._annotations) else ""
 
     def delete_selected(self):
         """Ask to delete the annotation selected in the list (Delete key / button)."""

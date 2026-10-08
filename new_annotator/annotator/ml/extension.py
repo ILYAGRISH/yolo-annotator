@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import QMainWindow, QMenu, QMessageBox, QToolButton
 
 from annotator.ml import config
 from annotator.ml.client import MLBackend
-from annotator.ml.convert import is_model_annotation
+from annotator.ml.convert import is_unaccepted_model_annotation
 from annotator.ml.prelabel import PrelabelRunner, PrelabelSummary
 from annotator.ml.prelabel_settings import EXISTING_REPLACE, EXISTING_SKIP, PrelabelSettings
 from annotator.ml.strings import t
@@ -201,7 +201,8 @@ class MLExtension(QObject):
         current = self._ctrl.current_image
         per_image = {}
         for p in self._window.allowed_image_paths():
-            ids = [a.id for a in self._ctrl.annotations_for(p) if is_model_annotation(a)]
+            ids = [a.id for a in self._ctrl.annotations_for(p)
+                   if is_unaccepted_model_annotation(a)]
             if ids:
                 per_image[p] = ids
         total = sum(len(v) for v in per_image.values())

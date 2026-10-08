@@ -168,7 +168,7 @@ class OBBAnnotationItem(BaseAnnotationItem):
         lw = self.line_width + (1.0 if selected else 0.0)
 
         painter.setBrush(QBrush(fill))
-        painter.setPen(_cpen(color, lw))
+        painter.setPen(_cpen(color, lw, self.outline_style))
         painter.drawPath(path)
 
         if selected:

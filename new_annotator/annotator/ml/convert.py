@@ -49,6 +49,13 @@ def is_model_annotation(ann: Annotation) -> bool:
     return ann.meta.get("source") == SOURCE_MODEL
 
 
+def is_unaccepted_model_annotation(ann: Annotation) -> bool:
+    """A model annotation nobody has reviewed yet — the only kind a new
+    pre-labelling run or "Remove model annotations" may take away; accepted
+    ones (meta.reviewed, see annotator/domain/review.py) are kept like manual."""
+    return is_model_annotation(ann) and not ann.meta.get("reviewed")
+
+
 @dataclass
 class ConvertOptions:
     model_name: str = ""

@@ -90,7 +90,7 @@ class PoseAnnotationItem(BaseAnnotationItem):
         lw = self.line_width + (1.0 if selected else 0.0)
 
         # Skeleton edges (cosmetic — constant screen-pixel width)
-        edge_pen = QPen(color, lw)
+        edge_pen = QPen(color, lw, self.outline_style)
         edge_pen.setCosmetic(True)
         painter.setPen(edge_pen)
         for a, b in self._edges:

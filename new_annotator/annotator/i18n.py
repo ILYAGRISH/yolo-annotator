@@ -104,6 +104,21 @@ _EN: dict[str, str] = {
     "lbl_created":          "Created:",
     "lbl_modified":         "Modified:",
     "lbl_id":               "ID:",
+    # Review of model annotations (Phase 8-A)
+    "menu_review":           "&Review",
+    "act_review_accept":     "Accept selected annotation",
+    "act_review_accept_all": "Accept all on image  →  next",
+    "act_review_next":       "Next image to review",
+    "act_review_unmark":     "Mark selected as unreviewed",
+    "status_unreviewed":     "🤖 Unreviewed",
+    "unreviewed_n":          "{n} unreviewed",
+    "reviewed_tip":          "Reviewed",
+    "unreviewed_tip":        "Not reviewed  —  R accepts, editing accepts too",
+    "review_accepted":       "Accepted: {n}",
+    "review_select_first":   "Select a 🤖 annotation first (Shift+R accepts the whole image)",
+    "review_nothing":        "No unreviewed 🤖 annotations on this image",
+    "review_unmarked":       "Marked as unreviewed: {n}",
+    "review_all_done":       "No unreviewed 🤖 annotations left among the listed images",
 }
 
 _RU: dict[str, str] = {
@@ -198,7 +213,23 @@ _RU: dict[str, str] = {
     "lbl_created":          "Создан:",
     "lbl_modified":         "Изменён:",
     "lbl_id":               "ID:",
+    # Приёмка предразметки (фаза 8-A)
+    "menu_review":           "&Приёмка",
+    "act_review_accept":     "Принять выделенную аннотацию",
+    "act_review_accept_all": "Принять все на изображении  →  следующее",
+    "act_review_next":       "Следующее изображение для приёмки",
+    "act_review_unmark":     "Вернуть выделенную в непроверенные",
+    "status_unreviewed":     "🤖 Не проверено",
+    "unreviewed_n":          "не проверено: {n}",
+    "reviewed_tip":          "Проверено",
+    "unreviewed_tip":        "Не проверено  —  R принимает, правка тоже принимает",
+    "review_accepted":       "Принято: {n}",
+    "review_select_first":   "Сначала выделите 🤖-аннотацию (Shift+R принимает всё изображение)",
+    "review_nothing":        "На этом изображении нет непроверенных 🤖-аннотаций",
+    "review_unmarked":       "Возвращено в непроверенные: {n}",
+    "review_all_done":       "Среди показанных изображений непроверенных 🤖-аннотаций не осталось",
 }
+
 
 _STRINGS: dict[str, dict[str, str]] = {"EN": _EN, "RU": _RU}
 
