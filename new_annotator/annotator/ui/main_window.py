@@ -729,7 +729,7 @@ class MainWindow(QMainWindow):
         QMessageBox.about(
             self, "About YOLO Annotator",
             "<h3>YOLO Annotator</h3>"
-            "<p><b>Version:</b> 1.6</p>"
+            "<p><b>Version:</b> 1.7</p>"
             "<p><b>Author:</b> Ilya Grishutin</p>"
             "<p><b>License:</b> GPL-3.0</p>"
             "<p>Desktop image annotation tool for preparing<br>"
