@@ -36,6 +36,10 @@ _HOTKEY_LABELS: list[tuple[str, str]] = [
     ("review_accept",     "Review: accept selected"),
     ("review_accept_all", "Review: accept image → next"),
     ("review_next",       "Review: next image to review"),
+    ("track_start",       "Video: start track"),
+    ("track_keyframe",    "Video: keyframe here"),
+    ("track_prev_key",    "Video: previous keyframe"),
+    ("track_next_key",    "Video: next keyframe"),
 ]
 
 

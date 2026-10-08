@@ -24,6 +24,10 @@ DEFAULT_HOTKEYS: dict[str, str] = {
     "review_accept":      "R",
     "review_accept_all":  "Shift+R",
     "review_next":        "U",
+    "track_start":        "T",
+    "track_keyframe":     "Shift+T",
+    "track_prev_key":     "Shift+A",
+    "track_next_key":     "Shift+D",
 }
 
 _DEFAULT_COLORS = [
@@ -41,15 +45,21 @@ class ImageRecord:
     width: int = 0
     height: int = 0
     split: str = "train"
+    video: str = ""         # id in Project.videos when the image is a video frame
+    frame: int = -1         # frame number in that video (0-based)
 
     def to_dict(self) -> dict:
-        return {"path": self.path, "width": self.width,
-                "height": self.height, "split": self.split}
+        d = {"path": self.path, "width": self.width,
+             "height": self.height, "split": self.split}
+        if self.video:                       # plain images keep the old layout
+            d["video"], d["frame"] = self.video, self.frame
+        return d
 
     @classmethod
     def from_dict(cls, d: dict) -> "ImageRecord":
         return cls(path=d["path"], width=d.get("width", 0),
-                   height=d.get("height", 0), split=d.get("split", "train"))
+                   height=d.get("height", 0), split=d.get("split", "train"),
+                   video=d.get("video", ""), frame=d.get("frame", -1))
 
 
 @dataclass
@@ -89,6 +99,10 @@ class Project:
     images: list[ImageRecord] = field(default_factory=list)
     settings: ProjectSettings = field(default_factory=ProjectSettings)
     leader_machine: str = field(default="")  # hostname of first opener; "" = unclaimed
+    # imported videos: id → {"path", "fps", "frame_count", "width", "height",
+    # "step", "folder"} (see annotator/video/extract.py)
+    videos: dict = field(default_factory=dict)
+    next_track_id: int = 1                   # track ids are unique per project
 
     # Runtime-only
     project_path: Path | None = field(default=None, repr=False)
@@ -137,6 +151,8 @@ class Project:
             "modified_at": self.modified_at,
             "settings": self.settings.to_dict(),
             "leader_machine": self.leader_machine,
+            "videos": self.videos,
+            "next_track_id": self.next_track_id,
         }
 
     @classmethod
@@ -148,4 +164,6 @@ class Project:
             modified_at=d["modified_at"],
             settings=ProjectSettings.from_dict(d.get("settings", {})),
             leader_machine=d.get("leader_machine", ""),
+            videos=d.get("videos", {}),
+            next_track_id=d.get("next_track_id", 1),
         )

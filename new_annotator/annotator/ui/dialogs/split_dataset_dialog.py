@@ -76,6 +76,14 @@ class SplitDatasetDialog(QDialog):
         self._shuffle_cb = QCheckBox("Shuffle images before splitting")
         self._shuffle_cb.setChecked(True)
         lay.addWidget(self._shuffle_cb)
+        self._video_cb = QCheckBox("Keep all frames of a video in one split")
+        self._video_cb.setToolTip(
+            "Neighbouring frames are near-duplicates: spread over train and val\n"
+            "they make validation scores meaningless. Videos are kept whole and\n"
+            "the proportions are met as closely as the video sizes allow.")
+        self._video_cb.setChecked(True)
+        self._video_cb.setVisible(any(r.video for r in self._project.images))
+        lay.addWidget(self._video_cb)
 
         lay.addSpacing(8)
 
@@ -119,3 +127,7 @@ class SplitDatasetDialog(QDialog):
     @property
     def shuffle(self) -> bool:
         return self._shuffle_cb.isChecked()
+
+    @property
+    def by_video(self) -> bool:
+        return self._video_cb.isChecked()

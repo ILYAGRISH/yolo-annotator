@@ -319,13 +319,15 @@ class ImagesPanel(QWidget):
     # ── drag & drop ───────────────────────────────────────────────────────────
 
     _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"}
+    _DROP_EXTS = _IMAGE_EXTS | {".mp4", ".avi", ".mov", ".mkv", ".webm", ".m4v",
+                                ".wmv", ".mpg", ".mpeg"}       # videos → Import Video
 
     def _has_valid_urls(self, event) -> bool:
         if not event.mimeData().hasUrls():
             return False
         for url in event.mimeData().urls():
             p = Path(url.toLocalFile())
-            if p.is_dir() or (p.is_file() and p.suffix.lower() in self._IMAGE_EXTS):
+            if p.is_dir() or (p.is_file() and p.suffix.lower() in self._DROP_EXTS):
                 return True
         return False
 

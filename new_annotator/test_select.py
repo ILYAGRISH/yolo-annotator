@@ -155,6 +155,70 @@ except AttributeError:
     ok = False
 check("selected item without handle_at: no crash", ok)
 
+# ═════════════════════════════════════════════════════════════════════════════
+# §4  Moving a whole annotation by its body
+# ═════════════════════════════════════════════════════════════════════════════
+section("4. Move by dragging the body")
+from annotator.domain.geometry import MOVABLE, clamp_shift, move_data
+scene._selected_item = None
+scene.deselect_all()
+
+mbox = Annotation.new(box_cls.id, AnnotationType.BBOX,
+                      {"x": 0.05, "y": 0.70, "w": 0.20, "h": 0.20, **META})
+ctrl.add_annotation(mbox)
+n0 = ctrl.undo_stack.count()
+drag((30, 80), (60, 75))                    # inside the box, away from corners
+d = ctrl.get_annotation(mbox.id).data
+check("box moved by the drag (30 px right, 5 px up)",
+      abs(d["x"] - 0.20) < 1e-6 and abs(d["y"] - 0.65) < 1e-6
+      and (d["w"], d["h"]) == (0.20, 0.20))
+check("move keeps attributes and subclass", {k: d[k] for k in META} == META)
+check("move is one undo step", ctrl.undo_stack.count() == n0 + 1)
+ctrl.undo_stack.undo()
+check("undo puts it back", ctrl.get_annotation(mbox.id).data["x"] == 0.05)
+drag((30, 80), (32, 81))                    # a click with a tiny jitter
+check("a jitter below the threshold does not move it",
+      ctrl.get_annotation(mbox.id).data["x"] == 0.05 and ctrl.undo_stack.count() == n0 + 1)
+drag((30, 80), (900, 80))
+check("moving stops at the image edge", abs(ctrl.get_annotation(mbox.id).data["x"] - 0.80) < 1e-6)
+ctrl.undo_stack.undo()
+item = scene._ann_items[mbox.id]
+tool.on_press(QPointF(30, 80), NOMOD, LB)
+tool.on_move(QPointF(50, 80), NOMOD)
+check("preview: the item follows the mouse", item.pos().x() == 20)
+tool.on_release(QPointF(50, 80), NOMOD, LB)
+ctrl.undo_stack.undo()
+
+mpoly = Annotation.new(poly_cls.id, AnnotationType.SEGMENT,
+                       {"points": [[0.30, 0.10], [0.45, 0.10], [0.40, 0.40]]})
+ctrl.add_annotation(mpoly)
+drag((78, 20), (88, 40))
+pts = ctrl.get_annotation(mpoly.id).data["points"]
+check("polygon moves as a whole",
+      all(abs(a - b) < 1e-6 for p, q in zip(pts, [[0.35, 0.30], [0.50, 0.30], [0.45, 0.60]])
+          for a, b in zip(p, q)))
+
+track = Annotation.new(box_cls.id, AnnotationType.BBOX, {"x": 0.6, "y": 0.6, "w": 0.1, "h": 0.1})
+track.meta.update(track_id=1, keyframe=False, source="interpolated")
+ctrl.add_annotation(track)
+drag((130, 65), (140, 65))
+check("moving an interpolated track frame makes it a keyframe",
+      ctrl.get_annotation(track.id).meta["keyframe"] is True)
+
+B, O, K = AnnotationType.BBOX, AnnotationType.OBB, AnnotationType.POSE
+check("masks, semantic layers and image labels are not movable",
+      not {AnnotationType.MASK, AnnotationType.SEMANTIC, AnnotationType.CLASSIFY} & MOVABLE)
+check("OBB moves by its centre",
+      move_data(O, {"cx": .5, "cy": .5, "w": .2, "h": .1, "angle_deg": 30}, .1, 0)["cx"] == .6)
+check("pose: hidden keypoints stay put",
+      move_data(K, {"keypoints": [[.1, .1, 2], [.0, .0, 0]]}, .1, .1)["keypoints"]
+      == [[.2, .2, 2], [.0, .0, 0]])
+crack = move_data(AnnotationType.SEGMENT, {"points": [[.1, .1], [.2, .1], [.2, .2]],
+                  "source_geometry": {"type": "polyline", "points": [[.1, .1], [.2, .2]]}}, .1, 0)
+check("a crack's source polyline moves along", crack["source_geometry"]["points"][0] == [.2, .1])
+_cx, _cy = clamp_shift(AnnotationType.POINT, {"x": .9, "y": .5}, .5, 0)
+check("clamp keeps a point inside", abs(_cx - 0.1) < 1e-9 and _cy == 0)
+
 shutil.rmtree(tmp, ignore_errors=True)
 
 

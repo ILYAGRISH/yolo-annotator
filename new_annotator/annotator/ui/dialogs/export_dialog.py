@@ -23,6 +23,7 @@ _FORMATS = [
     ("Pascal VOC  (XML bndbox per image)",            "pascal_voc"),
     ("LabelMe JSON  (polygon / rectangle / point)",  "labelme"),
     ("Semantic Masks  (grayscale PNG per image)",    "semantic_masks"),
+    ("MOTChallenge  (video object tracks, gt.txt)",  "mot"),
 ]
 
 _POLICIES = [

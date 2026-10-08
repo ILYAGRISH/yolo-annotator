@@ -29,7 +29,8 @@ A desktop image annotation tool for preparing training datasets for computer vis
 - **Panoptic segmentation**: mark each class as *thing* (instances) or *stuff* (regions) and export both layers together
 - **Pre-labelling with your YOLO model**: detect / segment / OBB / pose / classify models label the current image (`Ctrl+L`) or the whole dataset; you review and fix — unreviewed ones are dashed on the canvas, **R / Shift+R** accept, **U** jumps to the next image to review, export can skip what is not reviewed. Runs in a separate ML process — PyTorch never enters the app
 - **SAM — label by clicking**: click an object and Segment Anything outlines it — into a polygon, mask, box or rotated box; ~20 ms per click on a GPU. It also turns boxes (yours or a detector's) into outlines in bulk
-- **12 export formats**: YOLO Detect / Segment / OBB / Pose / Point / Classify, COCO Instances (polygons or RLE), COCO Keypoints, COCO Panoptic, Pascal VOC, LabelMe JSON, Semantic Masks
+- **Video and object tracks**: import a video as frames (every N-th frame, a time range); start a track with `T`, add a keyframe a few frames later with `Shift+T` — the frames in between are interpolated (box, OBB, polygon, point, pose) and follow every edit, undo included. A frame strip under the canvas shows the track and its keyframes; dataset split keeps each video in one split; export to **MOTChallenge**
+- **13 export formats**: YOLO Detect / Segment / OBB / Pose / Point / Classify, COCO Instances (polygons or RLE), COCO Keypoints, COCO Panoptic, Pascal VOC, LabelMe JSON, Semantic Masks, MOTChallenge (video tracks)
 - **Import existing datasets**: load a labeled YOLO dataset (Detect / OBB / Segment / Point / Classify) into any open project — class names resolved automatically from `data.yaml` or `classes.txt`
 - **Multi-task export**: shared `images/`, separate label folders for parallel model training
 - **Auto-export**: `labels/` updated automatically on every save — no manual export step needed
@@ -73,6 +74,7 @@ A desktop image annotation tool for preparing training datasets for computer vis
 | Pascal VOC       | `Annotations/*.xml`                         | `<bndbox>` per object; full VOC directory layout    |
 | LabelMe JSON     | `<split>/<stem>.json`                       | LabelMe v5 — polygon, rectangle, linestrip, point   |
 | Semantic Masks   | `masks/<split>/<stem>.png` + `classes.txt`  | pixel mask per image; three modes: binary / index / color; stuff below, instances on top |
+| MOTChallenge     | `<video>/gt/gt.txt` + `seqinfo.ini` + `img1/` | object tracks of imported videos: `frame,id,left,top,w,h,conf,class,vis` in pixels |
 
 ## Import
 
@@ -121,6 +123,10 @@ cd new_annotator
 **Optional ML environment** (for model features — YOLO pre-labelling, SAM): `setup_ml_env.bat` creates a separate `.venv-ml` with PyTorch (CUDA build when an NVIDIA GPU is found, `--cpu` otherwise) and Ultralytics. Or point **ML → ML Settings…** at any existing Python / conda environment that has `ultralytics`. The annotator itself never imports PyTorch.
 
 ## Changelog
+
+### Unreleased
+- **Video and object tracks** — **File / Video → Import Video…** (or drop a video file on the image list) extracts every N-th frame of a chosen time range as JPEG images (default ≈ 5 per second) — every tool, SAM, pre-labelling and review work on them. **T** turns the selected annotation into a track; on a later frame **Shift+T** adds a keyframe (a copy to move onto the object) and the frames in between are **interpolated** — boxes, OBBs, polygons (resampled when the point count differs), points and poses. Editing an in-between frame makes it a keyframe; every edit, delete, undo and redo re-interpolates. **Shift+A / Shift+D** jump between keyframes. A **frame strip** under the canvas shows frames with annotations, the active track and its keyframes (click or drag to go to a frame). Track ids on the canvas and in the panel (`#3`, keyframe `#3◆`). **Split Dataset** keeps all frames of a video in one split. New export format **MOTChallenge**
+- **Select tool: drag the body of an annotation to move it** as a whole (box, OBB, polygon, polyline, point, pose; a crack with its source line) — so far only corners and vertices could be dragged. It stops at the image edge; a click with a small jitter does not move anything. `T` / `Shift+T` switch to Select so a new keyframe can be dragged onto the object right away
 
 ### v1.9 — 2026-10-08
 - **Continuous integration** — GitHub Actions runs all test suites on Windows and Ubuntu (Python 3.12 / 3.13) on every push; `run_tests.py` does the same locally
@@ -205,6 +211,7 @@ new_annotator/
 │   ├── tools/        ← annotation tools (base + built-in)
 │   ├── ui/           ← PyQt6 widgets, panels, dialogs
 │   ├── controller/   ← ProjectController (MVC)
+│   ├── video/        ← video import, frame strip, tracks (interpolation in domain/tracks.py)
 │   └── ml/           ← ML extension: backend client, ML menu, pre-labelling, SAM tool (optional)
 ├── ml_backend/       ← ML server, runs in .venv-ml (PyTorch, Ultralytics) as a child process
 ├── plugins/          ← custom tool plugins (*.py)
