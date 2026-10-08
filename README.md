@@ -117,7 +117,7 @@ cd new_annotator
 
 ## Changelog
 
-### Unreleased
+### v1.7.1 — 2026-10-08
 - **Fix — YOLO OBB export on non-square images**: rotated boxes were rotated in normalised coordinates, so their exported corners did not match the box drawn on the canvas (now rotated in pixels, as drawn); also in the auto-saved `labels/`
 - **Fix — YOLO class ids after deleting a class**: labels wrote the project class id while `data.yaml` lists names in a row, so deleting a class in the middle shifted names and produced ids ≥ `nc`. YOLO exports and `labels/` now use indices 0…nc-1 in the order of `names`
 - **Docs** — recipe for a new conda environment for pre-labelling
