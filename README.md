@@ -1,5 +1,7 @@
 # YOLO Annotator
 
+[![Tests](https://github.com/ILYAGRISH/yolo-annotator/actions/workflows/tests.yml/badge.svg)](https://github.com/ILYAGRISH/yolo-annotator/actions/workflows/tests.yml)
+
 A desktop image annotation tool for preparing training datasets for computer vision tasks — detection, instance / semantic / panoptic segmentation, OBB, pose estimation, and classification.
 
 ![YOLO Annotator demo: semantic brush paints house, sky, trees and road; the brush adds car masks on top](docs/images/Annotation.gif)
@@ -112,13 +114,18 @@ cd new_annotator
 .venv\Scripts\python main.py
 ```
 
-**Requirements:** Python 3.13+ · Windows (PyQt6)
+**Requirements:** Python 3.12+ (3.13 recommended) · Windows; Linux works from source (tested in CI)
+
+**Tests:** `cd new_annotator && .venv\Scripts\python run_tests.py` runs all 15 suites (~900 checks, headless, a few seconds); `run_tests.py review sam` runs only the suites whose name contains a word. GitHub Actions runs them on every push to `main` on Windows and Ubuntu with Python 3.12 and 3.13 ([`.github/workflows/tests.yml`](.github/workflows/tests.yml)).
 
 **Optional ML environment** (for model features — YOLO pre-labelling, SAM): `setup_ml_env.bat` creates a separate `.venv-ml` with PyTorch (CUDA build when an NVIDIA GPU is found, `--cpu` otherwise) and Ultralytics. Or point **ML → ML Settings…** at any existing Python / conda environment that has `ultralytics`. The annotator itself never imports PyTorch.
 
 ## Changelog
 
 ### Unreleased
+- **Continuous integration** — GitHub Actions runs all test suites on Windows and Ubuntu (Python 3.12 / 3.13) on every push; `run_tests.py` does the same locally
+- **Fix:** the Windows installer accepted Python 3.10 / 3.11, but the pinned NumPy 2.5 needs **Python 3.12+** — `setup_venv.bat` now looks for 3.12+ and says so
+- **Fix:** test processes could crash on exit (a window left open was destroyed during interpreter shutdown while still filtering key events); the main window now removes its key filter when it closes
 - **Review of pre-labelled annotations** — model annotations (🤖) start *unreviewed*: dashed outline, paler fill and 🤖 on the canvas, an orange row in the Annotations panel, **🤖N** next to each image in the list. New **Review** menu: **R** accepts the selected annotation and moves to the next unreviewed one, **Shift+R** accepts the whole image and jumps to the next image to review, **U** goes there without accepting; editing an annotation accepts it too (one Ctrl+Z). Accepted ones show **✓🤖** and who accepted them. Image filter **🤖 Unreviewed**, QC rule *Unreviewed* and a **🤖 Review** line in the statistics, export option **Skip unreviewed 🤖 annotations**. A new pre-labelling run (replace mode, Ctrl+L) and *Remove Model Annotations* now keep accepted annotations. Stored in annotation meta — old projects open unchanged
 
 ### v1.8 — 2026-10-08
@@ -184,7 +191,7 @@ cd new_annotator
 - **UI**: PyQt6 ≥ 6.4
 - **Geometry**: shapely ≥ 2.0 (buffering, IoU, area)
 - **Image I/O**: Pillow ≥ 9.0, OpenCV 4.13, NumPy
-- **Runtime**: Python 3.13, fully offline — no cloud dependencies
+- **Runtime**: Python 3.12+ (3.13 recommended), fully offline — no cloud dependencies
 - **Storage**: `.annproj/` directory — JSON metadata + PNG masks
 
 ## Project Structure
@@ -204,6 +211,7 @@ new_annotator/
 ├── docs/             ← About.md, hotkeys.md, Test_Help.md
 ├── setup_ml_env.bat  ← creates the optional .venv-ml
 ├── build_deploy.py   ← refreshes ../Deploy from these sources
+├── run_tests.py      ← runs every test_*.py suite (also used by CI)
 └── main.py
 
 Deploy/               ← ready-to-run copy for other computers

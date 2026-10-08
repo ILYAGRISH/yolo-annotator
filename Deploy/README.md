@@ -15,7 +15,7 @@ Ready-to-run copy of the current release. Everything needed to run the app on an
 ## Requirements / Требования
 
 - Windows 10 / 11
-- **Python 3.10+** (3.13 recommended / рекомендуется) — https://www.python.org/downloads/
+- **Python 3.12+** (3.13 recommended / рекомендуется) — https://www.python.org/downloads/
   In the installer tick **"Add python.exe to PATH"** / в установщике отметьте **«Add python.exe to PATH»**.
 - Internet on the first setup (~150 MB of packages) / интернет при первой установке (~150 МБ пакетов)
 
@@ -76,7 +76,7 @@ Projects (`*.annproj`) are stored wherever you create them, not inside `Deploy` 
 
 | Problem / Проблема | Fix / Решение |
 |---|---|
-| `Python 3.10 or newer was not found` | Install Python 3.13 with "Add python.exe to PATH" / установить Python 3.13 с галкой «Add to PATH» |
+| `Python 3.12 or newer was not found` | Install Python 3.13 with "Add python.exe to PATH" / установить Python 3.13 с галкой «Add to PATH» |
 | Setup failed half-way / установка прервалась | `setup_venv.bat --clean` — recreates `.venv` from scratch / пересоздаёт `.venv` с нуля |
 | The app closes with an error / программа закрывается с ошибкой | The console window stays open — copy the error text / окно консоли остаётся открытым — скопируйте текст ошибки |
 

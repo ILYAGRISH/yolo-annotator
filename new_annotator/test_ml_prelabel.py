@@ -634,5 +634,11 @@ else:
     print("  (skipped: set ML_TEST_PYTHON and ML_TEST_SEG_MODEL)")
 
 
+# close every window: one left open is destroyed during interpreter shutdown,
+# its app-wide key filter then crashes the process (random exit code 139)
+from PyQt6.QtWidgets import QApplication as _QApp
+for _w in _QApp.topLevelWidgets():
+    _w.close()
+
 print(f"\n{'=' * 60}\n  {_pass} passed, {_fail} failed\n{'=' * 60}")
 sys.exit(1 if _fail else 0)

@@ -373,6 +373,12 @@ left = wc.current_annotations
 check("'Remove model annotations' takes only unreviewed ones",
       count_unreviewed(left) == 0 and sum(is_model(a) for a in left) >= 1)
 
-win.close()
+
+# close every window: one left open is destroyed during interpreter shutdown,
+# its app-wide key filter then crashes the process (random exit code 139)
+from PyQt6.QtWidgets import QApplication as _QApp
+for _w in _QApp.topLevelWidgets():
+    _w.close()
+
 print(f"\n{'=' * 60}\n  {_pass} passed, {_fail} failed\n{'=' * 60}")
 sys.exit(1 if _fail else 0)

@@ -17,18 +17,18 @@ for %%A in (%*) do (
     if /i "%%~A"=="--no-pause" set "NOPAUSE=1"
 )
 
-rem --- 1. Find Python 3.10+ (3.13 preferred) ---------------------------------
+rem --- 1. Find Python 3.12+ (3.13 preferred; numpy 2.5 needs 3.12) ----------
 set "PY="
-for %%V in (3.13 3.12 3.11 3.10) do (
+for %%V in (3.13 3.12) do (
     if not defined PY (
         py -%%V -c "import sys" >nul 2>&1 && set "PY=py -%%V"
     )
 )
 if not defined PY (
-    python -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>&1 && set "PY=python"
+    python -c "import sys; sys.exit(0 if sys.version_info >= (3, 12) else 1)" >nul 2>&1 && set "PY=python"
 )
 if not defined PY (
-    echo [ERROR] Python 3.10 or newer was not found.
+    echo [ERROR] Python 3.12 or newer was not found.
     echo         Install Python 3.13 from https://www.python.org/downloads/
     echo         and tick "Add python.exe to PATH" in the installer.
     goto :fail

@@ -1220,4 +1220,9 @@ class MainWindow(QMainWindow):
         self._ctrl.save_project()
         if self._ml:
             self._ml.shutdown()
+        # the app-wide digit-key filter (see _setup_class_hotkeys) must go before
+        # the window dies: otherwise Qt calls eventFilter() of a half-destroyed
+        # window during interpreter shutdown → access violation on exit
+        from PyQt6.QtWidgets import QApplication
+        QApplication.instance().removeEventFilter(self)
         event.accept()
