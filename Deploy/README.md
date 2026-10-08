@@ -10,6 +10,7 @@ Ready-to-run copy of the current release. Everything needed to run the app on an
 | `About.md` | User guide (RU) / руководство пользователя |
 | `requirements.txt` | Python packages / список пакетов |
 | `main.py`, `annotator/`, `plugins/` | The application / сама программа |
+| `setup_ml_env.bat`, `requirements-ml.txt`, `ml_backend/` | **Optional** ML environment (PyTorch, Ultralytics) / **необязательное** ML-окружение |
 
 ## Requirements / Требования
 
@@ -47,10 +48,25 @@ It finds Python, creates `.venv` next to the app and installs PyQt6, Pillow, sha
 run.bat
 ```
 
+## Optional: ML environment / Необязательно: ML-окружение
+
+Needed only for model features (YOLO pre-labelling, later SAM). The app works fully without it.
+Нужно только для функций с моделями (предразметка YOLO, позже SAM). Без него программа полностью работает.
+
+```
+setup_ml_env.bat            (NVIDIA GPU is detected automatically / видеокарта определяется сама)
+setup_ml_env.bat --cpu      (no NVIDIA GPU / без видеокарты NVIDIA)
+```
+
+Creates a separate `.venv-ml` with PyTorch and Ultralytics (up to ~3 GB). Then in the app: **ML → ML Settings… → Check**.
+An existing Python / conda environment with `ultralytics` can be chosen there instead.
+Создаёт отдельное окружение `.venv-ml` с PyTorch и Ultralytics (до ~3 ГБ). Затем в программе: **ML → Настройки ML… → Проверить**.
+Вместо этого там можно выбрать уже готовый Python / conda-окружение с `ultralytics`.
+
 ## Update / Обновление
 
-- ZIP: download the new version, replace everything **except** `.venv`, then run `setup_venv.bat` once more (updates packages if `requirements.txt` changed).
-  Скачать новую версию, заменить всё **кроме** `.venv`, затем ещё раз запустить `setup_venv.bat` (обновит пакеты, если изменился `requirements.txt`).
+- ZIP: download the new version, replace everything **except** `.venv` (and `.venv-ml`), then run `setup_venv.bat` once more (updates packages if `requirements.txt` changed).
+  Скачать новую версию, заменить всё **кроме** `.venv` (и `.venv-ml`), затем ещё раз запустить `setup_venv.bat` (обновит пакеты, если изменился `requirements.txt`).
 - git: `git pull`, then / затем `setup_venv.bat`.
 
 Projects (`*.annproj`) are stored wherever you create them, not inside `Deploy` — updating the app does not touch them.

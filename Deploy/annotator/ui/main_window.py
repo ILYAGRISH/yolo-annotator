@@ -60,6 +60,17 @@ class MainWindow(QMainWindow):
         self._setup_class_hotkeys()
         self._load_plugins()
         self._activate_tool("select")
+        self._ml = self._install_ml()
+
+    def _install_ml(self):
+        """Optional ML extension (annotator/ml): menu + backend process.
+        Any problem with it only disables ML — never the app."""
+        try:
+            from annotator.ml.extension import install
+            return install(self)
+        except Exception as exc:                 # noqa: BLE001
+            print(f"[ml] extension disabled: {exc}")
+            return None
 
     # ── layout ────────────────────────────────────────────────────────────────
 
@@ -306,6 +317,8 @@ class MainWindow(QMainWindow):
         self._classes_panel.retranslate()
         self._annotations_panel.retranslate()
         self._qc_panel.retranslate()
+        if getattr(self, "_ml", None):
+            self._ml.retranslate()
 
     def _apply_hotkeys(self, hk: dict):
         from annotator.domain.project import DEFAULT_HOTKEYS
@@ -1074,4 +1087,6 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         self._ctrl.save_project()
+        if self._ml:
+            self._ml.shutdown()
         event.accept()

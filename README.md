@@ -112,7 +112,12 @@ cd new_annotator
 
 **Requirements:** Python 3.13+ · Windows (PyQt6)
 
+**Optional ML environment** (for model features — YOLO pre-labelling is coming next): `setup_ml_env.bat` creates a separate `.venv-ml` with PyTorch (CUDA build when an NVIDIA GPU is found, `--cpu` otherwise) and Ultralytics. Or point **ML → ML Settings…** at any existing Python / conda environment that has `ultralytics`. The annotator itself never imports PyTorch.
+
 ## Changelog
+
+### Unreleased
+- **ML backend (infrastructure)** — models will run in a **separate process with its own Python environment**, so PyTorch never enters the annotator and a crash or out-of-memory in a model cannot take the app down. New **ML** menu and **ML Settings…** dialog: choose the interpreter (`.venv-ml` by default, or any conda / venv with Ultralytics), **Check** it (Python, PyTorch, Ultralytics, GPU) and test-load a YOLO model (task + class list). Status-bar indicator *ML: off / ready / busy / error*. Off by default — nothing starts until you use it. `setup_ml_env.bat` creates `.venv-ml` (PyTorch with CUDA 12.8, verified on RTX 50xx)
 
 ### v1.6 — 2026-10-08
 - **Shift+click straight lines** in Brush and Semantic brush (Photoshop-style): a straight stroke from the end of the previous one, chainable, with a dashed guide while Shift is held
@@ -174,9 +179,12 @@ new_annotator/
 │   ├── exporters/    ← one module per export format
 │   ├── tools/        ← annotation tools (base + built-in)
 │   ├── ui/           ← PyQt6 widgets, panels, dialogs
-│   └── controller/   ← ProjectController (MVC)
+│   ├── controller/   ← ProjectController (MVC)
+│   └── ml/           ← ML extension: backend client, ML menu, settings (optional)
+├── ml_backend/       ← ML server, runs in .venv-ml (PyTorch, Ultralytics) as a child process
 ├── plugins/          ← custom tool plugins (*.py)
 ├── docs/             ← About.md, hotkeys.md, Test_Help.md
+├── setup_ml_env.bat  ← creates the optional .venv-ml
 ├── build_deploy.py   ← refreshes ../Deploy from these sources
 └── main.py
 

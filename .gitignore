@@ -53,3 +53,6 @@ docs/mask-storage-prompt.md
 
 # Promotion drafts (local only)
 promo/
+
+# ML environment (PyTorch, created by setup_ml_env.bat)
+.venv-ml/

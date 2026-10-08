@@ -6,7 +6,9 @@ Run after every release:
     .venv\\Scripts\\python build_deploy.py
 
 Copied from the production sources (old copies are replaced):
-    annotator/, plugins/, main.py, requirements.txt   ← new_annotator/
+    annotator/, plugins/, ml_backend/                 ← new_annotator/
+    main.py, requirements.txt,
+    setup_ml_env.bat, requirements-ml.txt             ← new_annotator/
     About.md                                          ← docs/About.md
     LICENSE                                           ← LICENSE
 
@@ -23,8 +25,8 @@ SRC = Path(__file__).resolve().parent            # new_annotator/
 ROOT = SRC.parent                                # repo root
 DEPLOY = ROOT / "Deploy"
 
-DIRS = ["annotator", "plugins"]
-FILES = ["main.py", "requirements.txt"]
+DIRS = ["annotator", "plugins", "ml_backend"]
+FILES = ["main.py", "requirements.txt", "setup_ml_env.bat", "requirements-ml.txt"]
 DOCS = {ROOT / "docs" / "About.md": "About.md", ROOT / "LICENSE": "LICENSE"}
 
 _IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo")
