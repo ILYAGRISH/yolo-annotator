@@ -40,7 +40,13 @@ class BaseAnnotationItem(QGraphicsItem):
         self.class_color = class_color
         self.line_width: float = 2.0
         self.fill_opacity: float = 0.3
+        self.unreviewed: bool = False      # model annotation not reviewed yet → dashed
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
+
+    @property
+    def outline_style(self):
+        """Pen style of the main outline: dashed for unreviewed model annotations."""
+        return Qt.PenStyle.DashLine if self.unreviewed else Qt.PenStyle.SolidLine
 
     @abstractmethod
     def update_from_data(self, data: dict, image_size: tuple[int, int]):

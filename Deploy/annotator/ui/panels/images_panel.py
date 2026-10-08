@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (QComboBox, QHBoxLayout, QLabel, QLineEdit,
                               QVBoxLayout, QWidget)
 
 from annotator.domain.project import ImageRecord, Project
+from annotator.domain.review import count_unreviewed_in_file
 from annotator.i18n import tr
 
 _SPLIT_COLORS = {
@@ -28,6 +29,7 @@ class ImagesPanel(QWidget):
         super().__init__(parent)
         self._project: Project | None = None
         self._annotated: set[str] = set()
+        self._unreviewed: dict[str, int] = {}       # path → unreviewed 🤖 annotations
         self._user_filter: set[str] | None = None  # None = no filter (leader)
         self._displayed: list[ImageRecord] = []     # currently visible records
         self._stem_assignee: dict[str, str] = {}    # stem → username (leader view)
@@ -57,7 +59,8 @@ class ImagesPanel(QWidget):
         filter_row.addWidget(self._split_filter)
 
         self._status_filter = QComboBox()
-        self._status_filter.addItems([tr("all_status"), tr("annotated"), tr("unannotated")])
+        self._status_filter.addItems([tr("all_status"), tr("annotated"), tr("unannotated"),
+                                      tr("status_unreviewed")])
         self._status_filter.setToolTip("Filter by annotation status")
         self._status_filter.currentIndexChanged.connect(self._refresh)
         filter_row.addWidget(self._status_filter)
@@ -81,6 +84,7 @@ class ImagesPanel(QWidget):
     def load_project(self, project: Project | None):
         self._project = project
         self._annotated = self._scan_annotated(project) if project else set()
+        self._unreviewed = self._scan_unreviewed(project) if project else {}
         self._refresh()
 
     def retranslate(self):
@@ -89,6 +93,7 @@ class ImagesPanel(QWidget):
         self._status_filter.setItemText(0, tr("all_status"))
         self._status_filter.setItemText(1, tr("annotated"))
         self._status_filter.setItemText(2, tr("unannotated"))
+        self._status_filter.setItemText(3, tr("status_unreviewed"))
         self._hint_lbl.setText(tr("images_hint"))
         self._refresh()
 
@@ -124,6 +129,35 @@ class ImagesPanel(QWidget):
                 self._refresh_item(i)
                 break
 
+    def set_unreviewed(self, image_path: str, count: int):
+        """Unreviewed 🤖 annotations on one image (the current one, from memory)."""
+        if self._unreviewed.get(image_path, 0) == count:
+            return
+        if count:
+            self._unreviewed[image_path] = count
+        else:
+            self._unreviewed.pop(image_path, None)
+        for i, rec in enumerate(self._displayed):
+            if rec.path == image_path:
+                self._refresh_item(i)
+                break
+
+    def unreviewed_count(self, image_path: str) -> int:
+        return self._unreviewed.get(image_path, 0)
+
+    def select_next_unreviewed(self) -> bool:
+        """Select the next listed image with unreviewed 🤖 annotations (wraps
+        around; the current image counts last). False when there is none."""
+        n = len(self._displayed)
+        cur = self._list.currentRow()
+        for step in range(1, n + 1):
+            row = (cur + step) % n
+            if self._unreviewed.get(self._displayed[row].path, 0):
+                if row != cur:
+                    self._list.setCurrentRow(row)
+                return True
+        return False
+
     def select_next(self):
         r = self._list.currentRow()
         if r + 1 < self._list.count():
@@ -158,6 +192,20 @@ class ImagesPanel(QWidget):
                     annotated.add(img_path)
         return annotated
 
+    @staticmethod
+    def _scan_unreviewed(project: Project) -> dict[str, int]:
+        found: dict[str, int] = {}
+        if project is None or project.project_path is None:
+            return found
+        ann_dir = project.project_path / "annotations"
+        if not ann_dir.exists():
+            return found
+        for rec in project.images:
+            n = count_unreviewed_in_file(ann_dir / (Path(rec.path).stem + ".json"))
+            if n:
+                found[rec.path] = n
+        return found
+
     def _refresh(self):
         self._list.clear()
         if not self._project:
@@ -183,6 +231,8 @@ class ImagesPanel(QWidget):
             base = [r for r in base if r.path in self._annotated]
         elif status_sel == tr("unannotated"):
             base = [r for r in base if r.path not in self._annotated]
+        elif status_sel == tr("status_unreviewed"):
+            base = [r for r in base if self._unreviewed.get(r.path, 0)]
 
         # Step 4: name search
         query = self._search.text().strip().lower()
@@ -203,6 +253,9 @@ class ImagesPanel(QWidget):
         split = rec.split or "train"
         split_tag = f" [{split}]" if split != "train" else ""
         check = " ✓" if rec.path in self._annotated else ""
+        unrev = self._unreviewed.get(rec.path, 0)
+        if unrev:
+            check += f"  🤖{unrev}"
 
         stem = Path(rec.path).stem
         assignee = self._stem_assignee.get(stem, "") if self._user_filter is None else ""

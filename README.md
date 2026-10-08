@@ -122,7 +122,7 @@ cd new_annotator
 
 ## Changelog
 
-### Unreleased
+### v1.9 — 2026-10-08
 - **Continuous integration** — GitHub Actions runs all test suites on Windows and Ubuntu (Python 3.12 / 3.13) on every push; `run_tests.py` does the same locally
 - **Fix:** the Windows installer accepted Python 3.10 / 3.11, but the pinned NumPy 2.5 needs **Python 3.12+** — `setup_venv.bat` now looks for 3.12+ and says so
 - **Fix:** test processes could crash on exit (a window left open was destroyed during interpreter shutdown while still filtering key events); the main window now removes its key filter when it closes

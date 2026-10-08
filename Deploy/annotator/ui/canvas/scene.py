@@ -102,6 +102,7 @@ class AnnotationScene(QGraphicsScene):
 
     def _make_item(self, ann, project):
         from annotator.domain.annotation import AnnotationType
+        from annotator.domain.review import is_unreviewed
         from annotator.ui.canvas.items.bbox_item import BBoxAnnotationItem
         from annotator.ui.canvas.items.obb_item import OBBAnnotationItem
         from annotator.ui.canvas.items.point_item import PointAnnotationItem
@@ -114,6 +115,8 @@ class AnnotationScene(QGraphicsScene):
             cls = project.get_class(ann.class_id)
             if cls:
                 color, label = cls.color, cls.name
+        if is_unreviewed(ann):
+            label += " 🤖"
 
         w, h = self._image_size
         item = None
@@ -177,6 +180,9 @@ class AnnotationScene(QGraphicsScene):
         if item is not None and cls is not None:
             item.line_width = float(cls.display_style.line_width)
             item.fill_opacity = float(cls.display_style.opacity)
+        if item is not None and is_unreviewed(ann):
+            item.unreviewed = True               # dashed outline, paler fill
+            item.fill_opacity *= 0.5
 
         return item  # None for unsupported types
 

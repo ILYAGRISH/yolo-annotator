@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (QDialog, QFileDialog, QMainWindow, QMessageBox,
 
 from annotator.controller.project_controller import ProjectController
 from annotator.domain.label_class import ANNOTATION_TYPE_DEFAULT_TOOL, ANNOTATION_TYPE_TOOLS
+from annotator.domain.review import count_unreviewed, is_unreviewed
 from annotator.i18n import current_language, set_language, tr
 from annotator.storage import recent_projects
 from annotator.tools.bbox_tool import BBoxTool
@@ -46,6 +47,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Annotator  —  no project")
         self.resize(1400, 880)
         self._ctrl = ProjectController(self)
+        self._ctrl.reviewer = self._reviewer_name
         self._tools = self._build_tools()
         self._plugin_tool_names: set[str] = set()
         self._user_role: str = "leader"   # "leader" or "client"
@@ -215,6 +217,17 @@ class MainWindow(QMainWindow):
         self._tact(qc_m, "act_export_report_json", lambda: self._export_report("json"))
         self._tact(qc_m, "act_export_report_csv",  lambda: self._export_report("csv"))
 
+        # Review of model (pre-labelled) annotations — Phase 8-A
+        review_m = self._tmenu(mb, "menu_review")
+        self._act_review_accept = self._tact(
+            review_m, "act_review_accept", self._review_accept_selected, "R")
+        self._act_review_all = self._tact(
+            review_m, "act_review_accept_all", self._review_accept_image, "Shift+R")
+        self._act_review_next = self._tact(
+            review_m, "act_review_next", self._review_next_image, "U")
+        review_m.addSeparator()
+        self._tact(review_m, "act_review_unmark", self._review_unmark_selected)
+
         # Help
         help_m = self._tmenu(mb, "menu_help")
         self._tact(help_m, "act_about", self._show_about)
@@ -349,6 +362,9 @@ class MainWindow(QMainWindow):
         self._sc_fit.setKey(QKeySequence(h.get("view_fit", "")))
         self._sc_next.setKey(QKeySequence(h.get("navigate_next", "")))
         self._sc_prev.setKey(QKeySequence(h.get("navigate_prev", "")))
+        self._act_review_accept.setShortcut(QKeySequence(h.get("review_accept", "")))
+        self._act_review_all.setShortcut(QKeySequence(h.get("review_accept_all", "")))
+        self._act_review_next.setShortcut(QKeySequence(h.get("review_next", "")))
         tool_map = {
             "tool_select":   "select",
             "tool_polygon":  "polygon",
@@ -490,6 +506,9 @@ class MainWindow(QMainWindow):
         anns = self._ctrl.current_annotations if project is not None else []
         self._annotations_panel.refresh(anns)
         if project is not None and self._ctrl.current_image:
+            # the current image may hold unsaved changes: count it from memory
+            self._images_panel.set_unreviewed(self._ctrl.current_image,
+                                              count_unreviewed(anns))
             self._scene.rebuild_annotations(anns, project)   # new class colors / names
         cid = self._classes_panel.current_class_id
         self._annotations_panel.set_active_class(
@@ -522,6 +541,65 @@ class MainWindow(QMainWindow):
         self._annotations_panel.refresh(annotations)
         if self._ctrl.current_image:
             self._images_panel.set_annotated(self._ctrl.current_image, bool(annotations))
+            self._images_panel.set_unreviewed(self._ctrl.current_image,
+                                              count_unreviewed(annotations))
+
+    # ── review of model annotations (Phase 8-A) ───────────────────────────────
+
+    def _reviewer_name(self) -> str:
+        if self._user_name:
+            return self._user_name
+        from annotator.app_settings import app_settings
+        return str(app_settings().value("user_name", "") or "")
+
+    def _selected_annotation_id(self) -> str:
+        item = self._scene.get_selected_item()
+        if item is not None:
+            return item.annotation_id
+        return self._annotations_panel.selected_annotation_id()
+
+    def _review_accept_selected(self):
+        """R: accept the selected model annotation."""
+        ann_id = self._selected_annotation_id()
+        if not ann_id:
+            self._status.showMessage(tr("review_select_first"), 5000)
+            return
+        n = self._ctrl.set_reviewed([ann_id], True)
+        self._status.showMessage(tr("review_accepted").format(n=n), 3000)
+        # go on to the next unreviewed annotation below (wrapping), so R R R…
+        # walks the list; stay put when nothing is left
+        anns = self._ctrl.current_annotations
+        start = next((i for i, a in enumerate(anns) if a.id == ann_id), -1)
+        for step in range(1, len(anns) + 1):
+            nxt = anns[(start + step) % len(anns)]
+            if is_unreviewed(nxt):
+                self._ctrl.select_annotation(nxt.id)
+                break
+
+    def _review_accept_image(self):
+        """Shift+R: accept every model annotation of the image, go to the next
+        image that still has unreviewed ones."""
+        if not self._ctrl.current_image:
+            return
+        n = self._ctrl.set_reviewed(None, True)
+        if self._images_panel.select_next_unreviewed():
+            if n:
+                self._status.showMessage(tr("review_accepted").format(n=n), 3000)
+        else:
+            self._status.showMessage(tr("review_all_done"), 5000)
+
+    def _review_next_image(self):
+        """U: the next listed image with unreviewed model annotations."""
+        if self._ctrl.project and not self._images_panel.select_next_unreviewed():
+            self._status.showMessage(tr("review_all_done"), 5000)
+
+    def _review_unmark_selected(self):
+        ann_id = self._selected_annotation_id()
+        if not ann_id:
+            self._status.showMessage(tr("review_select_first"), 5000)
+            return
+        n = self._ctrl.set_reviewed([ann_id], False)
+        self._status.showMessage(tr("review_unmarked").format(n=n), 3000)
 
     def _on_annotation_selected(self, ann_id: str):
         if ann_id:
@@ -765,7 +843,7 @@ class MainWindow(QMainWindow):
         QMessageBox.about(
             self, "About YOLO Annotator",
             "<h3>YOLO Annotator</h3>"
-            "<p><b>Version:</b> 1.8</p>"
+            "<p><b>Version:</b> 1.9</p>"
             "<p><b>Author:</b> Ilya Grishutin</p>"
             "<p><b>License:</b> GPL-3.0</p>"
             "<p>Desktop image annotation tool for preparing<br>"
@@ -788,7 +866,8 @@ class MainWindow(QMainWindow):
                                     "Open or create a project first.")
             return
         counts = self._ctrl.get_annotation_type_counts()
-        dlg = ExportDatasetDialog(self._ctrl.project, counts, self)
+        dlg = ExportDatasetDialog(self._ctrl.project, counts, self,
+                                  unreviewed=self._ctrl.unreviewed_counts())
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         mismatches = self._ctrl.get_type_mismatches()
@@ -806,11 +885,13 @@ class MainWindow(QMainWindow):
         try:
             if dlg.is_multitask:
                 self._ctrl.export_multitask(
-                    Path(dlg.output_dir), dlg.export_jobs, dlg.copy_images)
+                    Path(dlg.output_dir), dlg.export_jobs, dlg.copy_images,
+                    reviewed_only=dlg.reviewed_only)
             else:
                 self._ctrl.export_dataset(
                     Path(dlg.output_dir), dlg.format_name, dlg.copy_images,
-                    mask_mode=dlg.mask_mode, seg_format=dlg.seg_format)
+                    mask_mode=dlg.mask_mode, seg_format=dlg.seg_format,
+                    reviewed_only=dlg.reviewed_only)
         except Exception as exc:
             QMessageBox.critical(self, "Export error", str(exc))
 
@@ -1139,4 +1220,9 @@ class MainWindow(QMainWindow):
         self._ctrl.save_project()
         if self._ml:
             self._ml.shutdown()
+        # the app-wide digit-key filter (see _setup_class_hotkeys) must go before
+        # the window dies: otherwise Qt calls eventFilter() of a half-destroyed
+        # window during interpreter shutdown → access violation on exit
+        from PyQt6.QtWidgets import QApplication
+        QApplication.instance().removeEventFilter(self)
         event.accept()

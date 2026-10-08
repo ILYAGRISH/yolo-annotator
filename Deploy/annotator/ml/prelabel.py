@@ -18,7 +18,7 @@ from annotator.domain.project import DEFAULT_CLASS_NAME
 from annotator.ml.client import (BACKEND_EXITED, NOT_CONFIGURED, START_FAILED,
                                  STOPPED_ERR, MLBackend, Reply)
 from annotator.ml.convert import (ConvertOptions, ConvertReport, convert, min_area_rect,
-                                  is_model_annotation)
+                                  is_unaccepted_model_annotation)
 from annotator.ml.prelabel_settings import (EXISTING_REPLACE, EXISTING_SKIP,
                                             PrelabelSettings)
 from ml_backend import protocol
@@ -250,7 +250,7 @@ class PrelabelRunner(QObject):
 
     def _apply(self, path: str, result: dict) -> None:
         existing = self._ctrl.annotations_for(path)
-        remove = ([a.id for a in existing if is_model_annotation(a)]
+        remove = ([a.id for a in existing if is_unaccepted_model_annotation(a)]
                   if self._existing == EXISTING_REPLACE else [])
         kept = [a for a in existing if a.id not in set(remove)]
         project = self._ctrl.project

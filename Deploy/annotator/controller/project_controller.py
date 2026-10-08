@@ -26,9 +26,11 @@ from annotator.domain.annotation import Annotation
 from annotator.domain.class_schema import SCHEMA_VERSION, ClassSchema
 from annotator.domain.label_class import LabelClass
 from annotator.domain.project import Project
+from annotator.domain.review import (count_unreviewed, drop_unreviewed, is_model,
+                                     is_unreviewed, reviewed_meta)
 from annotator.storage.project_store import ProjectStore
 from annotator.ui.undo.commands import (AddAnnotationCmd, DeleteAnnotationCmd,
-                                        UpdateAnnotationCmd)
+                                        SetMetaCmd, UpdateAnnotationCmd)
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"}
 
@@ -47,6 +49,7 @@ class ProjectController(QObject):
         self._annotations: list[Annotation] = []
         self._undo_stack = QUndoStack(self)
         self._dirty_images: set[str] = set()
+        self.reviewer = None      # callable → user name written as meta.reviewed_by
 
     # ── read-only properties ──────────────────────────────────────────────────
 
@@ -311,8 +314,49 @@ class ProjectController(QObject):
                                 text: str = "Edit annotation"):
         ann = self.get_annotation(ann_id)
         if ann:
-            self._undo_stack.push(
-                UpdateAnnotationCmd(self, ann_id, ann.data, new_data, text))
+            old_meta = new_meta = None
+            if is_unreviewed(ann) and new_data != ann.data:   # editing = reviewing it
+                old_meta, new_meta = ann.meta, reviewed_meta(ann.meta, True,
+                                                             self._reviewer_name())
+            self._undo_stack.push(UpdateAnnotationCmd(
+                self, ann_id, ann.data, new_data, text, old_meta, new_meta))
+
+    # ── review status of model annotations (Phase 8-A) ────────────────────────
+
+    def set_reviewed(self, ann_ids=None, reviewed: bool = True) -> int:
+        """Mark model annotations of the current image reviewed (or not) as ONE
+        undo step. `ann_ids` None = every model annotation of the image.
+        Manual annotations are ignored. Returns how many changed."""
+        old, new = {}, {}
+        wanted = None if ann_ids is None else set(ann_ids)
+        by = self._reviewer_name() if reviewed else ""
+        for ann in self._annotations:
+            if wanted is not None and ann.id not in wanted:
+                continue
+            if not is_model(ann) or bool(ann.meta.get("reviewed")) == reviewed:
+                continue
+            old[ann.id] = ann.meta
+            new[ann.id] = reviewed_meta(ann.meta, reviewed, by)
+        if new:
+            text = "Mark reviewed" if reviewed else "Mark unreviewed"
+            self._undo_stack.push(SetMetaCmd(self, old, new, text))
+        return len(new)
+
+    def unreviewed_counts(self) -> tuple[int, int]:
+        """(unreviewed annotations, images with them) across the project."""
+        if not self._project:
+            return 0, 0
+        all_anns = ProjectStore.load_all_annotations(self._project)
+        if self._current_image:
+            all_anns[self._current_image] = self._annotations
+        per_image = [count_unreviewed(a) for a in all_anns.values()]
+        return sum(per_image), sum(1 for n in per_image if n)
+
+    def _reviewer_name(self) -> str:
+        try:
+            return (self.reviewer() or "") if self.reviewer else ""
+        except Exception:
+            return ""
 
     @contextmanager
     def edit_group(self, text: str):
@@ -375,11 +419,20 @@ class ProjectController(QObject):
         self._mark_dirty()
         self.annotations_changed.emit(list(self._annotations))
 
-    def _raw_update(self, ann_id: str, data: dict):
+    def _raw_update(self, ann_id: str, data: dict, meta: dict | None = None):
         for ann in self._annotations:
             if ann.id == ann_id:
                 ann.data = copy.deepcopy(data)
+                if meta is not None:
+                    ann.meta = copy.deepcopy(meta)
                 break
+        self._mark_dirty()
+        self.annotations_changed.emit(list(self._annotations))
+
+    def _raw_set_meta(self, metas: dict):
+        for ann in self._annotations:
+            if ann.id in metas:
+                ann.meta = copy.deepcopy(metas[ann.id])
         self._mark_dirty()
         self.annotations_changed.emit(list(self._annotations))
 
@@ -575,22 +628,28 @@ class ProjectController(QObject):
                 counts[t] = counts.get(t, 0) + 1
         return counts
 
-    def export_dataset(self, output_dir: Path,
-                       format_name: str,
-                       copy_images: bool = True,
-                       geometry_policy: str = "skip",
-                       mask_mode: str = "index",
-                       seg_format: str = "polygon") -> None:
-        """Export the full dataset in the requested format."""
-        if not self._project:
-            raise RuntimeError("No project open")
+    def _annotations_for_export(self, reviewed_only: bool) -> dict:
+        """{image: [Annotation]} for every project image (current one from memory).
+        `reviewed_only` leaves out unreviewed model annotations."""
         self._flush_current_image()
-
         all_anns = ProjectStore.load_all_annotations(self._project)
         if self._current_image:
             all_anns[self._current_image] = self._annotations
         for img in self._project.images:
             all_anns.setdefault(img.path, [])
+        return drop_unreviewed(all_anns) if reviewed_only else all_anns
+
+    def export_dataset(self, output_dir: Path,
+                       format_name: str,
+                       copy_images: bool = True,
+                       geometry_policy: str = "skip",
+                       mask_mode: str = "index",
+                       seg_format: str = "polygon",
+                       reviewed_only: bool = False) -> None:
+        """Export the full dataset in the requested format."""
+        if not self._project:
+            raise RuntimeError("No project open")
+        all_anns = self._annotations_for_export(reviewed_only)
 
         if format_name == "yolo_detect":
             from annotator.exporters.yolo_detect import YoloDetectExporter
@@ -641,17 +700,12 @@ class ProjectController(QObject):
 
     def export_multitask(self, output_dir: Path,
                          jobs: list,
-                         copy_images: bool = True) -> None:
+                         copy_images: bool = True,
+                         reviewed_only: bool = False) -> None:
         """Export multiple formats sharing a single images/ folder."""
         if not self._project:
             raise RuntimeError("No project open")
-        self._flush_current_image()
-
-        all_anns = ProjectStore.load_all_annotations(self._project)
-        if self._current_image:
-            all_anns[self._current_image] = self._annotations
-        for img in self._project.images:
-            all_anns.setdefault(img.path, [])
+        all_anns = self._annotations_for_export(reviewed_only)
 
         from annotator.exporters.base import write_yolo_multitask
         from annotator.exporters.yolo_detect import _make_detect_fn

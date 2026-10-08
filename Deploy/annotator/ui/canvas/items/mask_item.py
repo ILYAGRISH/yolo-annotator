@@ -73,7 +73,7 @@ class MaskAnnotationItem(BaseAnnotationItem):
         lw = self.line_width + (1.5 if selected else 0.0)
 
         painter.setBrush(QBrush(fill))
-        painter.setPen(_cpen(color, lw))
+        painter.setPen(_cpen(color, lw, self.outline_style))
         painter.drawPolygon(poly)
 
         if self.label and self._points:

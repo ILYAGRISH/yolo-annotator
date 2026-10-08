@@ -52,12 +52,15 @@ class QCPanel(QWidget):
         self._lbl_classes.setWordWrap(True)
         self._lbl_types     = QLabel("—")
         self._lbl_types.setWordWrap(True)
+        self._lbl_review    = QLabel("—")
+        self._lbl_review.setWordWrap(True)
 
         for caption, widget in [
             ("Coverage:",    self._lbl_coverage),
             ("Annotations:", self._lbl_total),
             ("By class:",    self._lbl_classes),
             ("By type:",     self._lbl_types),
+            ("🤖 Review:",   self._lbl_review),
         ]:
             row = QHBoxLayout()
             cap = QLabel(caption)
@@ -110,6 +113,14 @@ class QCPanel(QWidget):
             "  ".join(f"{k}: {v}" for k, v in by_type.items()) or "—"
         )
 
+        model = s.get("model_annotations", 0)
+        unrev = s.get("unreviewed_annotations", 0)
+        self._lbl_review.setText(
+            f"{model - unrev} / {model}  ·  "
+            + tr("unreviewed_n").format(n=unrev)
+            + (f"  ({s.get('unreviewed_images', 0)} img)" if unrev else "")
+            if model else "—")
+
         self._issues_list.clear()
         n = len(report.issues)
         err = report.error_count
@@ -142,6 +153,7 @@ class QCPanel(QWidget):
         self._lbl_total.setText("—")
         self._lbl_classes.setText("—")
         self._lbl_types.setText("—")
+        self._lbl_review.setText("—")
         self._has_report = False
         self._issues_list.clear()
         self._issues_header.setText(tr("qc_no_data"))

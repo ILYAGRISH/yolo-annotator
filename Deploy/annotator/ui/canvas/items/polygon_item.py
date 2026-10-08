@@ -96,11 +96,11 @@ class PolygonAnnotationItem(BaseAnnotationItem):
 
         if self.closed:
             painter.setBrush(QBrush(fill))
-            painter.setPen(_cpen(color, lw))
+            painter.setPen(_cpen(color, lw, self.outline_style))
             painter.drawPolygon(poly)
         else:
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.setPen(_cpen(color, lw + 0.5))
+            painter.setPen(_cpen(color, lw + 0.5, self.outline_style))
             painter.drawPolyline(poly)
 
         if selected:

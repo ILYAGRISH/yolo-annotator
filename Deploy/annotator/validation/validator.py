@@ -13,6 +13,8 @@ from annotator.validation.base import ValidationReport, ValidationRule
 from annotator.validation.rules.duplicate import DuplicateAnnotationRule
 from annotator.validation.rules.empty_image import EmptyImageRule
 from annotator.validation.rules.small_polygon import SmallPolygonRule
+from annotator.validation.rules.unreviewed import UnreviewedRule
+from annotator.domain.review import is_model, is_unreviewed
 
 
 def _default_rules() -> list[ValidationRule]:
@@ -20,6 +22,7 @@ def _default_rules() -> list[ValidationRule]:
         EmptyImageRule(),
         SmallPolygonRule(min_area=0.001),
         DuplicateAnnotationRule(iou_threshold=0.85),
+        UnreviewedRule(),
     ]
 
 
@@ -32,6 +35,8 @@ def _compute_stats(
     total_anns = 0
     by_class: dict[str, int] = {}
     by_type: dict[str, int] = {}
+    model_anns = unreviewed = 0
+    unreviewed_imgs: set[str] = set()
 
     for img_path, anns in all_annotations.items():
         if anns:
@@ -42,6 +47,11 @@ def _compute_stats(
             by_class[cls_name] = by_class.get(cls_name, 0) + 1
             t = ann.ann_type.value
             by_type[t] = by_type.get(t, 0) + 1
+            if is_model(ann):
+                model_anns += 1
+                if is_unreviewed(ann):
+                    unreviewed += 1
+                    unreviewed_imgs.add(img_path)
 
     total = len(project.images)
     ann_count = len(annotated)
@@ -53,6 +63,9 @@ def _compute_stats(
         "total_annotations": total_anns,
         "by_class": dict(sorted(by_class.items(), key=lambda x: -x[1])),
         "by_type":  dict(sorted(by_type.items(),  key=lambda x: -x[1])),
+        "model_annotations": model_anns,
+        "unreviewed_annotations": unreviewed,
+        "unreviewed_images": len(unreviewed_imgs),
     }
 
 
