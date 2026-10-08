@@ -114,7 +114,7 @@ cd new_annotator
 
 ## Changelog
 
-### Unreleased
+### v1.6 — 2026-10-08
 - **Shift+click straight lines** in Brush and Semantic brush (Photoshop-style): a straight stroke from the end of the previous one, chainable, with a dashed guide while Shift is held
 - **Pose keypoints can be dragged** with the Select tool (nearest keypoint is picked, visibility kept)
 - **Fix** — the Annotations panel showed a meaningless "(0 pts)" for masks, boxes, OBBs, points and poses

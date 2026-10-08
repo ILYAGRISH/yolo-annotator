@@ -256,6 +256,13 @@ class ClassSchemaEditorDialog(QDialog):
             self._class_list.addItem(item)
         self._class_list.blockSignals(False)
 
+    def _detach_form(self):
+        """Flush the form into the class it shows, then forget the selection.
+        Call before reordering/removing classes: afterwards _selected_idx would
+        point at a different class (or past the end of the list)."""
+        self._sync_skeleton()
+        self._selected_idx = -1
+
     def _on_class_selected(self, row: int):
         # Flush any uncommitted text-field edits before switching away
         self._sync_skeleton()
@@ -286,6 +293,7 @@ class ClassSchemaEditorDialog(QDialog):
         r = self._class_list.currentRow()
         if r <= 0:
             return
+        self._detach_form()
         self._classes[r - 1], self._classes[r] = self._classes[r], self._classes[r - 1]
         self._refresh_list()
         self._class_list.setCurrentRow(r - 1)
@@ -294,6 +302,7 @@ class ClassSchemaEditorDialog(QDialog):
         r = self._class_list.currentRow()
         if r < 0 or r >= len(self._classes) - 1:
             return
+        self._detach_form()
         self._classes[r], self._classes[r + 1] = self._classes[r + 1], self._classes[r]
         self._refresh_list()
         self._class_list.setCurrentRow(r + 1)
@@ -310,7 +319,6 @@ class ClassSchemaEditorDialog(QDialog):
 
         if target.id in self._new_class_ids:
             # Never saved — remove silently, no annotation impact
-            self._classes.pop(r)
             self._new_class_ids.discard(target.id)
         else:
             count = self._count_fn(target.id) if self._count_fn else 0
@@ -321,7 +329,8 @@ class ClassSchemaEditorDialog(QDialog):
                 return
             reassign_to = dlg.reassign_to if dlg.action == "reassign" else None
             self._pending_deletions.append((target.id, reassign_to))
-            self._classes.pop(r)
+        self._detach_form()
+        self._classes.pop(r)
 
         self._refresh_list()
         new_row = min(r, len(self._classes) - 1)
@@ -391,7 +400,7 @@ class ClassSchemaEditorDialog(QDialog):
         self._skel_box.setVisible(annotation_type == "keypoints")
 
     def _current_class(self) -> LabelClass | None:
-        if self._selected_idx < 0:
+        if not 0 <= self._selected_idx < len(self._classes):
             return None
         return self._classes[self._selected_idx]
 
