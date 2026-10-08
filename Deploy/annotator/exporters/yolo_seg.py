@@ -21,7 +21,8 @@ from pathlib import Path
 
 from annotator.domain.annotation import Annotation, AnnotationType
 from annotator.domain.project import Project
-from annotator.exporters.base import BaseExporter, write_yolo_dataset
+from annotator.exporters.base import (BaseExporter, write_yolo_dataset, yolo_class_index,
+                                      yolo_label_lines)
 
 _IMG_FOLDER_NAMES = {"images", "imgs", "img", "photos"}
 
@@ -108,11 +109,6 @@ class YoloSegExporter(BaseExporter):
 
         out_path = labels_dir / (Path(image_path).stem + ".txt")
 
-        lines = []
-        for ann in annotations:
-            line = _format_annotation(ann)
-            if line:
-                lines.append(line)
-
+        lines = yolo_label_lines(annotations, _format_annotation, yolo_class_index(project))
         out_path.write_text("\n".join(lines), encoding="utf-8")
         return out_path

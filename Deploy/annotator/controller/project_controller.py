@@ -280,12 +280,15 @@ class ProjectController(QObject):
 
     def _export_yolo(self, image_path: str, annotations: list):
         try:
+            from annotator.exporters.base import yolo_class_index, yolo_label_lines
             from annotator.exporters.yolo_seg import _labels_dir
             formatter = self._pick_yolo_formatter()
             labels_dir = _labels_dir(image_path)
             labels_dir.mkdir(parents=True, exist_ok=True)
             out_path = labels_dir / (Path(image_path).stem + ".txt")
-            lines = [line for ann in annotations if (line := formatter(ann))]
+            img_rec = next((r for r in self._project.images if r.path == image_path), None)
+            lines = yolo_label_lines(annotations, formatter,
+                                     yolo_class_index(self._project), img_rec)
             out_path.write_text("\n".join(lines), encoding="utf-8")
             self.status_message.emit(
                 f"Saved  ·  YOLO: {out_path.parent.name}/{out_path.name}")

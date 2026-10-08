@@ -189,13 +189,15 @@ good, damaged, occluded
 |--------|--------|------------|
 | **YOLO Detect** | `cls cx cy w h` | нормализованные [0, 1] |
 | **YOLO Segment** | `cls x1 y1 x2 y2 … xn yn` | произвольное кол-во вершин; BBOX → 4-угловой полигон (8 чисел TL→TR→BR→BL) |
-| **YOLO OBB** | `cls x1 y1 x2 y2 x3 y3 x4 y4` | 4 угла поворота TL→TR→BR→BL |
+| **YOLO OBB** | `cls x1 y1 x2 y2 x3 y3 x4 y4` | 4 угла поворота TL→TR→BR→BL; поворот считается в пикселях (как на холсте), затем углы нормализуются — верно и для неквадратных изображений |
 | **YOLO Pose** | `cls cx cy w h  kx1 ky1 v1  kx2 ky2 v2 …` | v: 0=невидим, 2=виден; bbox авто из keypoints + 5% отступ |
 | **YOLO Point** | `cls cx cy 0.01 0.01  x y 2` | 1-keypoint pose; синтетический bbox 1% |
 | **YOLO Classify** | — (нет labels/) | папочная структура `<split>/<class_name>/img.jpg` |
 | **COCO Instances** | JSON `annotations/instances_<split>.json` | BBOX/POLYGON/OBB → segmentation + bbox; MASK/SEMANTIC → полигоны или RLE (опция «Masks as»); атрибуты |
 | **COCO Panoptic** | JSON `annotations/panoptic_<split>.json` + PNG | сегменты things + stuff; id сегмента закодирован в цвете пикселя |
 | **COCO Keypoints** | JSON `annotations/keypoints_<split>.json` | только POSE; keypoints в пикселях + skeleton в категории |
+
+**`cls` в YOLO — порядковый номер класса** 0…nc−1 в том порядке, в каком классы перечислены в `names` файла `data.yaml` (по возрастанию номера класса в проекте). Пока классы не удалялись, он совпадает с номером в проекте. Если удалить класс из середины схемы (были 0, 1, 2 → остались 0 и 2), класс `2` в YOLO-метках станет `1` — так метки и `data.yaml` всегда согласованы. То же в автосохранении `labels/`.
 
 ### Политика несовместимых типов для YOLO Detect (`geometry_policy`)
 
@@ -1028,7 +1030,7 @@ class MyCustomTool(BaseTool):
 
 Пока вы не пользуетесь ML, сервер **не запускается** и ничего не потребляет.
 
-### Установка: два варианта
+### Установка: три варианта
 
 **Вариант 1 — отдельное окружение `.venv-ml` (рекомендуется для новых пользователей).** Запустите рядом с программой:
 
@@ -1041,6 +1043,17 @@ setup_ml_env.bat --clean    ← удалить .venv-ml и поставить з
 Скрипт скачает до ~3 ГБ (PyTorch с CUDA), это 5–15 минут. Версии закреплены: PyTorch 2.11.0, torchvision 0.26.0, Ultralytics 8.4.33. Сборка CUDA 12.8 поддерживает все современные видеокарты NVIDIA, включая RTX 50xx; нужен драйвер NVIDIA 570 или новее.
 
 **Вариант 2 — готовое окружение.** Если у вас уже есть Python или conda-окружение с `ultralytics` (то, в котором вы обучаете модели), ничего ставить не нужно: укажите его `python.exe` в настройках ML (ниже). Например: `C:\miniconda3\envs\yolo\python.exe`.
+
+**Вариант 3 — новое conda-окружение** (если вы пользуетесь Miniconda / Anaconda и хотите держать ML-окружение там, а не рядом с программой). В **Anaconda Prompt**, из папки программы:
+
+```
+conda create -n yolo_annotator python=3.11 -y
+conda activate yolo_annotator
+pip install torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cu128
+pip install -r requirements-ml.txt
+```
+
+Без видеокарты NVIDIA в третьей строке вместо `cu128` укажите `cpu`. Затем в настройках ML выберите `python.exe` этого окружения — обычно `C:\miniconda3\envs\yolo_annotator\python.exe` (точный путь покажет `conda env list`). PyTorch и Ultralytics лучше ставить через `pip`, как выше, а не `conda install`: так версии совпадут с проверенными.
 
 ### Настройка и проверка — ML → Настройки ML…
 

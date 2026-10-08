@@ -339,6 +339,74 @@ check("ANNOTATION_TYPE_TOOLS obb has obb", "obb" in ANNOTATION_TYPE_TOOLS.get("o
 check("ANNOTATION_TYPE_DEFAULT_TOOL obb = obb",
       ANNOTATION_TYPE_DEFAULT_TOOL.get("obb") == "obb")
 
+
+print("\n=== 16. YOLO OBB on a non-square image ===")
+from annotator.exporters.base import yolo_class_index, yolo_label_lines
+
+
+def _px_corners(line: str, w: int, h: int):
+    v = [float(x) for x in line.split()[1:]]
+    return [(v[i] * w, v[i + 1] * h) for i in range(0, 8, 2)]
+
+
+def _sides(c):
+    return [round(math.dist(c[i], c[(i + 1) % 4]), 3) for i in range(4)]
+
+
+W2, H2 = 200, 100
+rot = _obb_ann(cx=0.5, cy=0.5, w=0.2, h=0.2, angle=90.0)       # 40 x 20 px, turned 90°
+c = _px_corners(_format_obb(rot, (W2, H2)), W2, H2)
+check("rotated OBB stays a 40x20 px rectangle", _sides(c) == [40.0, 20.0, 40.0, 20.0])
+check("rotated OBB corners as on the canvas (TL -> 110,30 px)",
+      [round(x, 3) for x in c[0]] == [110.0, 30.0])
+c30 = _px_corners(_format_obb(_obb_ann(cx=0.4, cy=0.6, w=0.3, h=0.4, angle=30.0), (W2, H2)), W2, H2)
+check("30° OBB keeps its 60x40 px sides", _sides(c30) == [60.0, 40.0, 60.0, 40.0])
+check("angle 0: same as plain normalised corners",
+      _format_obb(_obb_ann(), (W2, H2)) == _format_obb(_obb_ann()))
+check("unknown size: old normalised behaviour", _format_obb(rot, (0, 0)) == _format_obb(rot))
+
+print("\n=== 17. YOLO class ids with gaps ===")
+gp = Project.create("gaps")                          # object=0
+gp.add_class("car")                                  # 1
+gp.add_class("bus")                                  # 2
+gp.remove_class(1)                                   # ids 0, 2
+check("class index is 0..nc-1 in id order", yolo_class_index(gp) == {0: 0, 2: 1})
+check("label lines use the YOLO index; unknown classes dropped",
+      [ln.split()[0] for ln in yolo_label_lines(
+          [_bbox_ann(class_id=2), _bbox_ann(class_id=0), _bbox_ann(class_id=1)],
+          _format_detect, yolo_class_index(gp))] == ["1", "0"])
+with tempfile.TemporaryDirectory() as tmp:
+    img = Path(tmp) / "wide.png"
+    from PIL import Image as _Image
+    _Image.new("RGB", (W2, H2)).save(img)
+    gp.images = [ImageRecord(path=str(img), split="train")]   # size unknown -> read from file
+    out = Path(tmp) / "out"
+    YoloObbExporter().export(gp, out, all_annotations={str(img): [_obb_ann(class_id=2, w=0.2, h=0.2,
+                                                                           angle=90.0)]},
+                             copy_images=False)
+    line = (out / "labels" / "train" / "wide.txt").read_text(encoding="utf-8")
+    yaml = (out / "data.yaml").read_text(encoding="utf-8")
+    check("export: class 2 written as YOLO index 1", line.split()[0] == "1")
+    check("export: data.yaml nc 2, names in the same order",
+          "nc: 2" in yaml and "names: ['object', 'bus']" in yaml)
+    check("export: image size read from the file for OBB",
+          _sides(_px_corners(line, W2, H2)) == [40.0, 20.0, 40.0, 20.0])
+
+    from annotator.controller.project_controller import ProjectController
+    gc = ProjectController()
+    gproj = gc.create_project("auto", Path(tmp) / "auto.annproj")
+    gproj.classes[0].annotation_type = "obb"
+    gc.add_class("car").annotation_type = "obb"
+    gc.add_class("bus").annotation_type = "obb"
+    gproj.remove_class(1)
+    gc.add_images_from_paths([str(img)])
+    gc.set_image(gproj.images[0].path)
+    gc.add_annotation(_obb_ann(class_id=2, w=0.2, h=0.2, angle=90.0))
+    gc._flush_current_image()
+    auto = (Path(tmp) / "labels" / "wide.txt").read_text(encoding="utf-8")
+    check("auto-export labels/: YOLO index and pixel rotation",
+          auto.split()[0] == "1" and _sides(_px_corners(auto, W2, H2)) == [40.0, 20.0, 40.0, 20.0])
+
 # ── summary ───────────────────────────────────────────────────────────────────
 print(f"\n{'='*40}")
 print(f"  Results: {PASS} passed, {FAIL} failed")

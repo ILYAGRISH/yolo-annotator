@@ -5,6 +5,51 @@ from pathlib import Path
 from annotator.domain.project import Project
 
 
+# ── YOLO class indices and label lines ───────────────────────────────────────
+
+def yolo_class_index(project: Project) -> dict[int, int]:
+    """Project class id -> YOLO class index 0..nc-1, in the order of `names`
+    in data.yaml (classes sorted by id). Ids have gaps once a class is
+    deleted from the schema; YOLO needs 0..nc-1."""
+    return {c.id: i for i, c in enumerate(sorted(project.classes, key=lambda c: c.id))}
+
+
+def image_size(img_rec) -> tuple[int, int]:
+    """(width, height) in pixels from the image record, else read from the
+    file header; (0, 0) if unknown."""
+    if img_rec is not None and img_rec.width > 0 and img_rec.height > 0:
+        return img_rec.width, img_rec.height
+    if img_rec is not None:
+        try:
+            from PIL import Image
+            with Image.open(img_rec.path) as im:
+                return im.width, im.height
+        except Exception:                       # noqa: BLE001
+            pass
+    return 0, 0
+
+
+def yolo_label_lines(anns, ann_to_line_fn, class_index: dict[int, int],
+                     img_rec=None) -> list[str]:
+    """Format annotations as YOLO label lines with YOLO class indices.
+
+    Formatters write `ann.class_id` first on each line; it is replaced by the
+    YOLO index here (a class missing from the project drops the line).
+    A formatter with `uses_image_size = True` is called as fn(ann, (w, h))."""
+    size = image_size(img_rec) if getattr(ann_to_line_fn, "uses_image_size", False) else None
+    out = []
+    for ann in anns:
+        text = ann_to_line_fn(ann, size) if size is not None else ann_to_line_fn(ann)
+        if not text:
+            continue
+        for line in text.split("\n"):
+            cid, _, rest = line.partition(" ")
+            idx = class_index.get(int(cid))
+            if idx is not None:
+                out.append(f"{idx} {rest}")
+    return out
+
+
 # ── shared YOLO-style dataset writer ─────────────────────────────────────────
 
 def write_yolo_dataset(project: Project,
@@ -23,6 +68,7 @@ def write_yolo_dataset(project: Project,
       Return a formatted label line or None to skip the annotation.
     """
     output_dir = Path(output_dir)
+    class_index = yolo_class_index(project)
 
     for img_rec in project.images:
         split = img_rec.split or "train"
@@ -31,7 +77,7 @@ def write_yolo_dataset(project: Project,
 
         labels_dir = output_dir / "labels" / split
         labels_dir.mkdir(parents=True, exist_ok=True)
-        lines = [ln for ann in anns for ln in [ann_to_line_fn(ann)] if ln]
+        lines = yolo_label_lines(anns, ann_to_line_fn, class_index, img_rec)
         (labels_dir / (img_path.stem + ".txt")).write_text(
             "\n".join(lines), encoding="utf-8")
 
@@ -76,6 +122,7 @@ def write_yolo_multitask(project: Project,
         data_segment.yaml
     """
     output_dir = Path(output_dir)
+    class_index = yolo_class_index(project)
 
     for img_rec in project.images:
         split = img_rec.split or "train"
@@ -85,7 +132,7 @@ def write_yolo_multitask(project: Project,
         for labels_dir_name, _yaml_stem, ann_fn, _yaml_extra in tasks:
             labels_dir = output_dir / labels_dir_name / split
             labels_dir.mkdir(parents=True, exist_ok=True)
-            lines = [ln for ann in anns for ln in [ann_fn(ann)] if ln]
+            lines = yolo_label_lines(anns, ann_fn, class_index, img_rec)
             (labels_dir / (img_path.stem + ".txt")).write_text(
                 "\n".join(lines), encoding="utf-8")
 

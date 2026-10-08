@@ -28,18 +28,27 @@ def _rotate_pt(px: float, py: float,
             cy + sin_a * dx + cos_a * dy)
 
 
-def _format_obb(ann: Annotation) -> str | None:
+def _format_obb(ann: Annotation, size: tuple[int, int] | None = None) -> str | None:
+    """One OBB label line. The box is stored like the canvas draws it — w
+    normalised by the image width, h by the height, rotated in PIXELS — so the
+    corners are computed in pixels (`size` = image (width, height)) and
+    normalised afterwards. Unknown size: rotated in normalised units
+    (exact only for square images)."""
     if ann.ann_type != AnnotationType.OBB:
         return None
+    iw, ih = size if size and size[0] > 0 and size[1] > 0 else (1, 1)
     d = ann.data
-    cx, cy = d["cx"], d["cy"]
-    hw, hh = d["w"] / 2, d["h"] / 2
+    cx, cy = d["cx"] * iw, d["cy"] * ih
+    hw, hh = d["w"] * iw / 2, d["h"] * ih / 2
     angle = d.get("angle_deg", 0.0)
     # TL, TR, BR, BL in OBB-local space, then rotate
     local = [(-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)]
     corners = [_rotate_pt(cx + lx, cy + ly, cx, cy, angle) for lx, ly in local]
-    pts = " ".join(f"{x:.6f} {y:.6f}" for x, y in corners)
+    pts = " ".join(f"{x / iw:.6f} {y / ih:.6f}" for x, y in corners)
     return f"{ann.class_id} {pts}"
+
+
+_format_obb.uses_image_size = True     # yolo_label_lines passes the image size
 
 
 class YoloObbExporter(BaseExporter):

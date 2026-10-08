@@ -212,6 +212,7 @@ with tempfile.TemporaryDirectory() as tmp:
                        {"points": [[0.0,0.5],[0.5,0.7],[1.0,0.5]]}),
     ]
     proj_export = Project.create("ExportTest")
+    proj_export.add_class("car")                     # class 1
     out = YoloSegExporter.export_image(img_path, export_anns, proj_export)
     check("labels/ dir created", out.parent.name == "labels")
     check("label file created", out.exists())
