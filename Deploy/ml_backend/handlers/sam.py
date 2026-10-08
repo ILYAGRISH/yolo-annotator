@@ -1,5 +1,6 @@
 """Segment Anything (SAM, SAM 2 / 2.1, MobileSAM via Ultralytics): a mask from
-clicks and / or a box (7-C).
+clicks and / or a box (7-C, sam.predict), or one mask per box for many boxes
+of one image (7-D, sam.boxes).
 
 The image encoder is the slow part (~0.06 s on a GPU, seconds on a CPU); its
 result is kept for the last image, so every further click on the same image
@@ -11,6 +12,9 @@ sam.predict returns geometry in PIXELS of the original image, like yolo.predict:
      "score": 0.93,                                   # SAM's own mask quality
      "box": [x1, y1, x2, y2],                         # bounding box of the mask
      "polygons": [[[x, y], ...], ...]}                # every part, largest first
+
+sam.boxes: {"width", "height", "ms", "embed_ms", "results": [{score, box, polygons}]}
+— one result per input box, same order.
 """
 from __future__ import annotations
 
@@ -117,14 +121,47 @@ def predict(ctx, params):
         return out
     scores = result.boxes.conf.tolist() if result.boxes is not None else [0.0]
     best = max(range(len(scores)), key=lambda i: scores[i])
-    mask = result.masks.data[best].cpu().numpy()
-    out["score"] = round(float(scores[best]), 4)
-    out["polygons"] = _mask_polygons(mask, min_area=16.0)   # no specks
-    if out["polygons"]:
-        xs = [x for poly in out["polygons"] for x, _ in poly]
-        ys = [y for poly in out["polygons"] for _, y in poly]
-        out["box"] = [min(xs), min(ys), max(xs), max(ys)]
+    out.update(_mask_result(result.masks.data[best], scores[best]))
     return out
+
+
+_BOX_BATCH = 32                                  # boxes per decoder run (GPU memory)
+
+
+@handler("sam.boxes")
+def boxes(ctx, params):
+    """One mask per box, in the order given: {"results": [{score, box, polygons}]}
+    (an empty polygons list where SAM found nothing). Used to turn detector /
+    existing boxes into outlines."""
+    predictor, _ = get_predictor(require(params, "model", str))
+    embed_ms = _set_image(predictor, require(params, "image", str))
+    items = params.get("boxes") or []
+    if not isinstance(items, list) or any(not isinstance(b, list) or len(b) != 4 for b in items):
+        raise BadRequest("boxes must be a list of [x1, y1, x2, y2]")
+    t0 = time.perf_counter()
+    results = []
+    for start in range(0, len(items), _BOX_BATCH):
+        ctx.check_cancel()
+        chunk = [[float(v) for v in b] for b in items[start:start + _BOX_BATCH]]
+        result = predictor(bboxes=chunk)[0]
+        n = 0 if result.masks is None else len(result.masks)
+        scores = result.boxes.conf.tolist() if result.boxes is not None else []
+        for i in range(len(chunk)):
+            results.append(_mask_result(result.masks.data[i], scores[i] if i < len(scores) else 0.0)
+                           if i < n else {"score": 0.0, "box": None, "polygons": []})
+    w, h = _STATE["size"]
+    return {"width": w, "height": h, "ms": round((time.perf_counter() - t0) * 1000, 1),
+            "embed_ms": round(embed_ms, 1), "results": results}
+
+
+def _mask_result(mask, score) -> dict:
+    polygons = _mask_polygons(mask.cpu().numpy(), min_area=16.0)   # no specks
+    box = None
+    if polygons:
+        xs = [x for poly in polygons for x, _ in poly]
+        ys = [y for poly in polygons for _, y in poly]
+        box = [min(xs), min(ys), max(xs), max(ys)]
+    return {"score": round(float(score), 4), "box": box, "polygons": polygons}
 
 
 @handler("sam.unload")

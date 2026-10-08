@@ -39,8 +39,13 @@ class _FakeDeleteDialog:
     """Stands in for the modal ClassDeleteDialog: answers 'delete_all' or Cancel."""
     accept = True
 
-    def __init__(self, *args, **kwargs):
-        self.action, self.reassign_to = "delete_all", None
+    reassign_to = None                     # set to a class id to answer "reassign"
+    last_others = []
+
+    def __init__(self, target, count, others, parent=None):
+        _FakeDeleteDialog.last_others = [c.id for c in others]
+        rid = _FakeDeleteDialog.reassign_to
+        self.action, self.reassign_to = ("reassign", rid) if rid is not None else ("delete_all", None)
 
     def exec(self):
         return (QDialog.DialogCode.Accepted if _FakeDeleteDialog.accept
@@ -149,6 +154,40 @@ dlg._edges_edit.setText("0-2")
 dlg._accept()                              # OK flushes the form
 check("form edits still reach the class after cancel", edges(dlg.result_classes[1]) == [(0, 2)])
 _FakeDeleteDialog.accept = True
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+section("5. Annotation type of a class without annotations")
+# ═════════════════════════════════════════════════════════════════════════════
+counts = {0: 0, 1: 3, 2: 0}
+dlg = ClassSchemaEditorDialog([box(0, "person"), box(1, "car"), box(2, "bus")],
+                              count_fn=lambda cid: counts[cid])
+dlg._class_list.setCurrentRow(0)
+check("no annotations: the type is a combo", not dlg._type_combo.isHidden() and dlg._type_label.isHidden())
+dlg._type_combo.setCurrentText("polygon")
+dlg._class_list.setCurrentRow(1)
+check("with annotations: the type is a fixed label", dlg._type_combo.isHidden()
+      and "3 annotation" in dlg._type_label.toolTip())
+dlg._accept()
+check("the changed type is saved", [c.annotation_type for c in dlg.result_classes] == ["polygon", "bbox", "bbox"])
+
+dlg = ClassSchemaEditorDialog([box(0, "person"), box(1, "car"), box(2, "bus")],
+                              count_fn=lambda cid: counts[cid])
+_FakeDeleteDialog.reassign_to = 2
+dlg._class_list.setCurrentRow(1)
+dlg._delete_class()                        # car's 3 boxes go to bus
+_FakeDeleteDialog.reassign_to = None
+check("reassign offers only classes of the same type", _FakeDeleteDialog.last_others == [0, 2])
+dlg._class_list.setCurrentRow(1)           # bus
+check("a class receiving annotations keeps its type fixed", dlg._type_combo.isHidden())
+dlg2 = ClassSchemaEditorDialog([box(0), LabelClass(id=1, name="poly", color="#00ff00",
+                                                   annotation_type="polygon")], count_fn=lambda cid: 2)
+dlg2._class_list.setCurrentRow(0)
+dlg2._delete_class()
+check("no class of the same type -> nothing to reassign to", _FakeDeleteDialog.last_others == [])
+d3 = ClassSchemaEditorDialog([box(0)])
+d3._class_list.setCurrentRow(0)
+check("no count function -> existing types stay fixed", d3._type_combo.isHidden())
 
 
 # ═════════════════════════════════════════════════════════════════════════════

@@ -56,6 +56,7 @@ class ClassSchemaEditorDialog(QDialog):
         self._count_fn = count_fn
         # (class_id, reassign_to | None) — applied by main_window after accept
         self._pending_deletions: list[tuple[int, int | None]] = []
+        self._counts: dict[int, int] = {}       # class id -> annotations (-1: unknown)
 
         self._build_ui()
         self._refresh_list()
@@ -322,7 +323,8 @@ class ClassSchemaEditorDialog(QDialog):
             self._new_class_ids.discard(target.id)
         else:
             count = self._count_fn(target.id) if self._count_fn else 0
-            others = [c for c in self._classes if c.id != target.id]
+            others = [c for c in self._classes   # same geometry only: a box cannot become a polygon
+                      if c.id != target.id and c.annotation_type == target.annotation_type]
             from annotator.ui.dialogs.class_delete_dialog import ClassDeleteDialog
             dlg = ClassDeleteDialog(target, count, others, self)
             if dlg.exec() != QDialog.DialogCode.Accepted:
@@ -359,8 +361,9 @@ class ClassSchemaEditorDialog(QDialog):
         self._color_btn.setStyleSheet(
             f"background-color:{c.color};border:1px solid #555;")
 
-        # annotation_type: combo only for classes created in this session
-        is_new = c.id in self._new_class_ids
+        # annotation_type: a combo while the type can't break any annotation
+        # (new in this session, or no annotations yet); a plain label otherwise
+        is_new = self._type_editable(c)
         self._type_combo.setVisible(is_new)
         self._type_label.setVisible(not is_new)
         if is_new:
@@ -370,6 +373,9 @@ class ClassSchemaEditorDialog(QDialog):
             self._type_combo.blockSignals(False)
         else:
             self._type_label.setText(c.annotation_type)
+            self._type_label.setToolTip(
+                f"The type is fixed: the class has {self._annotation_count(c.id)} annotation(s). "
+                "It can be changed while a class has no annotations.")
 
         self._update_type_ui(c.annotation_type)
 
@@ -395,6 +401,20 @@ class ClassSchemaEditorDialog(QDialog):
         self._lw_spin.blockSignals(False)
 
         self._load_skeleton_ui(c)
+
+    def _annotation_count(self, class_id: int) -> int:
+        if class_id not in self._counts:
+            self._counts[class_id] = self._count_fn(class_id) if self._count_fn else -1
+        return self._counts[class_id]
+
+    def _type_editable(self, c: LabelClass) -> bool:
+        """New classes, and existing ones without annotations — unless a class
+        being deleted hands its annotations over to this one."""
+        if c.id in self._new_class_ids:
+            return True
+        if any(target == c.id for _, target in self._pending_deletions):
+            return False
+        return self._annotation_count(c.id) == 0
 
     def _update_type_ui(self, annotation_type: str):
         self._skel_box.setVisible(annotation_type == "keypoints")

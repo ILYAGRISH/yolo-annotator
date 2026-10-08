@@ -25,6 +25,7 @@ class PrelabelSettings:
     kpt_threshold: float = 0.5
     existing: str = EXISTING_SKIP
     scope: str = "all"                # all / train / val / test
+    sam_refine: bool = False          # detector boxes -> SAM outlines for polygon / mask / obb classes
     # normalised model path -> {model class id (str): project class id | None}
     mappings: dict = field(default_factory=dict)
 

@@ -51,6 +51,25 @@ _EN = {
     "act_prelabel_dataset": "Pre-label Dataset…",
     "act_remove_model":     "Remove Model Annotations…",
     "act_sam":              "SAM — Label by Clicking",
+    "act_sam_boxes":        "Boxes → Outlines with SAM…",
+    "sb_title":           "Boxes → outlines with SAM",
+    "sb_intro":           "Every box of the chosen class becomes an outline drawn by SAM: a polygon, a "
+                          "brush mask or a tight rotated box of the target class. Works for boxes "
+                          "drawn by hand and for detector pre-labels. Boxes already outlined are "
+                          "skipped on the next run.",
+    "sb_grp_classes":     "Classes",
+    "sb_source":          "Boxes of class",
+    "sb_target":          "→ outlines into class",
+    "sb_new_class":       "+ new class «{name}» ({type})",
+    "sb_delete":          "Delete the boxes that were outlined",
+    "sb_grp_model":       "SAM model",
+    "sb_scope_current":   "Current image",
+    "sb_run":             "Outline",
+    "sb_no_source":       "The project has no bbox or OBB class — nothing to outline.",
+    "sb_done":            "Done in {sec} s: {images} images with boxes, {n} outlines added",
+    "sb_removed":         ", {n} boxes deleted",
+    "sb_empty":           "SAM found nothing in {n} boxes (they stay as they are).",
+    "sb_nothing":         "No boxes of this class to outline (or all are outlined already).",
     "tool_sam":             "✧ SAM",
     "sam_tip":              "SAM [I]: click an object → mask. Left click — object, right click (after it) — "
                             "remove a wrongly included part, drag — a box around it. Enter — accept into the "
@@ -125,6 +144,13 @@ _EN = {
     "pl_running":         "{done} / {total}  ·  {name}",
     "pl_done":            "Done in {sec} s: {processed} images processed, {added} annotations added",
     "pl_replaced":        ", {n} earlier model annotations replaced",
+    "pl_sam_outlined":    ", {n} of them outlined by SAM",
+    "pl_sam_refine":      "Outlines via SAM",
+    "pl_sam_hint":        "A detector fills polygon / mask / OBB classes with plain rectangles — "
+                          "turn on «Outlines via SAM» to get real outlines.",
+    "pl_sam_refine_tip":  "Detector models only: the boxes that go into polygon, mask or OBB classes "
+                          "are outlined by SAM (the model in ML Settings) — real outlines and tight "
+                          "rotated boxes instead of rectangles. Slower: one more SAM pass per image.",
     "pl_skipped_existing": "{n} images skipped (already annotated)",
     "pl_failed":          "{n} images failed",
     "pl_cancelled":       "Stopped by the user.",
@@ -190,6 +216,25 @@ _RU = {
     "act_prelabel_dataset": "Разметить датасет моделью…",
     "act_remove_model":     "Удалить разметку модели…",
     "act_sam":              "SAM — разметка кликом",
+    "act_sam_boxes":        "Рамки → контуры через SAM…",
+    "sb_title":           "Рамки → контуры через SAM",
+    "sb_intro":           "Каждая рамка выбранного класса превращается в контур, проведённый SAM: "
+                          "полигон, маску кистью или плотную повёрнутую рамку целевого класса. "
+                          "Подходит и для рамок, нарисованных вручную, и для предразметки детектором. "
+                          "Уже обведённые рамки при повторном запуске пропускаются.",
+    "sb_grp_classes":     "Классы",
+    "sb_source":          "Рамки класса",
+    "sb_target":          "→ контуры в класс",
+    "sb_new_class":       "+ новый класс «{name}» ({type})",
+    "sb_delete":          "Удалить обведённые рамки",
+    "sb_grp_model":       "Модель SAM",
+    "sb_scope_current":   "Текущее изображение",
+    "sb_run":             "Обвести",
+    "sb_no_source":       "В проекте нет класса bbox или obb — обводить нечего.",
+    "sb_done":            "Готово за {sec} с: изображений с рамками — {images}, добавлено контуров — {n}",
+    "sb_removed":         ", удалено рамок — {n}",
+    "sb_empty":           "В {n} рамках SAM ничего не нашёл (они остались как есть).",
+    "sb_nothing":         "Рамок этого класса для обводки нет (или все уже обведены).",
     "tool_sam":             "✧ SAM",
     "sam_tip":              "SAM [I]: клик по объекту → маска. Левый клик — объект, правый (после него) — "
                             "убрать лишнее, попавшее в маску, протянуть — рамка вокруг объекта. Enter — принять в "
@@ -264,6 +309,13 @@ _RU = {
     "pl_running":         "{done} / {total}  ·  {name}",
     "pl_done":            "Готово за {sec} с: обработано изображений — {processed}, добавлено аннотаций — {added}",
     "pl_replaced":        ", заменено прежних аннотаций модели — {n}",
+    "pl_sam_outlined":    ", из них обведено SAM — {n}",
+    "pl_sam_refine":      "Контуры через SAM",
+    "pl_sam_hint":        "Детектор заполнит классы polygon / mask / OBB прямоугольниками — "
+                          "включите «Контуры через SAM», чтобы получить настоящие контуры.",
+    "pl_sam_refine_tip":  "Только для моделей-детекторов: рамки, которые идут в классы polygon, mask или "
+                          "OBB, обводятся SAM (модель из настроек ML) — настоящие контуры и плотные "
+                          "повёрнутые рамки вместо прямоугольников. Медленнее: ещё один проход SAM на изображение.",
     "pl_skipped_existing": "Пропущено изображений с разметкой: {n}",
     "pl_failed":          "Ошибок на изображениях: {n}",
     "pl_cancelled":       "Остановлено пользователем.",

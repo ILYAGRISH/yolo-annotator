@@ -105,6 +105,7 @@ Start with Phase 0 only.
 Fields immutable after class creation:
 - `id` — assigned automatically, never shown as editable input
 - `annotation_type` — shown as read-only label after creation
+  (relaxed 2026-10-08: editable while the class has no annotations and is not a reassign target)
 
 Fields editable at any time:
 - name, color, display_style, subclasses, attributes, allowed_tools

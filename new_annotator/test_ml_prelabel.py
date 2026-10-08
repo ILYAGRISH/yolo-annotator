@@ -436,7 +436,7 @@ n_classes = len(uproj.classes)
 dlg._create_selected()
 check("'create selected' with nothing marked only explains",
       "+" in dlg._result.text() and len(uproj.classes) == n_classes)
-combo(2).setCurrentIndex(combo(2).findData("__create__"))   # the user picks "+ new class"
+combo(2).setCurrentIndex(combo(2).findData("__create__:bbox"))   # the user picks "+ new class"
 check("'+ new class' only marks the row", len(uproj.classes) == n_classes
       and "1" in dlg._mapped_lbl.text().split("·")[-1])
 check("a class mapped in one row moves under 'already chosen' in the others",
@@ -487,14 +487,29 @@ dlg3 = PrelabelDialog(fake_ui, PrelabelRunner(fake_ui, nctrl), nctrl, lambda: []
 dlg3._model_edit.setText(str(model_file))
 dlg3._load_model()
 wait(lambda: dlg3._table.rowCount() == 3, 5)
-for r in (1, 2):                                     # mark Person and truck
-    c3 = dlg3._table.cellWidget(r, 1)
-    c3.setCurrentIndex(c3.findData("__create__"))
+c3 = dlg3._table.cellWidget(1, 1)
+check("a detector offers a new class as bbox, polygon, mask or obb",
+      [c3.itemData(i) for i in range(c3.count()) if str(c3.itemData(i)).startswith("__create__")]
+      == ["__create__:bbox", "__create__:polygon", "__create__:mask", "__create__:obb"])
+c3.setCurrentIndex(c3.findData("__create__:polygon"))   # Person as a polygon
+check("polygon for a detector without SAM outlines -> the hint shows",
+      not dlg3._sam_hint.isHidden())
+from annotator.ml import config as ml_config
+fake_sam = _TMP / "sam2.1_b.pt"
+fake_sam.write_bytes(b"x")
+ml_config.set_sam_model(str(fake_sam))
+dlg3._sam_refine.setChecked(True)
+check("... and hides when «Outlines via SAM» is on", dlg3._sam_hint.isHidden())
+dlg3._sam_refine.setChecked(False)
+c3 = dlg3._table.cellWidget(2, 1)
+c3.setCurrentIndex(c3.findData("__create__:bbox"))      # truck as a box
 check("marked rows are not created yet", [c.name for c in nproj.classes] == ["object"])
 dlg3._create_selected()
 check("marked classes replace the empty default class, ids from 0",
       [(c.id, c.name) for c in nproj.classes] == [(0, "Person"), (1, "truck")]
       and dlg3._table.cellWidget(1, 1).currentData() == 0 and "object" in dlg3._result.text())
+check("each new class gets the type chosen in its row",
+      [c.annotation_type for c in nproj.classes] == ["polygon", "bbox"])
 dlg3.done(QDialog.DialogCode.Rejected)
 
 mctrl = ProjectController()
@@ -507,7 +522,7 @@ dlg4._model_edit.setText(str(model_file))
 dlg4._load_model()
 wait(lambda: dlg4._table.rowCount() == 3, 5)
 c4 = dlg4._table.cellWidget(0, 1)
-c4.setCurrentIndex(c4.findData("__create__"))
+c4.setCurrentIndex(c4.findData("__create__:bbox"))
 dlg4._run_dataset()                                  # marked but never created -> created on run
 wait(lambda: not dlg4._runner.running and dlg4._stop_btn.isHidden(), 10)
 check("classes still marked are created when the run starts",

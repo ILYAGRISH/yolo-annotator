@@ -41,6 +41,8 @@ class MLExtension(QObject):
         self.runner = PrelabelRunner(self.backend, self._ctrl, self)
         self._quick = False                       # the running job came from Ctrl+L
         self.runner.finished.connect(self._on_quick_finished)
+        from annotator.ml.sam_boxes import SamBoxRunner
+        self.box_runner = SamBoxRunner(self.backend, self._ctrl, self)
 
         from annotator.ml.sam_tool import SamTool
         self.sam_tool = SamTool(self.backend, config.sam_model, self._ask_sam_model)
@@ -49,13 +51,15 @@ class MLExtension(QObject):
 
         self._menu = QMenu(window)
         self._act_sam = self._action(self.activate_sam)
+        self._act_sam_boxes = self._action(self.open_sam_boxes)
         self._act_image = self._action(self.prelabel_current_image, "Ctrl+L")
         self._act_dataset = self._action(self.open_prelabel, "Ctrl+Shift+L")
         self._act_remove = self._action(self.remove_model_annotations)
         self._act_settings = self._action(self.open_settings)
         self._act_restart = self._action(self.backend.restart)
         self._act_stop = self._action(self.backend.stop)
-        for a in (self._act_sam, None, self._act_image, self._act_dataset, self._act_remove, None,
+        for a in (self._act_sam, self._act_sam_boxes, None,
+                  self._act_image, self._act_dataset, self._act_remove, None,
                   self._act_settings, None, self._act_restart, self._act_stop):
             self._menu.addSeparator() if a is None else self._menu.addAction(a)
         self._menu.aboutToShow.connect(self._update_actions)
@@ -92,6 +96,7 @@ class MLExtension(QObject):
             self._sam_act.setText(t("tool_sam"))
             self._sam_act.setToolTip(t("sam_tip"))
         for act, key in ((self._act_sam, "act_sam"),
+                         (self._act_sam_boxes, "act_sam_boxes"),
                          (self._act_image, "act_prelabel_image"),
                          (self._act_dataset, "act_prelabel_dataset"),
                          (self._act_remove, "act_remove_model"),
@@ -103,6 +108,7 @@ class MLExtension(QObject):
 
     def shutdown(self) -> None:
         self.runner.cancel()
+        self.box_runner.cancel()
         self.backend.stop()
 
     # ── SAM ───────────────────────────────────────────────────────────────────
@@ -110,6 +116,17 @@ class MLExtension(QObject):
     def activate_sam(self) -> None:
         if hasattr(self._window, "activate_tool"):
             self._window.activate_tool(self.sam_tool.name)
+
+    def open_sam_boxes(self) -> None:
+        if self._ctrl.project is None:
+            self._status(t("pl_no_project"))
+            return
+        if self.runner.running or self.box_runner.running:
+            self._status(t("pl_quick_busy"))
+            return
+        from annotator.ml.sam_boxes_dialog import SamBoxesDialog
+        SamBoxesDialog(self.backend, self.box_runner, self._ctrl,
+                       self._window.allowed_image_paths, self._window).exec()
 
     def _ask_sam_model(self) -> str:
         """First use without a SAM model: pick the weights once (saved)."""
@@ -129,7 +146,7 @@ class MLExtension(QObject):
         if self._ctrl.project is None:
             self._status(t("pl_no_project"))
             return
-        if self.runner.running:
+        if self.runner.running or self.box_runner.running:
             self._status(t("pl_quick_busy"))
             return
         from annotator.ml.prelabel_dialog import PrelabelDialog
@@ -146,7 +163,7 @@ class MLExtension(QObject):
         if not path:
             self._status(t("pl_no_image"))
             return
-        if self.runner.running:
+        if self.runner.running or self.box_runner.running:
             self._status(t("pl_quick_busy"))
             return
         if path not in set(self._window.allowed_image_paths()):

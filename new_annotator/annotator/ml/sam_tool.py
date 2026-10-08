@@ -18,7 +18,6 @@ Results are written as manual annotations (tool "sam"): a person chose them.
 """
 from __future__ import annotations
 
-import math
 from pathlib import Path
 from typing import Callable
 
@@ -27,7 +26,8 @@ from PyQt6.QtGui import QBrush, QColor, QPainterPath
 from PyQt6.QtWidgets import QGraphicsEllipseItem, QGraphicsItem
 
 from annotator.ml.client import MLBackend, Reply
-from annotator.ml.convert import ConvertOptions, ConvertReport, compatible, convert
+from annotator.ml.convert import (ConvertOptions, ConvertReport, compatible, convert,
+                                  min_area_rect)
 from annotator.ml.strings import t
 from annotator.tools.base import BaseTool
 
@@ -175,7 +175,7 @@ class SamTool(BaseTool):
             return
         det = {"cls": 0, "conf": res["score"], "box": res["box"], "polygons": res["polygons"]}
         if lc.annotation_type == "obb":
-            det["obb"] = _min_area_rect(res["polygons"][0])
+            det["obb"] = min_area_rect(res["polygons"][0])
         project = self._ctrl.project
         opts = ConvertOptions(model_name=Path(self._model_path()).name,
                               simplify_px=float(self._params.get("simplify_px", 2.0)),
@@ -366,11 +366,3 @@ class SamTool(BaseTool):
             self._drag_item.scene().removeItem(self._drag_item)
         self._drag_item = None
 
-
-def _min_area_rect(poly) -> list[float]:
-    """Tightest rotated box around a mask outline: [cx, cy, w, h, angle_rad]
-    (pixels, y down — the convention of yolo.predict's "obb")."""
-    import cv2
-    import numpy as np
-    (cx, cy), (w, h), angle = cv2.minAreaRect(np.asarray(poly, dtype=np.float32))
-    return [float(cx), float(cy), float(w), float(h), math.radians(angle)]

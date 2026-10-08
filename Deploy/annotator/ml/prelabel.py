@@ -17,11 +17,14 @@ from annotator.domain.label_class import LabelClass, SkeletonKeypoint
 from annotator.domain.project import DEFAULT_CLASS_NAME
 from annotator.ml.client import (BACKEND_EXITED, NOT_CONFIGURED, START_FAILED,
                                  STOPPED_ERR, MLBackend, Reply)
-from annotator.ml.convert import (ConvertOptions, ConvertReport, convert,
+from annotator.ml.convert import (ConvertOptions, ConvertReport, convert, min_area_rect,
                                   is_model_annotation)
 from annotator.ml.prelabel_settings import (EXISTING_REPLACE, EXISTING_SKIP,
                                             PrelabelSettings)
 from ml_backend import protocol
+
+# detector boxes going into these class types are outlined by SAM (sam_refine)
+SAM_REFINED_TYPES = ("polygon", "mask", "obb")
 
 # a reply of this type ends the whole run, not just one image
 _FATAL = {BACKEND_EXITED, NOT_CONFIGURED, START_FAILED, STOPPED_ERR,
@@ -50,6 +53,7 @@ class PrelabelSummary:
     fatal: str = ""
     seconds: float = 0.0
     changed_images: set = field(default_factory=set)
+    sam_outlined: int = 0                       # detector boxes turned into SAM outlines
 
 
 def make_skeleton(n_kpts: int) -> list[SkeletonKeypoint]:
@@ -119,10 +123,17 @@ class PrelabelRunner(QObject):
         return self._running
 
     def start(self, images: list[str], settings: PrelabelSettings,
-              mapping: dict[int, LabelClass | None], existing: str | None = None) -> None:
-        """Process `images` with settings.model; `existing` overrides settings.existing."""
+              mapping: dict[int, LabelClass | None], existing: str | None = None,
+              sam_model: str | None = None) -> None:
+        """Process `images` with settings.model; `existing` overrides settings.existing.
+        With settings.sam_refine, detector boxes of polygon / mask / obb classes
+        are outlined by SAM (`sam_model`, default: the one in ML Settings)."""
         if self._running:
             return
+        self._sam_model = ""
+        if settings.sam_refine:
+            from annotator.ml import config
+            self._sam_model = sam_model if sam_model is not None else config.sam_model()
         self._images = list(images)
         self._settings = settings
         self._existing = existing or settings.existing
@@ -139,6 +150,10 @@ class PrelabelRunner(QObject):
             self._params["imgsz"] = settings.imgsz
         if not self._mapping:
             self.summary.fatal = "No model class is mapped to a project class."
+            QTimer.singleShot(0, self._finish)
+            return
+        if settings.sam_refine and not (self._sam_model and Path(self._sam_model).is_file()):
+            self.summary.fatal = "SAM outlines are on, but no SAM model is chosen (ML Settings)."
             QTimer.singleShot(0, self._finish)
             return
         QTimer.singleShot(0, self._next)
@@ -173,20 +188,65 @@ class PrelabelRunner(QObject):
         if not self._running:
             return
         if not r.ok:
-            if r.error_type in _FATAL:
-                if r.error_type == protocol.CANCELLED:
-                    self._cancel = True
-                else:
-                    self.summary.fatal = r.message
-                self._finish()
+            if self._failed(path, r):
                 return
-            self.summary.failed += 1
-            if len(self.summary.errors) < 5:
-                self.summary.errors.append(f"{Path(path).name}: {r.message}")
         else:
+            boxes = self._boxes_for_sam(r.result)
+            if boxes:                          # second step for this image: SAM outlines
+                self._rid = self._backend.request(
+                    "sam.boxes", {"model": self._sam_model, "image": path,
+                                  "boxes": [b for _, b in boxes]},
+                    on_done=lambda sr, p=path, res=r.result, b=boxes: self._on_sam(p, res, b, sr))
+                return
             self._apply(path, r.result)
         self._advance(path)
         QTimer.singleShot(0, self._next)       # never recurse: thousands of images
+
+    def _failed(self, path: str, r: Reply) -> bool:
+        """Count a failed reply; True when it ended the whole run."""
+        if r.error_type in _FATAL:
+            if r.error_type == protocol.CANCELLED:
+                self._cancel = True
+            else:
+                self.summary.fatal = r.message
+            self._finish()
+            return True
+        self.summary.failed += 1
+        if len(self.summary.errors) < 5:
+            self.summary.errors.append(f"{Path(path).name}: {r.message}")
+        return False
+
+    def _boxes_for_sam(self, result: dict) -> list[tuple[int, list[float]]]:
+        """(detection index, box) of a detector's detections that go into
+        polygon / mask / obb classes — SAM turns them into outlines."""
+        if not self._sam_model or result.get("task") != "detect":
+            return []
+        out = []
+        for i, det in enumerate(result.get("detections", [])):
+            lc = self._mapping.get(int(det["cls"]))
+            if lc is not None and lc.annotation_type in SAM_REFINED_TYPES:
+                out.append((i, [float(v) for v in det["box"]]))
+        return out
+
+    def _on_sam(self, path: str, result: dict, boxes: list, r: Reply) -> None:
+        self._rid = None
+        if not self._running:
+            return
+        if not r.ok:
+            if self._failed(path, r):
+                return
+        else:
+            dets = result["detections"]
+            for (i, _), out in zip(boxes, r.result["results"]):
+                if not out["polygons"]:
+                    continue                   # SAM found nothing: the plain box stays
+                dets[i]["polygons"] = out["polygons"]
+                if self._mapping[int(dets[i]["cls"])].annotation_type == "obb":
+                    dets[i]["obb"] = min_area_rect(out["polygons"][0])
+                self.summary.sam_outlined += 1
+            self._apply(path, result)
+        self._advance(path)
+        QTimer.singleShot(0, self._next)
 
     def _apply(self, path: str, result: dict) -> None:
         existing = self._ctrl.annotations_for(path)

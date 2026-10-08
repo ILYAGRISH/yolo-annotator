@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 
 from PyQt6.QtCore import QEventLoop, Qt, QTimer
-from PyQt6.QtWidgets import (QAbstractItemView, QButtonGroup, QComboBox, QDialog,
+from PyQt6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComboBox, QDialog,
                              QDoubleSpinBox, QFileDialog, QFormLayout, QGroupBox,
                              QHBoxLayout, QHeaderView, QLabel, QLineEdit,
                              QMessageBox, QProgressBar, QPushButton, QRadioButton, QTableWidget,
@@ -20,7 +20,18 @@ from annotator.ml.prelabel_settings import (EXISTING_ADD, EXISTING_REPLACE,
 from annotator.ml.strings import reason, t
 
 _OK, _BAD = "#3aa655", "#d9534f"
-_CREATE = "__create__"
+_CREATE = "__create__:"          # "+ new class" entries carry "__create__:<annotation type>"
+# "+ new class" types offered per model task (the first is the natural one)
+_NEW_TYPES = {"detect": ["bbox", "polygon", "mask", "obb"],   # polygon / mask / obb: via SAM outlines
+              "segment": ["polygon", "mask", "bbox"],
+              "obb": ["obb", "polygon"],
+              "pose": ["keypoints"],
+              "classify": ["classification"]}
+_OUTLINE_TYPES = ("polygon", "mask", "obb")   # a detector fills them with rectangles unless SAM outlines
+
+
+def _marked(data) -> bool:
+    return isinstance(data, str) and data.startswith(_CREATE)
 _HEADER = "__header__"
 _IMGSZ = [0, 320, 480, 640, 800, 960, 1024, 1280, 1536]
 _SPLITS = ["train", "val", "test"]
@@ -110,6 +121,15 @@ class PrelabelDialog(QDialog):
         form.addRow(t("pl_iou"), self._iou)
         form.addRow(t("pl_imgsz"), self._imgsz)
         form.addRow(t("pl_simplify"), self._simplify)
+        self._sam_refine = QCheckBox(t("pl_sam_refine"))
+        self._sam_refine.setToolTip(t("pl_sam_refine_tip"))
+        self._sam_refine.toggled.connect(self._on_sam_refine)
+        form.addRow("", self._sam_refine)
+        self._sam_hint = QLabel(t("pl_sam_hint"))
+        self._sam_hint.setWordWrap(True)
+        self._sam_hint.setStyleSheet("color:#e08a1e;")
+        self._sam_hint.setVisible(False)
+        form.addRow("", self._sam_hint)
         root.addWidget(g)
 
         g = QGroupBox(t("pl_grp_images"))
@@ -170,6 +190,9 @@ class PrelabelDialog(QDialog):
         self._iou.setValue(s.iou)
         self._imgsz.setCurrentIndex(max(0, self._imgsz.findData(s.imgsz)))
         self._simplify.setValue(s.simplify_px)
+        self._sam_refine.blockSignals(True)
+        self._sam_refine.setChecked(s.sam_refine)
+        self._sam_refine.blockSignals(False)
         self._scope.setCurrentIndex(max(0, self._scope.findData(s.scope)))
         for b in self._existing.buttons():
             b.setChecked(b.property("key") == s.existing)
@@ -182,6 +205,7 @@ class PrelabelDialog(QDialog):
         s.iou = round(self._iou.value(), 2)
         s.imgsz = int(self._imgsz.currentData())
         s.simplify_px = self._simplify.value()
+        s.sam_refine = self._sam_refine.isChecked()
         s.scope = self._scope.currentData()
         checked = self._existing.checkedButton()
         s.existing = checked.property("key") if checked else EXISTING_SKIP
@@ -235,6 +259,41 @@ class PrelabelDialog(QDialog):
         self._fill_table()
         self._set_ready(True)
 
+    # ── SAM outlines (detector models) ────────────────────────────────────────
+
+    def _update_sam_refine(self):
+        is_detector = bool(self._info) and self._info.get("task") == "detect"
+        self._sam_refine.setEnabled(is_detector and not self._runner.running)
+
+    def _update_sam_hint(self):
+        """A detector puts rectangles into polygon / mask / obb classes unless
+        SAM outlines them — say so when such a class is chosen."""
+        if not self._info or self._info.get("task") != "detect" or self._sam_refine.isChecked():
+            self._sam_hint.setVisible(False)
+            return
+        outline = False
+        for v in self._state():
+            if _marked(v):
+                outline |= v[len(_CREATE):] in _OUTLINE_TYPES
+            elif isinstance(v, int):
+                lc = self._project.get_class(v)
+                outline |= lc is not None and lc.annotation_type in _OUTLINE_TYPES
+        self._sam_hint.setVisible(outline)
+
+    def _on_sam_refine(self, on: bool):
+        self._update_sam_hint()
+        if not on:
+            return
+        from annotator.ml import config
+        if config.sam_model() and Path(config.sam_model()).is_file():
+            return
+        path, _ = QFileDialog.getOpenFileName(self, t("sam_pick"), str(Path.home()),
+                                              "SAM (*.pt);;All files (*)")
+        if path:
+            config.set_sam_model(str(Path(path)))
+        else:
+            self._sam_refine.setChecked(False)
+
     # ── class mapping ─────────────────────────────────────────────────────────
 
     def _fill_table(self, choices: dict | None = None):
@@ -249,7 +308,7 @@ class PrelabelDialog(QDialog):
         for mc in info["classes"]:
             if mc["id"] in saved:                            # remembered choice, if still valid
                 choice = saved[mc["id"]]
-                if choice != _CREATE and not any(c.id == choice for c in classes):
+                if not _marked(choice) and not any(c.id == choice for c in classes):
                     choice = None
             else:                                            # same name, compatible type
                 choice = next((c.id for c in classes if c.name.lower() == mc["name"].lower()), None)
@@ -283,7 +342,8 @@ class PrelabelDialog(QDialog):
             for c in classes:
                 if c.id not in used or c.id == choice:
                     combo.addItem(_class_label(c), c.id)
-            combo.addItem(t("pl_create", name=mc["name"], type=default_class_type(task)), _CREATE)
+            for kind in _NEW_TYPES.get(task, [default_class_type(task)]):
+                combo.addItem(t("pl_create", name=mc["name"], type=kind), _CREATE + kind)
             taken = [c for c in classes if c.id in used and c.id != choice]
             if taken:
                 combo.insertSeparator(combo.count())
@@ -323,7 +383,7 @@ class PrelabelDialog(QDialog):
         return [r for r in range(self._table.rowCount()) if not self._table.isRowHidden(r)]
 
     def _marked_rows(self) -> list[int]:
-        return [r for r in range(self._table.rowCount()) if self._combo(r).currentData() == _CREATE]
+        return [r for r in range(self._table.rowCount()) if _marked(self._combo(r).currentData())]
 
     def _create_selected(self):
         """Create the classes marked "+ new class" in their rows."""
@@ -336,7 +396,8 @@ class PrelabelDialog(QDialog):
     def _create_missing(self):
         """Every row in the list (with a search: the rows found) that is
         "skip" or marked "+ new class"."""
-        rows = [r for r in self._visible_rows() if self._combo(r).currentData() in (None, _CREATE)]
+        rows = [r for r in self._visible_rows()
+                if self._combo(r).currentData() is None or _marked(self._combo(r).currentData())]
         if not rows:
             self._show_result(t("pl_nothing_missing"))
             return
@@ -352,13 +413,16 @@ class PrelabelDialog(QDialog):
         info = self._info
         if not info or self._runner.running or not rows:
             return
-        choices = {mc["id"]: v for mc, v in zip(info["classes"], self._state())}
+        state = self._state()
+        choices = {mc["id"]: v for mc, v in zip(info["classes"], state)}
         placeholder = unused_placeholder(
             self._ctrl, keep_ids={v for v in choices.values() if isinstance(v, int)})
         kpt = (info.get("kpt_shape") or [None])[0]
         model_classes = [info["classes"][r] for r in rows]
+        kinds = [state[r][len(_CREATE):] if _marked(state[r]) else default_class_type(info["task"])
+                 for r in rows]
         created = create_classes(self._ctrl,
-                                 [(mc["name"], default_class_type(info["task"])) for mc in model_classes],
+                                 [(mc["name"], kind) for mc, kind in zip(model_classes, kinds)],
                                  kpt_count=kpt, replace=placeholder)
         for mc, lc in zip(model_classes, created):
             choices[mc["id"]] = lc.id
@@ -376,10 +440,11 @@ class PrelabelDialog(QDialog):
             return
         state = self._state()
         text = t("pl_mapped", n=sum(1 for v in state if isinstance(v, int)), total=len(state))
-        marked = state.count(_CREATE)
+        marked = sum(1 for v in state if _marked(v))
         if marked:
             text += t("pl_marked", n=marked)
         self._mapped_lbl.setText(text)
+        self._update_sam_hint()
 
     def _resolve_mapping(self) -> dict:
         """Create the classes still marked "+ new class", then
@@ -458,6 +523,7 @@ class PrelabelDialog(QDialog):
     def _set_ready(self, ready: bool):
         for w in (self._cur_btn, self._run_btn, self._create_btn, self._create_sel_btn):
             w.setEnabled(ready)
+        self._update_sam_refine()
 
     def _set_running(self, running: bool, total: int):
         self._progress.setVisible(running)
@@ -472,6 +538,8 @@ class PrelabelDialog(QDialog):
             w.setEnabled(not running)
         for b in self._existing.buttons():
             b.setEnabled(not running)
+        is_detector = bool(self._info) and self._info.get("task") == "detect"
+        self._sam_refine.setEnabled(is_detector and not running)
 
     def done(self, result: int):
         if self._runner.running:                   # closing stops the run (results so far stay)
@@ -497,6 +565,7 @@ def summary_text(s: PrelabelSummary) -> tuple[str, bool]:
     if s.fatal:
         return f"{t('error')}: {s.fatal}", True
     lines = [t("pl_done", sec=s.seconds, processed=s.processed, added=s.added)
+             + (t("pl_sam_outlined", n=s.sam_outlined) if s.sam_outlined else "")
              + (t("pl_replaced", n=s.replaced) if s.replaced else "")]
     if s.skipped_existing:
         lines.append(t("pl_skipped_existing", n=s.skipped_existing))

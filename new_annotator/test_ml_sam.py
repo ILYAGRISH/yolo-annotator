@@ -62,6 +62,7 @@ from annotator.exporters.yolo_obb import _format_obb
 from annotator.ml import config
 from annotator.ml.client import Reply
 import annotator.ui.main_window as mw
+from annotator.controller.project_controller import ProjectController
 
 W, H = 200, 100
 LEFT, RIGHT = Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton
@@ -325,6 +326,220 @@ if ml_py and sam_model:
     be.stop()
 else:
     print("  (skipped: set ML_TEST_PYTHON and ML_TEST_SAM_MODEL)")
+
+# ═════════════════════════════════════════════════════════════════════════════
+section("6. Boxes -> outlines: helpers")
+# ═════════════════════════════════════════════════════════════════════════════
+from annotator.domain.annotation import Annotation
+from annotator.ml.convert import is_model_annotation
+from annotator.ml.prelabel import PrelabelRunner
+from annotator.ml.prelabel_settings import EXISTING_ADD, PrelabelSettings
+from annotator.ml.sam_boxes import FROM_BOX, SamBoxRunner, boxes_to_outline, pixel_box
+from annotator.ml.sam_boxes_dialog import SamBoxesDialog, summary_text as box_summary
+
+bx = Annotation.new(0, AnnotationType.BBOX, {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4})
+check("bbox -> pixel box", [round(v, 3) for v in pixel_box(bx, W, H)] == [20.0, 20.0, 80.0, 60.0])
+ob = Annotation.new(0, AnnotationType.OBB, {"cx": 0.5, "cy": 0.5, "w": 0.2, "h": 0.2, "angle_deg": 90})
+check("rotated OBB -> box around its corners (pixels)",
+      [round(v, 3) for v in pixel_box(ob, W, H)] == [90.0, 30.0, 110.0, 70.0])
+done = Annotation.new(1, AnnotationType.SEGMENT, {"points": [[0, 0], [1, 0], [1, 1]]})
+done.meta[FROM_BOX] = bx.id
+other = Annotation.new(0, AnnotationType.BBOX, {"x": 0.5, "y": 0.5, "w": 0.1, "h": 0.1})
+check("boxes already outlined into the target class are skipped",
+      boxes_to_outline([bx, done, other, ob], 0, 1) == [other, ob])
+check("... but not for another target class", boxes_to_outline([bx, done, other, ob], 0, 2) == [bx, other, ob])
+
+
+class FakeBoxes(FakeSam):
+    """sam.boxes: a polygon inside every box (none for boxes narrower than 5 px);
+    yolo.predict: a detector with two boxes (class 0 and 1)."""
+    def request(self, method, params=None, on_done=None, on_progress=None):
+        if method == "sam.boxes":
+            self._n += 1
+            rid = self._n
+            self.requests.append((method, params))
+            res = []
+            for x1, y1, x2, y2 in params["boxes"]:
+                if x2 - x1 < 5:
+                    res.append({"score": 0.0, "box": None, "polygons": []})
+                    continue
+                poly = [[x1 + 8, y1], [x2, y1 + 10], [x2 - 8, y2], [x1 + 8, y2],
+                        [x1, (y1 + y2) / 2]]                      # a pentagon
+                res.append({"score": 0.88, "box": [x1, y1, x2, y2], "polygons": [poly]})
+            answer = ({"width": W, "height": H, "ms": 5.0, "embed_ms": 0.0, "results": res}, None)
+            QTimer.singleShot(self.delay, lambda: on_done(Reply(rid, *answer)))
+            return rid
+        if method == "yolo.predict":
+            self._n += 1
+            rid = self._n
+            self.requests.append((method, params))
+            answer = ({"width": W, "height": H, "task": "detect", "ms": 1.0, "classification": [],
+                       "detections": [{"cls": 0, "conf": 0.9, "box": [20, 20, 80, 60]},
+                                      {"cls": 1, "conf": 0.8, "box": [120, 10, 180, 90]}]}, None)
+            QTimer.singleShot(self.delay, lambda: on_done(Reply(rid, *answer)))
+            return rid
+        return super().request(method, params, on_done, on_progress)
+
+
+bctrl = ProjectController()
+bproj = bctrl.create_project("boxes", _TMP / "boxes.annproj")
+car = bproj.classes[0]
+car.name, car.annotation_type = "car", "bbox"
+car_poly = bctrl.add_class("car_poly")
+car_poly.annotation_type = "polygon"
+car_rot = bctrl.add_class("car_rot")
+car_rot.annotation_type = "obb"
+bpaths = []
+for i in range(2):
+    p = _TMP / f"b{i}.png"
+    Image.new("RGB", (W, H)).save(p)
+    bpaths.append(str(p))
+bctrl.add_images_from_paths(bpaths)
+bpaths = [r.path for r in bproj.images]
+bctrl.set_image(bpaths[0])
+bctrl.add_annotation(Annotation.new(car.id, AnnotationType.BBOX, {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}))
+bctrl.add_annotation(Annotation.new(car.id, AnnotationType.BBOX, {"x": 0.6, "y": 0.1, "w": 0.01, "h": 0.5}))
+bctrl.apply_annotation_changes(bpaths[1], [Annotation.new(car.id, AnnotationType.BBOX,
+                                                         {"x": 0.5, "y": 0.5, "w": 0.3, "h": 0.3})], [])
+
+# ═════════════════════════════════════════════════════════════════════════════
+section("7. Boxes -> outlines: runner")
+# ═════════════════════════════════════════════════════════════════════════════
+fb = FakeBoxes(delay=5)
+brun = SamBoxRunner(fb, bctrl)
+got = []
+brun.finished.connect(got.append)
+
+
+def run_boxes(target, delete=False, images=None):
+    got.clear()
+    brun.start(bpaths if images is None else images, car, target, str(model_file), delete_source=delete)
+    wait(lambda: got)
+    return got[0] if got else None
+
+
+undo_before = bctrl.undo_stack.count()
+s = run_boxes(car_poly)
+new0 = [a for a in bctrl.current_annotations if a.class_id == car_poly.id]
+check("every box outlined into the polygon class (the thin one: SAM found nothing)",
+      s is not None and s.images == 2 and s.outlined == 2 and s.empty == 1)
+check("outlines are model annotations that remember their box",
+      len(new0) == 1 and is_model_annotation(new0[0]) and new0[0].meta["confidence"] == 0.88
+      and new0[0].meta[FROM_BOX] in {a.id for a in bctrl.current_annotations if a.class_id == car.id}
+      and new0[0].meta["tool"] == "sam")
+check("the other image changed on disk", len([a for a in bctrl.annotations_for(bpaths[1])
+                                              if a.class_id == car_poly.id]) == 1)
+check("current image: one undo step", bctrl.undo_stack.count() == undo_before + 1)
+s = run_boxes(car_poly)
+check("second run: boxes already outlined are skipped", s.outlined == 0 and s.images == 1 and s.empty == 1)
+s = run_boxes(car_rot, delete=True, images=[bpaths[1]])
+rot = [a for a in bctrl.annotations_for(bpaths[1]) if a.class_id == car_rot.id]
+check("OBB target: a rotated box; the outlined boxes deleted on request",
+      s.outlined == 1 and s.removed == 1 and len(rot) == 1 and rot[0].ann_type == AnnotationType.OBB
+      and not [a for a in bctrl.annotations_for(bpaths[1]) if a.class_id == car.id])
+text, bad = box_summary(s)
+check("summary text", not bad and "1" in text)
+s = run_boxes(car_poly, images=[])
+check("no images -> nothing to do", s.images == 0 and "" != box_summary(s)[0])
+got.clear()
+brun.start(bpaths, car, car_poly, str(_TMP / "missing.pt"))
+wait(lambda: got)
+check("no SAM model -> clear error", got and got[0].fatal and box_summary(got[0])[1])
+
+# ═════════════════════════════════════════════════════════════════════════════
+section("8. Boxes -> outlines: dialog and menu")
+# ═════════════════════════════════════════════════════════════════════════════
+config.set_sam_model(str(model_file))
+dlg = SamBoxesDialog(fb, SamBoxRunner(fb, bctrl), bctrl, lambda: list(bpaths))
+srcs = [dlg._source.itemData(i) for i in range(dlg._source.count())]
+tgts = [dlg._target.itemData(i) for i in range(dlg._target.count())]
+check("source list: bbox / obb classes", srcs == [car.id, car_rot.id])
+check("target list: polygon / mask / obb classes + two '+ new class' entries",
+      tgts[:2] == [car_poly.id, car_rot.id] and tgts[2:] == ["__new__:polygon", "__new__:mask"])
+check("scope 'current image' counts one image", "1" in dlg._count_lbl.text())
+check("default target: the class named after the boxes (car -> car_poly)",
+      dlg._target.currentData() == car_poly.id)
+dlg._source.setCurrentIndex(dlg._source.findData(car_rot.id))
+check("... else '+ new class', never an unrelated class",
+      dlg._target.currentData() == "__new__:polygon")
+dlg._source.setCurrentIndex(dlg._source.findData(car.id))
+dlg._target.setCurrentIndex(dlg._target.findData("__new__:mask"))
+n_cls = len(bproj.classes)
+dlg._run()
+check("'+ new class' creates the target class and runs",
+      wait(lambda: not dlg._runner.running and dlg._stop_btn.isHidden())
+      and len(bproj.classes) == n_cls + 1 and bproj.classes[-1].name == "car_mask"
+      and bproj.classes[-1].annotation_type == "mask")
+check("masks added on the current image",
+      any(a.ann_type == AnnotationType.MASK for a in bctrl.current_annotations)
+      and "1" in dlg._result.text())
+dlg.done(0)
+check("ML menu has the command", win._ml._act_sam_boxes.text() != "")
+
+# ═════════════════════════════════════════════════════════════════════════════
+section("9. Pre-labelling: outlines via SAM")
+# ═════════════════════════════════════════════════════════════════════════════
+pctrl = ProjectController()
+pproj = pctrl.create_project("refine", _TMP / "refine.annproj")
+person = pproj.classes[0]
+person.name, person.annotation_type = "person", "polygon"
+truck = pctrl.add_class("truck")
+truck.annotation_type = "bbox"
+pimg = _TMP / "refine.png"
+Image.new("RGB", (W, H)).save(pimg)
+pctrl.add_images_from_paths([str(pimg)])
+ppath = pproj.images[0].path
+fr = FakeBoxes(delay=5)
+prun = PrelabelRunner(fr, pctrl)
+pdone = []
+prun.finished.connect(pdone.append)
+st = PrelabelSettings(model=str(model_file), sam_refine=True)
+prun.start([ppath], st, {0: person, 1: truck}, EXISTING_ADD, sam_model=str(model_file))
+wait(lambda: pdone)
+anns = pctrl.annotations_for(ppath)
+poly = next((a for a in anns if a.class_id == person.id), None)
+check("detector box into a polygon class -> SAM outline (not a 4-point rectangle)",
+      poly is not None and len(poly.data["points"]) == 5)
+check("box class stays a plain box; only polygon/mask/obb boxes go to SAM",
+      any(a.class_id == truck.id and a.ann_type == AnnotationType.BBOX for a in anns)
+      and [p["boxes"] for m, p in fr.requests if m == "sam.boxes"] == [[[20.0, 20.0, 80.0, 60.0]]])
+check("summary counts the SAM outlines", pdone and pdone[0].sam_outlined == 1)
+pdone.clear()
+prun.start([ppath], PrelabelSettings(model=str(model_file), sam_refine=True), {0: person},
+           EXISTING_ADD, sam_model="")
+wait(lambda: pdone)
+check("outlines on but no SAM model -> clear error", pdone and "SAM" in pdone[0].fatal)
+pdone.clear()
+fr.requests.clear()
+prun.start([ppath], PrelabelSettings(model=str(model_file)), {0: person}, EXISTING_ADD)
+wait(lambda: pdone)
+check("outlines off -> no SAM request", not [m for m, _ in fr.requests if m == "sam.boxes"])
+
+# ═════════════════════════════════════════════════════════════════════════════
+section("10. Real SAM boxes (optional)")
+# ═════════════════════════════════════════════════════════════════════════════
+if ml_py and sam_model:
+    from annotator.ml.client import MLBackend
+    be = MLBackend(python=ml_py)
+    out = {}
+    be.request("sam.boxes", {"model": sam_model, "image": str(bus),
+                             "boxes": [[50, 230, 800, 750], [220, 400, 350, 900], [0, 0, 2, 2]]},
+               on_done=lambda r: out.setdefault("r", r))
+    wait(lambda: "r" in out, 180)
+    r = out.get("r")
+    areas = []
+    if r is not None and r.ok:
+        for res in r.result["results"]:
+            b = res["box"]
+            areas.append(0 if b is None else (b[2] - b[0]) * (b[3] - b[1]))
+    check("real SAM boxes: one result per box, in order (bus > person)",
+          r is not None and r.ok and len(areas) == 3 and areas[0] > areas[1] > 0)
+    if r is not None and r.ok:
+        print(f"      3 boxes in {r.result['ms']} ms (+{r.result['embed_ms']} ms encode)")
+    be.stop()
+else:
+    print("  (skipped: set ML_TEST_PYTHON and ML_TEST_SAM_MODEL)")
+
 
 win._ml.shutdown()
 print(f"\n{'=' * 60}\n  {_pass} passed, {_fail} failed\n{'=' * 60}")

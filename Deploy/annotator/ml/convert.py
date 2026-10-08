@@ -214,6 +214,15 @@ def _pixel_polygons(det: dict, W: int, H: int) -> list[list[list[float]]]:
     return [[[x1, y1], [x2, y1], [x2, y2], [x1, y2]]]
 
 
+def min_area_rect(poly) -> list[float]:
+    """Tightest rotated box around an outline: [cx, cy, w, h, angle_rad]
+    (pixels, y down — the convention of yolo.predict's "obb")."""
+    import cv2
+    import numpy as np
+    (cx, cy), (w, h), angle = cv2.minAreaRect(np.asarray(poly, dtype=np.float32))
+    return [float(cx), float(cy), float(w), float(h), math.radians(angle)]
+
+
 def _simplify(poly: list[list[float]], tol: float) -> list[list[float]]:
     if tol <= 0 or len(poly) <= 4:
         return poly
