@@ -145,7 +145,11 @@ class AnnotationsPanel(QWidget):
                 sub = ann.data.get("subclass", "")
                 sub_str = f"  · {sub}" if sub else self._geometry_hint(ann)
                 label = f"{name}  [{ann.ann_type.value}]{sub_str}"
-            self._list.addItem(QListWidgetItem(_icon(color), label))
+            item = QListWidgetItem(_icon(color), label + self._source_hint(ann))
+            if ann.meta.get("source") == "model":
+                item.setToolTip(f"model: {ann.meta.get('model', '?')}  ·  "
+                                f"confidence {ann.meta.get('confidence', '?')}")
+            self._list.addItem(item)
         self._list.blockSignals(False)
         self._rebuild_attr_form()
 
@@ -306,6 +310,14 @@ class AnnotationsPanel(QWidget):
         if t == AnnotationType.POSE:
             return f"  ({len(ann.data.get('keypoints', []))} kpts)"
         return ""
+
+    @staticmethod
+    def _source_hint(ann: Annotation) -> str:
+        """'  · 🤖 0.87' for annotations made by a model (meta.source == "model")."""
+        if ann.meta.get("source") != "model":
+            return ""
+        conf = ann.meta.get("confidence")
+        return f"  · 🤖 {conf:.2f}" if isinstance(conf, (int, float)) else "  · 🤖"
 
     def _on_row(self, row: int):
         if 0 <= row < len(self._annotations):

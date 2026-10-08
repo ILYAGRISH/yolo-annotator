@@ -320,6 +320,40 @@ class ProjectController(QObject):
         finally:
             self._undo_stack.endMacro()
 
+    # ── changes on ANY image (batch tools, extensions) ────────────────────────
+
+    def annotations_for(self, image_path: str) -> list[Annotation]:
+        """Annotations of any project image (the current one from memory)."""
+        if image_path == self._current_image:
+            return list(self._annotations)
+        if not self._project or not self._project.project_path:
+            return []
+        return ProjectStore.load_annotations(self._project, image_path)
+
+    def apply_annotation_changes(self, image_path: str, add: list[Annotation],
+                                 remove_ids=(), text: str = "Change annotations") -> None:
+        """Remove `remove_ids` and add `add` on any image.
+
+        Current image: ONE undo step. Other images: written to disk at once,
+        YOLO labels refreshed — the undo stack only ever covers the current
+        image (it is cleared on image switch)."""
+        if not self._project or (not add and not remove_ids):
+            return
+        if image_path == self._current_image:
+            with self.edit_group(text):
+                for ann_id in remove_ids:
+                    self.delete_annotation(ann_id)
+                for ann in add:
+                    self.add_annotation(ann)
+            return
+        if not self._project.project_path:
+            return
+        drop = set(remove_ids)
+        anns = [a for a in ProjectStore.load_annotations(self._project, image_path)
+                if a.id not in drop] + list(add)
+        ProjectStore.save_annotations(self._project, image_path, anns)
+        self._export_yolo(image_path, anns)
+
     def select_annotation(self, ann_id: str):
         self.annotation_selected.emit(ann_id)
 

@@ -62,6 +62,20 @@ class MainWindow(QMainWindow):
         self._activate_tool("select")
         self._ml = self._install_ml()
 
+    @property
+    def controller(self) -> ProjectController:
+        return self._ctrl
+
+    def allowed_image_paths(self) -> list[str]:
+        """Project images this user may change: all of them for the leader (or
+        a single user), only the assigned ones for a multi-user client."""
+        project = self._ctrl.project
+        if project is None:
+            return []
+        paths = [r.path for r in project.images]
+        stems = self._images_panel.user_filter()
+        return paths if stems is None else [p for p in paths if Path(p).stem in stems]
+
     def _install_ml(self):
         """Optional ML extension (annotator/ml): menu + backend process.
         Any problem with it only disables ML — never the app."""

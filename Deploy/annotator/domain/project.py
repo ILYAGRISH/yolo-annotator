@@ -29,6 +29,8 @@ _DEFAULT_COLORS = [
     "#44FF99", "#FF4499", "#99FF44", "#4499FF",
 ]
 
+DEFAULT_CLASS_NAME = "object"   # the one class a new project starts with
+
 
 @dataclass
 class ImageRecord:
@@ -93,7 +95,7 @@ class Project:
         now = datetime.utcnow().isoformat()
         proj = cls(id=str(uuid.uuid4()), name=name,
                    created_at=now, modified_at=now)
-        proj.add_class("object")
+        proj.add_class(DEFAULT_CLASS_NAME)
         return proj
 
     # ── class management ──────────────────────────────────────────────────────

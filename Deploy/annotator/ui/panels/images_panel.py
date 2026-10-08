@@ -97,6 +97,9 @@ class ImagesPanel(QWidget):
         self._user_filter = allowed_stems
         self._refresh()
 
+    def user_filter(self) -> set[str] | None:
+        return self._user_filter
+
     def set_assignments(self, data: dict | None):
         """Update stem→assignee map shown in leader view. Pass None to clear."""
         if data is None:

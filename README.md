@@ -25,6 +25,7 @@ A desktop image annotation tool for preparing training datasets for computer vis
 - **9 annotation types**: bounding box, polygon, brush mask, semantic region, OBB, keypoints/pose, polyline, point, classification
 - **Semantic mode**: paint classes directly — the brush *is* the class, all strokes of a class merge into one region, every pixel belongs to at most one class
 - **Panoptic segmentation**: mark each class as *thing* (instances) or *stuff* (regions) and export both layers together
+- **Pre-labelling with your YOLO model**: detect / segment / OBB / pose / classify models label the current image (`Ctrl+L`) or the whole dataset; you review and fix. Runs in a separate ML process — PyTorch never enters the app
 - **12 export formats**: YOLO Detect / Segment / OBB / Pose / Point / Classify, COCO Instances (polygons or RLE), COCO Keypoints, COCO Panoptic, Pascal VOC, LabelMe JSON, Semantic Masks
 - **Import existing datasets**: load a labeled YOLO dataset (Detect / OBB / Segment / Point / Classify) into any open project — class names resolved automatically from `data.yaml` or `classes.txt`
 - **Multi-task export**: shared `images/`, separate label folders for parallel model training
@@ -112,11 +113,12 @@ cd new_annotator
 
 **Requirements:** Python 3.13+ · Windows (PyQt6)
 
-**Optional ML environment** (for model features — YOLO pre-labelling is coming next): `setup_ml_env.bat` creates a separate `.venv-ml` with PyTorch (CUDA build when an NVIDIA GPU is found, `--cpu` otherwise) and Ultralytics. Or point **ML → ML Settings…** at any existing Python / conda environment that has `ultralytics`. The annotator itself never imports PyTorch.
+**Optional ML environment** (for model features — YOLO pre-labelling): `setup_ml_env.bat` creates a separate `.venv-ml` with PyTorch (CUDA build when an NVIDIA GPU is found, `--cpu` otherwise) and Ultralytics. Or point **ML → ML Settings…** at any existing Python / conda environment that has `ultralytics`. The annotator itself never imports PyTorch.
 
 ## Changelog
 
 ### Unreleased
+- **Pre-labelling with your YOLO model** — **ML → Pre-label Dataset…** (`Ctrl+Shift+L`) runs any Ultralytics model (detect, segment, OBB, pose, classify) over all images or one split, with a progress bar and Stop; **Ctrl+L** pre-labels the current image (one Ctrl+Z undoes it). Model classes are mapped onto project classes automatically by name, by hand in a searchable table, or **created** with the right type — the selected ones or all missing at once (a 17-point pose model gets the COCO skeleton; the empty default `object` class of a new project is replaced, so class ids start at 0). The *target class* decides the geometry: a segmentation model can fill polygon **or** brush-mask classes, a detector box / OBB / point classes. Images that already have annotations can be skipped, have their earlier model annotations replaced (manual ones kept) or be added to. Model annotations are marked **🤖 0.87** (confidence) in the Annotations panel; **ML → Remove Model Annotations…** clears them on one image or everywhere. In multi-user projects only the images assigned to you are touched. ~25 ms per image on an RTX 5060 Ti
 - **ML backend (infrastructure)** — models will run in a **separate process with its own Python environment**, so PyTorch never enters the annotator and a crash or out-of-memory in a model cannot take the app down. New **ML** menu and **ML Settings…** dialog: choose the interpreter (`.venv-ml` by default, or any conda / venv with Ultralytics), **Check** it (Python, PyTorch, Ultralytics, GPU) and test-load a YOLO model (task + class list). Status-bar indicator *ML: off / ready / busy / error*. Off by default — nothing starts until you use it. `setup_ml_env.bat` creates `.venv-ml` (PyTorch with CUDA 12.8, verified on RTX 50xx)
 
 ### v1.6 — 2026-10-08
