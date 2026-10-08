@@ -118,7 +118,7 @@ cd new_annotator
 
 ## Changelog
 
-### Unreleased
+### v1.8 — 2026-10-08
 - **SAM — label by clicking** — new **✧ SAM** tool (`I`): click an object and Segment Anything (SAM 2.1, MobileSAM… via Ultralytics) outlines it; right-click excludes, drag gives a box hint, Backspace undoes a click, **Enter** accepts into the current class (one Ctrl+Z). The class type decides the result: polygon, brush mask, box, **tight rotated OBB** or point. The image is encoded once when opened, so every click takes ~20 ms on an RTX 5060 Ti. Choose the weights in **ML → ML Settings…** (or on first use); no new dependencies. SAM annotations are manual ones (no 🤖)
 - **SAM outlines for boxes** — **ML → Boxes → Outlines with SAM…** turns existing boxes of a class (drawn by hand or by a detector) into polygons, brush masks or tight rotated boxes of another class — one SAM pass per image for all its boxes; a second run skips boxes already outlined; the boxes can be kept or deleted. In **Pre-label Dataset** the new **Outlines via SAM** option lets a plain detector fill polygon / mask / OBB classes with real outlines
 - **Pre-label: choose the type of a new class** — «+ new class» offers every fitting type (a detector: bbox, polygon, mask, OBB)
