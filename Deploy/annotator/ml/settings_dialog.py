@@ -36,10 +36,11 @@ class MLSettingsDialog(QDialog):
         self._busy = False
         self._closed = False             # late replies after close are ignored
         self.setWindowTitle(t("dlg_title"))
-        self.resize(720, 640)
+        self.resize(720, 760)
         self._build()
         self._python_edit.setText(config.saved_python())
         self._model_edit.setText(config.test_model())
+        self._sam_edit.setText(config.sam_model())
         self._autostart.setChecked(config.autostart())
         self._update_env_hint()
         for line in backend.log_tail:
@@ -99,6 +100,28 @@ class MLSettingsDialog(QDialog):
         self._model_status.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         mv.addWidget(self._model_status)
         root.addWidget(model)
+
+        sam = QGroupBox(t("sam_grp"))
+        sv = QVBoxLayout(sam)
+        intro = QLabel(t("sam_intro"))
+        intro.setWordWrap(True)
+        intro.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        sv.addWidget(intro)
+        row = QHBoxLayout()
+        self._sam_edit = QLineEdit()
+        self._sam_edit.setPlaceholderText(t("sam_placeholder"))
+        row.addWidget(self._sam_edit, 1)
+        sbrowse = QPushButton(t("btn_browse"))
+        sbrowse.clicked.connect(self._browse_sam)
+        row.addWidget(sbrowse)
+        self._sam_btn = QPushButton(t("btn_load"))
+        self._sam_btn.clicked.connect(self._load_sam)
+        row.addWidget(self._sam_btn)
+        sv.addLayout(row)
+        self._sam_status = QLabel()
+        self._sam_status.setWordWrap(True)
+        sv.addWidget(self._sam_status)
+        root.addWidget(sam)
 
         logbox = QGroupBox(t("grp_log"))
         lv = QVBoxLayout(logbox)
@@ -209,6 +232,37 @@ class MLSettingsDialog(QDialog):
         self._model_status.setText(f"{head}\n{names}")
         self._model_status.setStyleSheet(f"color:{_OK};")
 
+    # ── SAM ───────────────────────────────────────────────────────────────────
+
+    def _browse_sam(self):
+        start = self._sam_edit.text().strip() or self._model_edit.text().strip() or str(Path.home())
+        path, _ = QFileDialog.getOpenFileName(self, t("sam_pick"), start, "SAM (*.pt);;All files (*)")
+        if path:
+            self._sam_edit.setText(str(Path(path)))
+            self._load_sam()
+
+    def _load_sam(self):
+        path = self._sam_edit.text().strip().strip('"')
+        if not path:
+            return
+        self._set_busy(True)
+        self._sam_status.setStyleSheet("")
+        self._sam_status.setText(t("loading"))
+        self._backend.set_python(self._typed_python())
+        self._backend.request("sam.load_model", {"path": path}, on_done=self._on_sam)
+
+    def _on_sam(self, r: Reply):
+        if self._closed:
+            return
+        self._set_busy(False)
+        if not r.ok:
+            self._show_error(self._sam_status, r)
+            return
+        res = r.result
+        self._sam_status.setText(t("sam_load_ok", device=res["device"], sec=res["load_seconds"],
+                                   cached=t("model_cached") if res["cached"] else ""))
+        self._sam_status.setStyleSheet(f"color:{_OK};")
+
     # ── helpers ───────────────────────────────────────────────────────────────
 
     def _show_error(self, label: QLabel, r: Reply):
@@ -219,6 +273,7 @@ class MLSettingsDialog(QDialog):
         self._busy = busy
         self._check_btn.setEnabled(not busy)
         self._load_btn.setEnabled(not busy)
+        self._sam_btn.setEnabled(not busy)
 
     def done(self, result: int):
         self._closed = True
@@ -226,6 +281,7 @@ class MLSettingsDialog(QDialog):
             config.set_saved_python(self._typed_python())
             config.set_autostart(self._autostart.isChecked())
             config.set_test_model(self._model_edit.text().strip())
+            config.set_sam_model(self._sam_edit.text().strip().strip('"'))
         # back to the saved interpreter; drop a process that runs another one
         # (it starts again, with the right one, on the next request)
         self._backend.set_python(None)

@@ -57,3 +57,14 @@ def test_model() -> str:
 
 def set_test_model(path: str) -> None:
     app_settings().setValue(_KEY_TEST_MODEL, path)
+
+
+_KEY_SAM_MODEL = "ml/sam_model"
+
+
+def sam_model() -> str:
+    return str(app_settings().value(_KEY_SAM_MODEL, "") or "")
+
+
+def set_sam_model(path: str) -> None:
+    app_settings().setValue(_KEY_SAM_MODEL, path.strip())

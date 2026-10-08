@@ -42,14 +42,20 @@ class MLExtension(QObject):
         self._quick = False                       # the running job came from Ctrl+L
         self.runner.finished.connect(self._on_quick_finished)
 
+        from annotator.ml.sam_tool import SamTool
+        self.sam_tool = SamTool(self.backend, config.sam_model, self._ask_sam_model)
+        register = getattr(window, "register_tool", None)
+        self._sam_act = register(self.sam_tool, t("tool_sam"), "I") if register else None
+
         self._menu = QMenu(window)
+        self._act_sam = self._action(self.activate_sam)
         self._act_image = self._action(self.prelabel_current_image, "Ctrl+L")
         self._act_dataset = self._action(self.open_prelabel, "Ctrl+Shift+L")
         self._act_remove = self._action(self.remove_model_annotations)
         self._act_settings = self._action(self.open_settings)
         self._act_restart = self._action(self.backend.restart)
         self._act_stop = self._action(self.backend.stop)
-        for a in (self._act_image, self._act_dataset, self._act_remove, None,
+        for a in (self._act_sam, None, self._act_image, self._act_dataset, self._act_remove, None,
                   self._act_settings, None, self._act_restart, self._act_stop):
             self._menu.addSeparator() if a is None else self._menu.addAction(a)
         self._menu.aboutToShow.connect(self._update_actions)
@@ -82,7 +88,11 @@ class MLExtension(QObject):
 
     def retranslate(self) -> None:
         self._menu.setTitle(t("menu_ml"))
-        for act, key in ((self._act_image, "act_prelabel_image"),
+        if self._sam_act is not None:
+            self._sam_act.setText(t("tool_sam"))
+            self._sam_act.setToolTip(t("sam_tip"))
+        for act, key in ((self._act_sam, "act_sam"),
+                         (self._act_image, "act_prelabel_image"),
                          (self._act_dataset, "act_prelabel_dataset"),
                          (self._act_remove, "act_remove_model"),
                          (self._act_settings, "act_settings"),
@@ -94,6 +104,24 @@ class MLExtension(QObject):
     def shutdown(self) -> None:
         self.runner.cancel()
         self.backend.stop()
+
+    # ── SAM ───────────────────────────────────────────────────────────────────
+
+    def activate_sam(self) -> None:
+        if hasattr(self._window, "activate_tool"):
+            self._window.activate_tool(self.sam_tool.name)
+
+    def _ask_sam_model(self) -> str:
+        """First use without a SAM model: pick the weights once (saved)."""
+        from pathlib import Path
+        from PyQt6.QtWidgets import QFileDialog
+        start = config.sam_model() or config.test_model() or str(Path.home())
+        path, _ = QFileDialog.getOpenFileName(self._window, t("sam_pick"), str(Path(start).parent)
+                                              if Path(start).suffix else start,
+                                              "SAM (*.pt);;All files (*)")
+        if path:
+            config.set_sam_model(str(Path(path)))
+        return str(Path(path)) if path else ""
 
     # ── pre-labelling ─────────────────────────────────────────────────────────
 

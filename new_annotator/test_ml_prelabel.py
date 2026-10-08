@@ -596,7 +596,9 @@ section("9. Real model (optional)")
 ml_py, seg_model = os.environ.get("ML_TEST_PYTHON"), os.environ.get("ML_TEST_SEG_MODEL")
 if ml_py and seg_model:
     from annotator.ml.client import MLBackend
-    bus = Path(ml_py).parent / "Lib" / "site-packages" / "ultralytics" / "assets" / "bus.jpg"
+    import shutil
+    bus = _TMP / "bus.jpg"            # a copy: auto-export must not write labels/ into site-packages
+    shutil.copy(Path(ml_py).parent / "Lib" / "site-packages" / "ultralytics" / "assets" / "bus.jpg", bus)
     rctrl = ProjectController()
     rproj = rctrl.create_project("real", _TMP / "real.annproj")
     person = rproj.classes[0]

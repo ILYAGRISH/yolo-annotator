@@ -340,6 +340,10 @@ class AnnotationsPanel(QWidget):
             self.edit_source_requested.emit(self._annotations[r].id)
 
     def _delete(self):
+        self.delete_selected()
+
+    def delete_selected(self):
+        """Ask to delete the annotation selected in the list (Delete key / button)."""
         r = self._list.currentRow()
         if 0 <= r < len(self._annotations):
             self.delete_requested.emit(self._annotations[r].id)

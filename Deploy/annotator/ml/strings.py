@@ -50,6 +50,38 @@ _EN = {
     "act_prelabel_image":   "Pre-label Current Image",
     "act_prelabel_dataset": "Pre-label Dataset…",
     "act_remove_model":     "Remove Model Annotations…",
+    "act_sam":              "SAM — Label by Clicking",
+    "tool_sam":             "✧ SAM",
+    "sam_tip":              "SAM [I]: click an object → mask. Left click — object, right click (after it) — "
+                            "remove a wrongly included part, drag — a box around it. Enter — accept into the "
+                            "current class, Backspace — undo the last click, Esc — clear.",
+    "sam_hint":             "SAM: left click — object · right click — remove a part from the mask · drag — box · "
+                            "Enter — accept · Backspace — undo click · Esc — clear",
+    "sam_grp":              "SAM — labelling by clicks",
+    "sam_intro":            "Segment Anything model for the SAM tool [I]. Recommended: "
+                            "sam2.1_b.pt (accurate) or sam2.1_t.pt (faster, also fine on a CPU). "
+                            "Download (one file): github.com/ultralytics/assets/releases — "
+                            "or in the ML environment: python -c \"from ultralytics.utils.downloads "
+                            "import attempt_download_asset as d; d('sam2.1_b.pt')\"",
+    "sam_placeholder":      "Path to a SAM model (.pt), e.g. D:\\Models\\sam2.1_b.pt",
+    "sam_pick":             "Choose a SAM model (sam2.1_b.pt, sam2.1_t.pt, mobile_sam.pt…)",
+    "sam_load_ok":          "SAM ready   ·   {device}   ·   {sec} s{cached}",
+    "sam_no_model":         "SAM: choose a SAM model (ML → ML Settings…)",
+    "sam_no_image":         "SAM: open an image first",
+    "sam_no_class":         "SAM: choose a class first",
+    "sam_bad_class":        "SAM: a «{type}» class can't be filled from a mask — choose a "
+                            "polygon, mask, box, OBB or point class",
+    "sam_busy":             "SAM: thinking…",
+    "sam_preparing":        "SAM: preparing the image…",
+    "sam_ready":            "SAM ready — click the object",
+    "sam_result":           "SAM: score {score:.2f} · {ms:.0f} ms — Enter to accept",
+    "sam_empty":            "SAM found nothing here — add a point or draw a box",
+    "sam_nothing":          "SAM: nothing to accept yet",
+    "sam_need_positive":    "SAM: right click only removes parts from a mask — first left-click "
+                            "the object (or drag a box around it)",
+    "sam_wait":             "SAM: wait for the mask to update",
+    "sam_added":            "SAM: added to «{name}»",
+    "sam_error":            "SAM error ({kind}): {message}",
     "pl_title":           "Pre-label with a YOLO model",
     "pl_grp_model":       "Model",
     "pl_grp_mapping":     "Classes: model → project",
@@ -157,6 +189,38 @@ _RU = {
     "act_prelabel_image":   "Разметить текущее изображение моделью",
     "act_prelabel_dataset": "Разметить датасет моделью…",
     "act_remove_model":     "Удалить разметку модели…",
+    "act_sam":              "SAM — разметка кликом",
+    "tool_sam":             "✧ SAM",
+    "sam_tip":              "SAM [I]: клик по объекту → маска. Левый клик — объект, правый (после него) — "
+                            "убрать лишнее, попавшее в маску, протянуть — рамка вокруг объекта. Enter — принять в "
+                            "текущий класс, Backspace — отменить последний клик, Esc — сбросить.",
+    "sam_hint":             "SAM: ЛКМ — объект · ПКМ — убрать лишнее из маски · протянуть — рамка · "
+                            "Enter — принять · Backspace — отменить клик · Esc — сбросить",
+    "sam_grp":              "SAM — разметка кликами",
+    "sam_intro":            "Модель Segment Anything для инструмента SAM [I]. Рекомендуется "
+                            "sam2.1_b.pt (точнее) или sam2.1_t.pt (быстрее, годится и для CPU). "
+                            "Скачать (один файл): github.com/ultralytics/assets/releases — "
+                            "или в ML-окружении: python -c \"from ultralytics.utils.downloads "
+                            "import attempt_download_asset as d; d('sam2.1_b.pt')\"",
+    "sam_placeholder":      "Путь к модели SAM (.pt), например D:\\Models\\sam2.1_b.pt",
+    "sam_pick":             "Выберите модель SAM (sam2.1_b.pt, sam2.1_t.pt, mobile_sam.pt…)",
+    "sam_load_ok":          "SAM готов   ·   {device}   ·   {sec} с{cached}",
+    "sam_no_model":         "SAM: выберите модель SAM (ML → Настройки ML…)",
+    "sam_no_image":         "SAM: сначала откройте изображение",
+    "sam_no_class":         "SAM: сначала выберите класс",
+    "sam_bad_class":        "SAM: класс типа «{type}» нельзя заполнить маской — выберите класс "
+                            "polygon, mask, bbox, obb или point",
+    "sam_busy":             "SAM: считаю…",
+    "sam_preparing":        "SAM: подготовка изображения…",
+    "sam_ready":            "SAM готов — кликните по объекту",
+    "sam_result":           "SAM: качество {score:.2f} · {ms:.0f} мс — Enter, чтобы принять",
+    "sam_empty":            "SAM ничего не нашёл — добавьте точку или обведите рамкой",
+    "sam_nothing":          "SAM: принимать пока нечего",
+    "sam_need_positive":    "SAM: правый клик только убирает лишнее из маски — сначала левый "
+                            "клик по объекту (или рамка вокруг него)",
+    "sam_wait":             "SAM: подождите, маска обновляется",
+    "sam_added":            "SAM: добавлено в «{name}»",
+    "sam_error":            "Ошибка SAM ({kind}): {message}",
     "pl_title":           "Предразметка YOLO-моделью",
     "pl_grp_model":       "Модель",
     "pl_grp_mapping":     "Классы: модель → проект",

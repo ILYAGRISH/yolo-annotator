@@ -26,6 +26,7 @@ A desktop image annotation tool for preparing training datasets for computer vis
 - **Semantic mode**: paint classes directly — the brush *is* the class, all strokes of a class merge into one region, every pixel belongs to at most one class
 - **Panoptic segmentation**: mark each class as *thing* (instances) or *stuff* (regions) and export both layers together
 - **Pre-labelling with your YOLO model**: detect / segment / OBB / pose / classify models label the current image (`Ctrl+L`) or the whole dataset; you review and fix. Runs in a separate ML process — PyTorch never enters the app
+- **SAM — label by clicking**: click an object and Segment Anything outlines it — into a polygon, mask, box or rotated box; ~20 ms per click on a GPU
 - **12 export formats**: YOLO Detect / Segment / OBB / Pose / Point / Classify, COCO Instances (polygons or RLE), COCO Keypoints, COCO Panoptic, Pascal VOC, LabelMe JSON, Semantic Masks
 - **Import existing datasets**: load a labeled YOLO dataset (Detect / OBB / Segment / Point / Classify) into any open project — class names resolved automatically from `data.yaml` or `classes.txt`
 - **Multi-task export**: shared `images/`, separate label folders for parallel model training
@@ -113,9 +114,13 @@ cd new_annotator
 
 **Requirements:** Python 3.13+ · Windows (PyQt6)
 
-**Optional ML environment** (for model features — YOLO pre-labelling): `setup_ml_env.bat` creates a separate `.venv-ml` with PyTorch (CUDA build when an NVIDIA GPU is found, `--cpu` otherwise) and Ultralytics. Or point **ML → ML Settings…** at any existing Python / conda environment that has `ultralytics`. The annotator itself never imports PyTorch.
+**Optional ML environment** (for model features — YOLO pre-labelling, SAM): `setup_ml_env.bat` creates a separate `.venv-ml` with PyTorch (CUDA build when an NVIDIA GPU is found, `--cpu` otherwise) and Ultralytics. Or point **ML → ML Settings…** at any existing Python / conda environment that has `ultralytics`. The annotator itself never imports PyTorch.
 
 ## Changelog
+
+### Unreleased
+- **SAM — label by clicking** — new **✧ SAM** tool (`I`): click an object and Segment Anything (SAM 2.1, MobileSAM… via Ultralytics) outlines it; right-click excludes, drag gives a box hint, Backspace undoes a click, **Enter** accepts into the current class (one Ctrl+Z). The class type decides the result: polygon, brush mask, box, **tight rotated OBB** or point. The image is encoded once when opened, so every click takes ~20 ms on an RTX 5060 Ti. Choose the weights in **ML → ML Settings…** (or on first use); no new dependencies. SAM annotations are manual ones (no 🤖)
+- **Fix** — the Delete key removed the selected annotation only with the Select tool; now it works with any tool (the annotation selected in the Annotations panel)
 
 ### v1.7.1 — 2026-10-08
 - **Fix — YOLO OBB export on non-square images**: rotated boxes were rotated in normalised coordinates, so their exported corners did not match the box drawn on the canvas (now rotated in pixels, as drawn); also in the auto-saved `labels/`
@@ -187,7 +192,7 @@ new_annotator/
 │   ├── tools/        ← annotation tools (base + built-in)
 │   ├── ui/           ← PyQt6 widgets, panels, dialogs
 │   ├── controller/   ← ProjectController (MVC)
-│   └── ml/           ← ML extension: backend client, ML menu, settings (optional)
+│   └── ml/           ← ML extension: backend client, ML menu, pre-labelling, SAM tool (optional)
 ├── ml_backend/       ← ML server, runs in .venv-ml (PyTorch, Ultralytics) as a child process
 ├── plugins/          ← custom tool plugins (*.py)
 ├── docs/             ← About.md, hotkeys.md, Test_Help.md

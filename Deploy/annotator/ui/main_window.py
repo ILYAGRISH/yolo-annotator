@@ -257,6 +257,7 @@ class MainWindow(QMainWindow):
 
         grp = QActionGroup(self)
         grp.setExclusive(True)
+        self._tool_group = grp
 
         def _tool_action(icon_text: str, tool_name: str, shortcut: str) -> QAction:
             act = QAction(icon_text, self)
@@ -278,7 +279,7 @@ class MainWindow(QMainWindow):
         self._act_brush      = _tool_action("⬤ Brush",    "brush",      "M")
         self._act_semantic   = _tool_action("▦ Semantic", "semantic_brush", "S")
 
-        tb.addSeparator()
+        self._tools_end = tb.addSeparator()          # register_tool() inserts before it
         act_fit = QAction("⊞ Fit  [F]", self)
         act_fit.triggered.connect(self._view.fit_scene)
         tb.addAction(act_fit)
@@ -310,9 +311,17 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Escape"), self,
                   lambda: self._active_tool_obj().on_key_press(
                       Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier))
-        QShortcut(QKeySequence("Delete"), self,
-                  lambda: self._active_tool_obj().on_key_press(
-                      Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier))
+        QShortcut(QKeySequence("Delete"), self, self._on_delete_key)
+
+    def _on_delete_key(self):
+        """Delete removes the selected annotation whatever tool is active:
+        Select deletes its canvas selection, with any other tool the one
+        selected in the Annotations panel goes."""
+        tool = self._active_tool_obj()
+        if isinstance(tool, SelectTool):
+            tool.on_key_press(Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier)
+        else:
+            self._annotations_panel.delete_selected()
 
     def _set_language(self, lang: str):
         set_language(lang)
@@ -562,7 +571,8 @@ class MainWindow(QMainWindow):
             else:
                 default_tool = ANNOTATION_TYPE_DEFAULT_TOOL.get(lc.annotation_type)
                 cur = self._current_tool_name()
-                if default_tool and cur != "select" and cur not in compatible:
+                if (default_tool and cur != "select" and cur not in compatible
+                        and cur not in self._plugin_tool_names):   # plugin tools check the class themselves
                     self._activate_tool(default_tool)
 
         _HIGHLIGHT = (
@@ -615,6 +625,32 @@ class MainWindow(QMainWindow):
             crack.start_edit(ann)
             # Reload panel so it reflects this annotation's stored buffer params
             self._tool_props.load_tool(crack)
+
+    # ── tools from extensions ─────────────────────────────────────────────────
+
+    def register_tool(self, tool, text: str, shortcut: str = "") -> QAction | None:
+        """Add a tool from an extension: a toolbar button (after the built-in
+        tools) and a Tools menu entry. Like plugin tools, it is not enabled /
+        disabled by the class type — the tool checks the class itself.
+        Returns the toolbar action (None if the name is taken)."""
+        if tool.name in self._tools:
+            return None
+        self._tools[tool.name] = tool
+        self._plugin_tool_names.add(tool.name)
+        act = QAction(text, self)
+        act.setCheckable(True)
+        if shortcut:
+            act.setShortcut(QKeySequence(shortcut))
+        act.triggered.connect(lambda _=False, tn=tool.name: self._activate_tool(tn))
+        self._tool_group.addAction(act)
+        self._toolbar.insertAction(self._tools_end, act)
+        self._tool_act_map[tool.name] = act
+        self._menu_tool_acts[tool.name] = self._add_action(
+            self._tools_menu, text, lambda _=False, tn=tool.name: self._activate_tool(tn))
+        return act
+
+    def activate_tool(self, name: str) -> None:
+        self._activate_tool(name)
 
     # ── plugin loader ─────────────────────────────────────────────────────────
 

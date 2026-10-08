@@ -95,4 +95,4 @@ class Context:
 
 
 # register the handlers (modules import the names defined above)
-from ml_backend.handlers import debug, system, yolo  # noqa: E402,F401
+from ml_backend.handlers import debug, sam, system, yolo  # noqa: E402,F401

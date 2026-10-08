@@ -58,6 +58,8 @@ class ConvertOptions:
                                      # already filtered by the model's own conf threshold)
     project_path: Path | None = None  # needed for `mask` classes (PNG files)
     image_stem: str = ""
+    tool: str = "yolo"               # Annotation.meta["tool"]
+    source: str = SOURCE_MODEL       # "manual" for interactive tools (SAM): no 🤖, no confidence
 
 
 @dataclass
@@ -235,9 +237,10 @@ def _clamp_box(box, W, H):
 
 def _new(lc: LabelClass, ann_type: AnnotationType, data: dict, conf: float,
          opts: ConvertOptions) -> Annotation:
-    ann = Annotation.new(lc.id, ann_type, data, tool="yolo")
-    ann.meta["source"] = SOURCE_MODEL
-    ann.meta["confidence"] = round(float(conf), 3)
+    ann = Annotation.new(lc.id, ann_type, data, tool=opts.tool)
+    ann.meta["source"] = opts.source
+    if opts.source == SOURCE_MODEL:
+        ann.meta["confidence"] = round(float(conf), 3)
     if opts.model_name:
         ann.meta["model"] = opts.model_name
     return ann
