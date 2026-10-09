@@ -604,6 +604,126 @@ check("remove (all images): none left anywhere",
 ext.QMessageBox = _orig_box
 win.close()
 
+# ═════════════════════════════════════════════════════════════════════════════
+section("8b. Video tracking (fake backend)")
+# ═════════════════════════════════════════════════════════════════════════════
+from annotator.domain.tracks import is_interpolated, is_keyframe, track_id
+tctrl = ProjectController()
+tproj = tctrl.create_project("trk", _TMP / "trk.annproj")
+tcar = tproj.classes[0]
+tcar.name, tcar.annotation_type = "car", "bbox"
+tframes = []
+for i in range(6):
+    p = _TMP / f"vid_{i:06d}.png"
+    Image.new("RGB", (W, H)).save(p)
+    tframes.append((i * 2, str(p)))
+tctrl.add_video_frames("vid", {"fps": 25.0, "step": 2, "width": W, "height": H}, tframes)
+tpaths = [p for _, p in tframes]
+
+class TrackBackend(FakeBackend):
+    """yolo.track: two cars; tracker id 7 moves right and is missed on frame 2,
+    id 9 only on frames 0-1; an unconfirmed detection (no id) on frame 3."""
+    def __init__(self):
+        super().__init__(None)
+        self.methods = []
+    def request(self, method, params=None, on_done=None, on_progress=None):
+        self.methods.append((method, params.get("reset")))
+        k = tpaths.index(params["image"])
+        dets = []
+        if k != 2:
+            dets.append(det(box=(10 + 10 * k, 10, 40 + 10 * k, 40), track_id=7))
+        if k < 2:
+            dets.append(det(box=(100, 50, 130, 80), track_id=9))
+        if k == 3:
+            dets.append(det(box=(150, 60, 160, 70)))
+        self._n += 1
+        rid = self._n
+        self.requests.append(params)
+        QTimer.singleShot(5, lambda: on_done(Reply(rid, res("detect", dets))))
+        return rid
+
+tb = TrackBackend()
+trunner = PrelabelRunner(tb, tctrl)
+done = []
+trunner.finished.connect(done.append)
+tst = PrelabelSettings(model="m.pt", tracker="botsort")
+trunner.start(tpaths, tst, {0: tcar}, EXISTING_SKIP, track=True)
+wait(lambda: done, 20)
+s = done[-1]
+check("tracking asks yolo.track with the chosen tracker, reset on the first frame",
+      [m for m, _ in tb.methods] == ["yolo.track"] * 6 and tb.methods[0][1] is True
+      and all(r is False for _, r in tb.methods[1:]) and tb.requests[0]["tracker"] == "botsort")
+all_anns = [tctrl.annotations_for(p) for p in tpaths]
+tids = {track_id(a) for anns in all_anns for a in anns}
+check("tracker ids become project tracks (2 tracks, project numbering)",
+      s.tracks == 2 and tids == {1, 2} and tproj.next_track_id == 3)
+kf7 = [a for anns in all_anns for a in anns if is_keyframe(a) and a.meta.get("confidence")]
+check("detections are model keyframes (unreviewed)",
+      len(kf7) == 7 and all(a.meta["source"] == "model" for a in kf7))
+gap = all_anns[2]
+check("the frame where the model missed the car is interpolated",
+      len(gap) == 1 and is_interpolated(gap[0])
+      and abs(gap[0].data["x"] - 30 / W) < 1e-6 and s.interpolated == 1)
+check("an unconfirmed detection (no track id) is not added",
+      len(all_anns[3]) == 1 and s.skip_reasons.get("not tracked") == 1)
+check("summary text mentions tracks",
+      any(w in summary_text(s)[0] for w in ("Tracks:", "Треки:")))
+check("model_track helper key is not stored", not any("model_track" in a.meta
+                                                      for anns in all_anns for a in anns))
+
+# accept one keyframe, run again: unreviewed ones replaced, accepted one kept
+from annotator.domain.review import reviewed_meta
+tctrl.set_image(tpaths[0])
+first = next(a for a in tctrl.current_annotations if track_id(a) == 1)
+tctrl.set_meta({first.id: reviewed_meta(first.meta, True)})
+tctrl.set_image(tpaths[5])
+done.clear()
+trunner.start(tpaths, tst, {0: tcar}, EXISTING_REPLACE, track=True)
+wait(lambda: done, 20)
+s2 = done[-1]
+all2 = [tctrl.annotations_for(p) for p in tpaths]
+check("second run: new track numbers, earlier unreviewed keyframes replaced",
+      s2.tracks == 2 and s2.replaced == 6
+      and {track_id(a) for anns in all2 for a in anns} == {1, 3, 4})
+check("the accepted keyframe of the old track stays",
+      any(a.id == first.id for a in all2[0]))
+check("no leftovers of the old track's interpolation",
+      not any(track_id(a) == 2 for anns in all2 for a in anns)
+      and sum(1 for a in all2[2] if is_interpolated(a)) == 1)
+
+# not tracking: plain yolo.predict as before
+tb2 = TrackBackend()
+r2 = PrelabelRunner(tb2, tctrl)
+done.clear()
+r2.finished.connect(done.append)
+r2.start(tpaths[:2], tst, {0: tcar}, EXISTING_ADD)
+wait(lambda: done, 20)
+check("without track=True the runner predicts", {m for m, _ in tb2.methods} == {"yolo.predict"})
+
+# dialog: a video in the scope list, the tracking switch
+from annotator.ml.prelabel_dialog import PrelabelDialog
+tfake = FakeModelBackend(one_box)
+tdlg = PrelabelDialog(tfake, PrelabelRunner(tfake, tctrl), tctrl, lambda: list(tpaths))
+tdlg._model_edit.setText("m.pt")
+tdlg._load_model()
+wait(lambda: tdlg._info is not None, 10)
+vi = tdlg._scope.findData("video:vid")
+check("the video is offered as a scope", vi > 0 and "6" in tdlg._scope.itemText(vi))
+tdlg._scope.setCurrentIndex(0)
+check("tracking switch is off for a non-video scope", not tdlg._track_cb.isEnabled())
+tdlg._scope.setCurrentIndex(vi)
+check("video scope: frames in order, tracking available",
+      tdlg._target_images() == tpaths and tdlg._track_cb.isEnabled())
+tdlg._track_cb.setChecked(True)
+skip_btn = next(b for b in tdlg._existing.buttons() if b.property("key") == EXISTING_SKIP)
+check("tracking on: 'skip' is not offered", tdlg._tracking() and not skip_btn.isEnabled())
+tdlg._tracker.setCurrentIndex(tdlg._tracker.findData("bytetrack"))
+tdlg._save()
+check("tracking settings saved", PrelabelSettings.load(tproj.project_path).track is True
+      and PrelabelSettings.load(tproj.project_path).tracker == "bytetrack"
+      and PrelabelSettings.load(tproj.project_path).scope == "video:vid")
+tdlg.reject()
+
 
 # ═════════════════════════════════════════════════════════════════════════════
 section("9. Real model (optional)")
@@ -632,6 +752,43 @@ if ml_py and seg_model:
     be.stop()
 else:
     print("  (skipped: set ML_TEST_PYTHON and ML_TEST_SEG_MODEL)")
+
+det_model = os.environ.get("ML_TEST_MODEL")
+if ml_py and det_model:
+    from annotator.ml.client import MLBackend
+    import shutil
+    from annotator.domain.tracks import is_keyframe, track_id
+    src = Image.open(Path(ml_py).parent / "Lib" / "site-packages" / "ultralytics" / "assets" / "bus.jpg")
+    vctrl = ProjectController()
+    vproj = vctrl.create_project("realtrack", _TMP / "realtrack.annproj")
+    vperson = vproj.classes[0]
+    vperson.name, vperson.annotation_type = "person", "bbox"
+    vbus = vproj.add_class("bus")
+    vbus.annotation_type = "bbox"
+    vf = []
+    for i in range(8):                         # the "camera" pans 12 px per frame
+        p = _TMP / f"pan_{i:06d}.jpg"
+        src.crop((12 * i, 0, 12 * i + 700, src.height)).save(p)
+        vf.append((i, str(p)))
+    vctrl.add_video_frames("pan", {"fps": 25.0, "step": 1, "width": 700, "height": src.height}, vf)
+    be = MLBackend(python=ml_py)
+    vrun = PrelabelRunner(be, vctrl)
+    vdone = []
+    vrun.finished.connect(vdone.append)
+    vrun.start([p for _, p in vf], PrelabelSettings(model=det_model), {0: vperson, 5: vbus},
+               EXISTING_REPLACE, track=True)
+    wait(lambda: vdone, 240)
+    vs = vdone[0] if vdone else None
+    per_frame = [{track_id(a) for a in vctrl.annotations_for(p)} for _, p in vf]
+    steady = set.intersection(*per_frame)
+    check("real tracking: the bus and people keep their track numbers over 8 frames",
+          vs is not None and not vs.fatal and len(steady) >= 3)
+    if vs is not None:
+        print(f"      {vs.tracks} tracks, {vs.added} keyframes, {vs.interpolated} filled, "
+              f"{vs.seconds} s; on every frame: {sorted(steady)}")
+    be.stop()
+else:
+    print("  (skipped tracking: set ML_TEST_PYTHON and ML_TEST_MODEL)")
 
 
 # close every window: one left open is destroyed during interpreter shutdown,

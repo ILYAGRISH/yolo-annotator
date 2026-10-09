@@ -17,6 +17,7 @@ from annotator.domain.label_class import LabelClass, SkeletonKeypoint
 from annotator.domain.project import DEFAULT_CLASS_NAME
 from annotator.ml.client import (BACKEND_EXITED, NOT_CONFIGURED, START_FAILED,
                                  STOPPED_ERR, MLBackend, Reply)
+from annotator.domain.tracks import keyframe_meta, plan_track, track_id
 from annotator.ml.convert import (ConvertOptions, ConvertReport, convert, min_area_rect,
                                   is_unaccepted_model_annotation)
 from annotator.ml.prelabel_settings import (EXISTING_REPLACE, EXISTING_SKIP,
@@ -47,6 +48,8 @@ class PrelabelSummary:
     failed: int = 0
     added: int = 0
     replaced: int = 0
+    tracks: int = 0                 # video tracking: new tracks
+    interpolated: int = 0           # video tracking: gaps filled by interpolation
     skip_reasons: dict = field(default_factory=dict)
     errors: list = field(default_factory=list)     # first few "image: message"
     cancelled: bool = False
@@ -124,12 +127,24 @@ class PrelabelRunner(QObject):
 
     def start(self, images: list[str], settings: PrelabelSettings,
               mapping: dict[int, LabelClass | None], existing: str | None = None,
-              sam_model: str | None = None) -> None:
+              sam_model: str | None = None, track: bool = False) -> None:
         """Process `images` with settings.model; `existing` overrides settings.existing.
         With settings.sam_refine, detector boxes of polygon / mask / obb classes
-        are outlined by SAM (`sam_model`, default: the one in ML Settings)."""
+        are outlined by SAM (`sam_model`, default: the one in ML Settings).
+
+        track=True (video frames, in frame order): yolo.track with
+        settings.tracker follows objects across the frames of each video —
+        every detection becomes a keyframe of a project track, gaps are
+        interpolated at the end. Earlier unreviewed model annotations are
+        replaced ("skip" makes no sense: the tracker needs every frame)."""
         if self._running:
             return
+        self._track = bool(track)
+        self._track_map: dict = {}                 # (video, tracker id) -> project track id
+        self._touched: dict[str, set] = {}         # video -> track ids to re-derive
+        self._last_video = None
+        if self._track and (existing or settings.existing) == EXISTING_SKIP:
+            existing = EXISTING_REPLACE
         self._sam_model = ""
         if settings.sam_refine:
             from annotator.ml import config
@@ -174,6 +189,14 @@ class PrelabelRunner(QObject):
                 self.summary.skipped_existing += 1
                 self._advance(path)
                 continue
+            if self._track:
+                vid = self._video_of(path)
+                params = {**self._params, "image": path, "tracker": self._settings.tracker,
+                          "reset": vid != self._last_video}
+                self._last_video = vid
+                self._rid = self._backend.request("yolo.track", params,
+                                                  on_done=lambda r, p=path: self._on_reply(p, r))
+                return
             self._rid = self._backend.request("yolo.predict", {**self._params, "image": path},
                                               on_done=lambda r, p=path: self._on_reply(p, r))
             return
@@ -262,6 +285,9 @@ class PrelabelRunner(QObject):
                               image_stem=Path(path).stem)
         report = ConvertReport()
         anns = convert(result, self._mapping, opts, existing=kept, report=report)
+        if self._track:
+            anns = self._to_tracks(path, anns, [a for a in existing if a.id in set(remove)],
+                                   report)
         if anns or remove:
             self._ctrl.apply_annotation_changes(
                 path, anns, remove, text=f"Pre-label ({self._model_name})")
@@ -272,9 +298,57 @@ class PrelabelRunner(QObject):
         for reason, n in report.skipped.items():
             self.summary.skip_reasons[reason] = self.summary.skip_reasons.get(reason, 0) + n
 
+    # ── video tracking ────────────────────────────────────────────────────────
+
+    def _video_of(self, path: str) -> str:
+        project = self._ctrl.project
+        rec = next((r for r in project.images if r.path == path), None) if project else None
+        return rec.video if rec else ""
+
+    def _to_tracks(self, path: str, anns: list, removed: list, report) -> list:
+        """Tracker numbers -> project tracks (keyframes); detections the tracker
+        did not confirm are dropped."""
+        vid = self._video_of(path)
+        touched = self._touched.setdefault(vid, set())
+        for a in removed:                          # an earlier run's track loses a keyframe
+            if track_id(a) is not None:
+                touched.add(track_id(a))
+        out = []
+        for ann in anns:
+            mt = ann.meta.pop("model_track", None)
+            if mt is None or not vid:
+                report.skip("not tracked")
+                continue
+            tid = self._track_map.get((vid, mt))
+            if tid is None:
+                tid = self._track_map[(vid, mt)] = self._ctrl.new_track_id()
+                self.summary.tracks += 1
+            ann.meta = keyframe_meta(ann.meta, tid)
+            touched.add(tid)
+            out.append(ann)
+        return out
+
+    def _reconcile_tracks(self) -> None:
+        """Fill the gaps of the new tracks, clear what is left of replaced ones."""
+        project = self._ctrl.project
+        allowed = set(self._images)
+        for vid, tids in self._touched.items():
+            recs = sorted((r for r in project.images if r.video == vid), key=lambda r: r.frame)
+            frames = [(r.path, r.frame, self._ctrl.annotations_for(r.path)) for r in recs]
+            for tid in sorted(tids):
+                for path, (upsert, remove) in plan_track(tid, frames).items():
+                    if path not in allowed:
+                        continue
+                    known = {a.id for a in self._ctrl.annotations_for(path)}
+                    self.summary.interpolated += sum(1 for a in upsert if a.id not in known)
+                    self._ctrl.sync_derived(path, upsert, remove)
+                    self.summary.changed_images.add(path)
+
     def _finish(self) -> None:
         if not self._running:
             return
+        if self._track and self._touched:
+            self._reconcile_tracks()
         self._running = False
         self.summary.cancelled = self._cancel
         self.summary.seconds = round(time.monotonic() - self._t0, 1)

@@ -26,6 +26,8 @@ class PrelabelSettings:
     existing: str = EXISTING_SKIP
     scope: str = "all"                # all / train / val / test
     sam_refine: bool = False          # detector boxes -> SAM outlines for polygon / mask / obb classes
+    track: bool = True                # video scope: follow objects across frames (yolo.track)
+    tracker: str = "bytetrack"        # bytetrack / botsort
     # normalised model path -> {model class id (str): project class id | None}
     mappings: dict = field(default_factory=dict)
 

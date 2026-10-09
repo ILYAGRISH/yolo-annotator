@@ -20,6 +20,7 @@ from annotator.ml.prelabel_settings import (EXISTING_ADD, EXISTING_REPLACE,
 from annotator.ml.strings import reason, t
 
 _OK, _BAD = "#3aa655", "#d9534f"
+_VIDEO = "video:"                # scope entries of imported videos: "video:<id>"
 _CREATE = "__create__:"          # "+ new class" entries carry "__create__:<annotation type>"
 # "+ new class" types offered per model task (the first is the natural one)
 _NEW_TYPES = {"detect": ["bbox", "polygon", "mask", "obb"],   # polygon / mask / obb: via SAM outlines
@@ -139,11 +140,31 @@ class PrelabelDialog(QDialog):
         self._scope.addItem(t("pl_scope_all"), "all")
         for s in _SPLITS:
             self._scope.addItem(t("pl_scope_split", split=s), s)
+        for vid, info in self._project.videos.items():      # 8-C: a video, frame by frame
+            n = sum(1 for r in self._project.images if r.video == vid)
+            name = Path(info.get("path", vid)).name
+            self._scope.addItem(t("pl_scope_video", name=name, n=n), _VIDEO + vid)
         self._scope.currentIndexChanged.connect(self._update_count)
         row.addWidget(self._scope)
         self._count_lbl = QLabel()
         row.addWidget(self._count_lbl, 1)
         gv.addLayout(row)
+        trow = QHBoxLayout()
+        self._track_cb = QCheckBox(t("pl_track"))
+        self._track_cb.setToolTip(t("pl_track_tip"))
+        self._track_cb.toggled.connect(self._update_track)
+        self._tracker = QComboBox()
+        self._tracker.addItem("ByteTrack", "bytetrack")
+        self._tracker.addItem("BoT-SORT", "botsort")
+        self._tracker.setToolTip(t("pl_tracker_tip"))
+        trow.addWidget(self._track_cb)
+        trow.addWidget(self._tracker)
+        trow.addStretch(1)
+        gv.addLayout(trow)
+        self._track_hint = QLabel(t("pl_track_hint"))
+        self._track_hint.setWordWrap(True)
+        self._track_hint.setStyleSheet("color:#999;font-size:11px;")
+        gv.addWidget(self._track_hint)
         gv.addWidget(QLabel(t("pl_existing")))
         self._existing = QButtonGroup(self)
         for key, text in ((EXISTING_SKIP, t("pl_ex_skip")),
@@ -196,6 +217,8 @@ class PrelabelDialog(QDialog):
         self._scope.setCurrentIndex(max(0, self._scope.findData(s.scope)))
         for b in self._existing.buttons():
             b.setChecked(b.property("key") == s.existing)
+        self._track_cb.setChecked(s.track)
+        self._tracker.setCurrentIndex(max(0, self._tracker.findData(s.tracker)))
         self._update_count()
 
     def _read_ui_into_settings(self):
@@ -207,6 +230,8 @@ class PrelabelDialog(QDialog):
         s.simplify_px = self._simplify.value()
         s.sam_refine = self._sam_refine.isChecked()
         s.scope = self._scope.currentData()
+        s.track = self._track_cb.isChecked()
+        s.tracker = self._tracker.currentData()
         checked = self._existing.checkedButton()
         s.existing = checked.property("key") if checked else EXISTING_SKIP
         if self._info:
@@ -258,6 +283,7 @@ class PrelabelDialog(QDialog):
         self._model_status.setStyleSheet(f"color:{_OK};")
         self._fill_table()
         self._set_ready(True)
+        self._update_track()
 
     # ── SAM outlines (detector models) ────────────────────────────────────────
 
@@ -460,6 +486,12 @@ class PrelabelDialog(QDialog):
         allowed = self._allowed_paths()
         if scope == "all":
             return allowed
+        if scope.startswith(_VIDEO):                    # frames of one video, in frame order
+            ok = set(allowed)
+            vid = scope[len(_VIDEO):]
+            recs = sorted((r for r in self._project.images if r.video == vid),
+                          key=lambda r: r.frame)
+            return [r.path for r in recs if r.path in ok]
         split = {r.path: r.split for r in self._project.images}
         return [p for p in allowed if split.get(p) == scope]
 
@@ -467,6 +499,27 @@ class PrelabelDialog(QDialog):
         n = len(self._target_images())
         self._count_lbl.setText(t("pl_count", n=n))
         self._run_btn.setText(t("pl_btn_run", n=n))
+        self._update_track()
+
+    def _tracking(self) -> bool:
+        """Video scope + the box ticked + a model that can track."""
+        scope = self._scope.currentData() or ""
+        task = (self._info or {}).get("task")
+        return (scope.startswith(_VIDEO) and self._track_cb.isChecked()
+                and task not in (None, "classify"))
+
+    def _update_track(self):
+        """Tracking only makes sense for a video (frames in order) and a model
+        that finds objects; on, the existing-annotations choice is "replace"."""
+        is_video = (self._scope.currentData() or "").startswith(_VIDEO)
+        can = is_video and (self._info or {}).get("task") != "classify"
+        running = self._runner.running
+        self._track_cb.setEnabled(can and not running)
+        self._tracker.setEnabled(can and self._track_cb.isChecked() and not running)
+        self._track_hint.setVisible(is_video)
+        on = self._tracking()
+        for b in self._existing.buttons():
+            b.setEnabled(not running and not (on and b.property("key") == EXISTING_SKIP))
 
     # ── run ───────────────────────────────────────────────────────────────────
 
@@ -496,8 +549,9 @@ class PrelabelDialog(QDialog):
         existing = self._settings.existing
         if current and existing == EXISTING_SKIP:          # an explicit click must do something
             existing = EXISTING_REPLACE
+        track = not current and self._tracking()
         self._set_running(True, len(images))
-        self._runner.start(images, self._settings, mapping, existing)
+        self._runner.start(images, self._settings, mapping, existing, track=track)
 
     def _on_progress(self, done: int, total: int, name: str):
         if self._closed:
@@ -538,6 +592,7 @@ class PrelabelDialog(QDialog):
             w.setEnabled(not running)
         for b in self._existing.buttons():
             b.setEnabled(not running)
+        self._update_track()
         is_detector = bool(self._info) and self._info.get("task") == "detect"
         self._sam_refine.setEnabled(is_detector and not running)
 
@@ -567,6 +622,8 @@ def summary_text(s: PrelabelSummary) -> tuple[str, bool]:
     lines = [t("pl_done", sec=s.seconds, processed=s.processed, added=s.added)
              + (t("pl_sam_outlined", n=s.sam_outlined) if s.sam_outlined else "")
              + (t("pl_replaced", n=s.replaced) if s.replaced else "")]
+    if s.tracks or s.interpolated:
+        lines.append(t("pl_tracks_done", tracks=s.tracks, filled=s.interpolated))
     if s.skipped_existing:
         lines.append(t("pl_skipped_existing", n=s.skipped_existing))
     if s.skip_reasons:

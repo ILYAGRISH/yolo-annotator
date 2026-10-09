@@ -114,6 +114,8 @@ def convert(result: dict, mapping: dict[int, LabelClass | None],
             continue
         ann = _one(det, lc, W, H, opts, report)
         if ann is not None:
+            if det.get("track_id") is not None:     # yolo.track: the tracker's number
+                ann.meta["model_track"] = int(det["track_id"])
             out.append(ann)
     report.added += len(out)
     return out
