@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
+from annotator.domain.events import EVENT_COLORS, EventType
 from annotator.domain.label_class import LabelClass
 
 FORMAT_VERSION = 3
@@ -28,6 +29,8 @@ DEFAULT_HOTKEYS: dict[str, str] = {
     "track_keyframe":     "Shift+T",
     "track_prev_key":     "Shift+A",
     "track_next_key":     "Shift+D",
+    "event_mark":         "E",
+    "event_cancel":       "Shift+E",
 }
 
 _DEFAULT_COLORS = [
@@ -103,6 +106,9 @@ class Project:
     # "step", "folder"} (see annotator/video/extract.py)
     videos: dict = field(default_factory=dict)
     next_track_id: int = 1                   # track ids are unique per project
+    # types of time events on video (Phase 8-D); the events themselves are
+    # stored per video in events/<video_id>.json
+    event_types: list[EventType] = field(default_factory=list)
 
     # Runtime-only
     project_path: Path | None = field(default=None, repr=False)
@@ -139,6 +145,18 @@ class Project:
         self.images.append(rec)
         return rec
 
+    # ── event types (Phase 8-D) ───────────────────────────────────────────────
+
+    def add_event_type(self, name: str, color: str | None = None) -> EventType:
+        next_id = max((t.id for t in self.event_types), default=-1) + 1
+        et = EventType(id=next_id, name=name,
+                       color=color or EVENT_COLORS[next_id % len(EVENT_COLORS)])
+        self.event_types.append(et)
+        return et
+
+    def get_event_type(self, type_id: int) -> EventType | None:
+        return next((t for t in self.event_types if t.id == type_id), None)
+
     # ── serialization (project.json only — no classes) ────────────────────────
 
     def to_dict(self) -> dict:
@@ -153,6 +171,7 @@ class Project:
             "leader_machine": self.leader_machine,
             "videos": self.videos,
             "next_track_id": self.next_track_id,
+            "event_types": [t.to_dict() for t in self.event_types],
         }
 
     @classmethod
@@ -166,4 +185,5 @@ class Project:
             leader_machine=d.get("leader_machine", ""),
             videos=d.get("videos", {}),
             next_track_id=d.get("next_track_id", 1),
+            event_types=[EventType.from_dict(t) for t in d.get("event_types", [])],
         )

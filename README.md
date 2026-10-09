@@ -125,7 +125,7 @@ cd new_annotator
 
 ## Changelog
 
-### Unreleased
+### v2.1 — 2026-10-09
 - **Time events on video** — mark *"from frame A to frame B — event X"* (lane change, fall, goal…): **E** on the first frame, **E** again on the last one (**Shift+E** cancels). Project-wide event types with colours (**Video → Event Types…**, or *+ New event type…* under the frame strip). An **event strip** under the frame strip shows the events of the video (overlapping ones in separate rows; click selects, double click edits), a new **Events** tab lists them — type, frames, time, object track, note — with *Start here / End here*, edit and delete; Ctrl+Z undoes. An event can be about an object track (select its annotation before the first E). New export format **Video Events** — `events.csv` + `activitynet.json` (ActivityNet 1.3, segments in seconds)
 
 ### v2.0 — 2026-10-09
