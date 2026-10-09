@@ -29,8 +29,8 @@ A desktop image annotation tool for preparing training datasets for computer vis
 - **Panoptic segmentation**: mark each class as *thing* (instances) or *stuff* (regions) and export both layers together
 - **Pre-labelling with your YOLO model**: detect / segment / OBB / pose / classify models label the current image (`Ctrl+L`) or the whole dataset; you review and fix — unreviewed ones are dashed on the canvas, **R / Shift+R** accept, **U** jumps to the next image to review, export can skip what is not reviewed. Runs in a separate ML process — PyTorch never enters the app
 - **SAM — label by clicking**: click an object and Segment Anything outlines it — into a polygon, mask, box or rotated box; ~20 ms per click on a GPU. It also turns boxes (yours or a detector's) into outlines in bulk
-- **Video and object tracks**: import a video as frames (every N-th frame, a time range); start a track with `T`, add a keyframe a few frames later with `Shift+T` — the frames in between are interpolated (box, OBB, polygon, point, pose) and follow every edit, undo included. Or let a YOLO model with a tracker (ByteTrack / BoT-SORT) build the tracks for you. A frame strip under the canvas shows the track and its keyframes; dataset split keeps each video in one split; export to **MOTChallenge**
-- **13 export formats**: YOLO Detect / Segment / OBB / Pose / Point / Classify, COCO Instances (polygons or RLE), COCO Keypoints, COCO Panoptic, Pascal VOC, LabelMe JSON, Semantic Masks, MOTChallenge (video tracks)
+- **Video and object tracks**: import a video as frames (every N-th frame, a time range); start a track with `T`, add a keyframe a few frames later with `Shift+T` — the frames in between are interpolated (box, OBB, polygon, point, pose) and follow every edit, undo included. Or let a YOLO model with a tracker (ByteTrack / BoT-SORT) build the tracks for you. A frame strip under the canvas shows the track and its keyframes; dataset split keeps each video in one split; export to **MOTChallenge**. **Time events** — mark *frame A to frame B — event X* with `E`, export to CSV and ActivityNet JSON
+- **14 export formats**: YOLO Detect / Segment / OBB / Pose / Point / Classify, COCO Instances (polygons or RLE), COCO Keypoints, COCO Panoptic, Pascal VOC, LabelMe JSON, Semantic Masks, MOTChallenge (video tracks), Video Events (CSV + ActivityNet JSON)
 - **Import existing datasets**: load a labeled YOLO dataset (Detect / OBB / Segment / Point / Classify) into any open project — class names resolved automatically from `data.yaml` or `classes.txt`
 - **Multi-task export**: shared `images/`, separate label folders for parallel model training
 - **Auto-export**: `labels/` updated automatically on every save — no manual export step needed
@@ -75,6 +75,7 @@ A desktop image annotation tool for preparing training datasets for computer vis
 | LabelMe JSON     | `<split>/<stem>.json`                       | LabelMe v5 — polygon, rectangle, linestrip, point   |
 | Semantic Masks   | `masks/<split>/<stem>.png` + `classes.txt`  | pixel mask per image; three modes: binary / index / color; stuff below, instances on top |
 | MOTChallenge     | `<video>/gt/gt.txt` + `seqinfo.ini` + `img1/` | object tracks of imported videos: `frame,id,left,top,w,h,conf,class,vis` in pixels |
+| Video Events     | `events.csv` + `activitynet.json`           | time events of videos: type, first / last frame, seconds, track, note; ActivityNet 1.3 segments |
 
 ## Import
 
@@ -118,11 +119,14 @@ cd new_annotator
 
 **Requirements:** Python 3.12+ (3.13 recommended) · Windows; Linux works from source (tested in CI)
 
-**Tests:** `cd new_annotator && .venv\Scripts\python run_tests.py` runs all 16 suites (~1000 checks, headless, a few seconds); `run_tests.py review sam` runs only the suites whose name contains a word. GitHub Actions runs them on every push to `main` on Windows and Ubuntu with Python 3.12 and 3.13 ([`.github/workflows/tests.yml`](.github/workflows/tests.yml)).
+**Tests:** `cd new_annotator && .venv\Scripts\python run_tests.py` runs all 17 suites (~1100 checks, headless, a few seconds); `run_tests.py review sam` runs only the suites whose name contains a word. GitHub Actions runs them on every push to `main` on Windows and Ubuntu with Python 3.12 and 3.13 ([`.github/workflows/tests.yml`](.github/workflows/tests.yml)).
 
 **Optional ML environment** (for model features — YOLO pre-labelling, SAM): `setup_ml_env.bat` creates a separate `.venv-ml` with PyTorch (CUDA build when an NVIDIA GPU is found, `--cpu` otherwise) and Ultralytics. Or point **ML → ML Settings…** at any existing Python / conda environment that has `ultralytics`. The annotator itself never imports PyTorch.
 
 ## Changelog
+
+### Unreleased
+- **Time events on video** — mark *"from frame A to frame B — event X"* (lane change, fall, goal…): **E** on the first frame, **E** again on the last one (**Shift+E** cancels). Project-wide event types with colours (**Video → Event Types…**, or *+ New event type…* under the frame strip). An **event strip** under the frame strip shows the events of the video (overlapping ones in separate rows; click selects, double click edits), a new **Events** tab lists them — type, frames, time, object track, note — with *Start here / End here*, edit and delete; Ctrl+Z undoes. An event can be about an object track (select its annotation before the first E). New export format **Video Events** — `events.csv` + `activitynet.json` (ActivityNet 1.3, segments in seconds)
 
 ### v2.0 — 2026-10-09
 - **Video and object tracks** — **File / Video → Import Video…** (or drop a video file on the image list) extracts every N-th frame of a chosen time range as JPEG images (default ≈ 5 per second) — every tool, SAM, pre-labelling and review work on them. **T** turns the selected annotation into a track; on a later frame **Shift+T** adds a keyframe (a copy to move onto the object) and the frames in between are **interpolated** — boxes, OBBs, polygons (resampled when the point count differs), points and poses. Editing an in-between frame makes it a keyframe; every edit, delete, undo and redo re-interpolates. **Shift+A / Shift+D** jump between keyframes. A **frame strip** under the canvas shows frames with annotations, the active track and its keyframes (click or drag to go to a frame). Track ids on the canvas and in the panel (`#3`, keyframe `#3◆`). **Split Dataset** keeps all frames of a video in one split. New export format **MOTChallenge**

@@ -24,6 +24,7 @@ _FORMATS = [
     ("LabelMe JSON  (polygon / rectangle / point)",  "labelme"),
     ("Semantic Masks  (grayscale PNG per image)",    "semantic_masks"),
     ("MOTChallenge  (video object tracks, gt.txt)",  "mot"),
+    ("Video Events  (CSV + ActivityNet JSON)",       "video_events"),
 ]
 
 _POLICIES = [
@@ -202,6 +203,8 @@ class ExportDatasetDialog(QDialog):
 
     @property
     def reviewed_only(self) -> bool:
+        if not self.is_multitask and self.format_name == "video_events":
+            return False
         return self._unreviewed[0] > 0 and self._reviewed_cb.isChecked()
 
     # ── internal ──────────────────────────────────────────────────────────────
@@ -213,10 +216,17 @@ class ExportDatasetDialog(QDialog):
         is_coco = _FORMATS[index][1] == "coco"
         self._seg_row_label.setVisible(is_coco)
         self._seg_fmt_combo.setVisible(is_coco)
+        # time events: "images" are the source videos and their frames; the
+        # review status of annotations does not apply
+        is_events = _FORMATS[index][1] == "video_events" and not self.is_multitask
+        self._copy_cb.setText("Copy videos and frames to output folder  (videos/, frames/)"
+                              if is_events else "Copy images to output folder")
+        self._reviewed_cb.setVisible(self._unreviewed[0] > 0 and not is_events)
 
     def _on_mode_changed(self, single_checked: bool):
         self._single_group.setVisible(single_checked)
         self._multi_group.setVisible(not single_checked)
+        self._on_fmt_changed(self._fmt_combo.currentIndex())
 
     def _build_summary(self) -> str:
         imgs = len(self._project.images)

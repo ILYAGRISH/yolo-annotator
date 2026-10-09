@@ -40,6 +40,8 @@ _HOTKEY_LABELS: list[tuple[str, str]] = [
     ("track_keyframe",    "Video: keyframe here"),
     ("track_prev_key",    "Video: previous keyframe"),
     ("track_next_key",    "Video: next keyframe"),
+    ("event_mark",        "Video: event start / end"),
+    ("event_cancel",      "Video: cancel started event"),
 ]
 
 

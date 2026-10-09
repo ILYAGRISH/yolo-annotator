@@ -9,6 +9,8 @@ Directory layout:
   ├── annotations/
   │   ├── <image_stem>.json # per-image annotations
   │   └── ...
+  ├── events/
+  │   └── <video_id>.json   # time events of an imported video (Phase 8-D)
   └── masks/                # MASK / SEMANTIC bitmaps (see MaskStorage)
       └── _orphaned/        # unreferenced masks awaiting deletion
 """
@@ -19,6 +21,7 @@ from pathlib import Path
 
 from annotator.domain.annotation import Annotation
 from annotator.domain.class_schema import SCHEMA_VERSION, ClassSchema
+from annotator.domain.events import VideoEvent, sort_events
 from annotator.domain.label_class import LabelClass
 from annotator.domain.project import FORMAT_VERSION, ImageRecord, Project
 
@@ -28,6 +31,7 @@ SCHEMA_FILE = "class_schema.json"
 IMAGES_FILE = "images.json"
 ASSIGNMENTS_FILE = "assignments.json"
 MASKS_DIR = "masks"
+EVENTS_DIR = "events"
 ORPHANED_DIR = "_orphaned"
 
 
@@ -137,6 +141,28 @@ class ProjectStore:
             with open(ann_file, "r", encoding="utf-8") as f:
                 result[img_path] = [Annotation.from_dict(d) for d in json.load(f)]
         return result
+
+    # ── time events of videos (Phase 8-D) ─────────────────────────────────────
+
+    @staticmethod
+    def load_events(project: Project, video_id: str) -> list[VideoEvent]:
+        if project.project_path is None or not video_id:
+            return []
+        f = project.project_path / EVENTS_DIR / f"{video_id}.json"
+        if not f.exists():
+            return []
+        with open(f, "r", encoding="utf-8") as fp:
+            return sort_events([VideoEvent.from_dict(d) for d in json.load(fp)])
+
+    @staticmethod
+    def save_events(project: Project, video_id: str, events: list[VideoEvent]):
+        if project.project_path is None or not video_id:
+            return
+        folder = project.project_path / EVENTS_DIR
+        folder.mkdir(exist_ok=True)
+        with open(folder / f"{video_id}.json", "w", encoding="utf-8") as fp:
+            json.dump([e.to_dict() for e in sort_events(events)], fp,
+                      indent=2, ensure_ascii=False)
 
     @staticmethod
     def collect_mask_garbage(project_path: Path, min_age_hours: float = 24.0) -> int:

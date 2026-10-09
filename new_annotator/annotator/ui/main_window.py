@@ -51,6 +51,8 @@ class MainWindow(QMainWindow):
         from annotator.video.manager import VideoManager
         self._video = VideoManager(self._ctrl, allowed=lambda: set(self.allowed_image_paths()),
                                    parent=self)
+        from annotator.video.events import EventManager
+        self._events = EventManager(self._ctrl, self._video, parent=self)
         self._tools = self._build_tools()
         self._plugin_tool_names: set[str] = set()
         self._user_role: str = "leader"   # "leader" or "client"
@@ -110,6 +112,11 @@ class MainWindow(QMainWindow):
         self._right_tabs = QTabWidget()
         self._right_tabs.addTab(self._annotations_panel, tr("tab_annotations"))
         self._right_tabs.addTab(self._qc_panel, tr("tab_qc"))
+        from annotator.video.events_ui import EventsPanel
+        self._events_panel = EventsPanel(self._events, self._video)
+        self._events_panel.edit_requested.connect(self._event_edit)
+        self._events_panel.types_requested.connect(self._event_types)
+        self._right_tabs.addTab(self._events_panel, tr("tab_events"))
 
         self._tool_props = ToolPropsPanel()
         center = QWidget()
@@ -119,7 +126,9 @@ class MainWindow(QMainWindow):
         center_layout.addWidget(self._tool_props)
         center_layout.addWidget(self._view)
         from annotator.video.timeline import Timeline
-        self._timeline = Timeline(self._video)
+        self._timeline = Timeline(self._video, self._events)
+        self._timeline.edit_event.connect(self._event_edit)
+        self._timeline.new_type_requested.connect(self._event_new_type)
         center_layout.addWidget(self._timeline)
 
         main = QSplitter(Qt.Orientation.Horizontal)
@@ -249,6 +258,18 @@ class MainWindow(QMainWindow):
             video_m, "act_track_next_key", lambda: self._video.goto_keyframe(1), "Shift+D")
         video_m.addSeparator()
         self._tact(video_m, "act_track_delete", self._track_delete)
+        # time events — Phase 8-D
+        video_m.addSeparator()
+        self._act_event_mark = self._tact(
+            video_m, "act_event_mark", self._event_mark, "E")
+        self._act_event_cancel = self._tact(
+            video_m, "act_event_cancel", self._events.cancel, "Shift+E")
+        self._tact(video_m, "act_event_prev", lambda: self._events.goto_event(-1))
+        self._tact(video_m, "act_event_next", lambda: self._events.goto_event(1))
+        self._tact(video_m, "act_event_edit", lambda: self._event_edit(""))
+        self._tact(video_m, "act_event_delete", self._event_delete)
+        video_m.addSeparator()
+        self._tact(video_m, "act_event_types", self._event_types)
 
         # Help
         help_m = self._tmenu(mb, "menu_help")
@@ -352,6 +373,9 @@ class MainWindow(QMainWindow):
         """Delete removes the selected annotation whatever tool is active:
         Select deletes its canvas selection, with any other tool the one
         selected in the Annotations panel goes."""
+        if self._events_panel.has_focus():           # the Events list: delete the event
+            self._events_panel.delete_selected()
+            return
         tool = self._active_tool_obj()
         if isinstance(tool, SelectTool):
             tool.on_key_press(Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier)
@@ -371,6 +395,8 @@ class MainWindow(QMainWindow):
         self._toolbar_hint.setText(tr("toolbar_hint"))
         self._right_tabs.setTabText(0, tr("tab_annotations"))
         self._right_tabs.setTabText(1, tr("tab_qc"))
+        self._right_tabs.setTabText(2, tr("tab_events"))
+        self._events_panel.retranslate()
         self._images_panel.retranslate()
         self._classes_panel.retranslate()
         self._annotations_panel.retranslate()
@@ -392,6 +418,8 @@ class MainWindow(QMainWindow):
         self._act_track_key.setShortcut(QKeySequence(h.get("track_keyframe", "")))
         self._act_track_prev.setShortcut(QKeySequence(h.get("track_prev_key", "")))
         self._act_track_next.setShortcut(QKeySequence(h.get("track_next_key", "")))
+        self._act_event_mark.setShortcut(QKeySequence(h.get("event_mark", "")))
+        self._act_event_cancel.setShortcut(QKeySequence(h.get("event_cancel", "")))
         tool_map = {
             "tool_select":   "select",
             "tool_polygon":  "polygon",
@@ -436,6 +464,8 @@ class MainWindow(QMainWindow):
         self._video.navigate.connect(self._goto_image)
         self._video.status.connect(lambda key: self._status.showMessage(tr(key), 5000))
         self._video.frames_written.connect(self._on_frames_written)
+        self._events.status.connect(
+            lambda key: self._status.showMessage(tr(key).format(id=self._events.open_track), 5000))
         self._qc_panel.navigate_requested.connect(self._on_qc_navigate)
         self._tool_props.params_changed.connect(self._on_tool_params_changed)
         self._tool_props.commit_requested.connect(
@@ -1246,6 +1276,53 @@ class MainWindow(QMainWindow):
             return
         removed = self._video.delete_track(tid)
         self._status.showMessage(tr("track_deleted").format(id=tid, n=removed), 5000)
+
+    # ── time events (Phase 8-D) ───────────────────────────────────────────────
+
+    def _event_mark(self):
+        """E: start an event on this frame, or finish the started one here.
+        A selected annotation of a track makes the event about that object."""
+        ev = self._events
+        if not ev.is_open:
+            from annotator.domain.tracks import track_id
+            ann = self._ctrl.get_annotation(self._selected_annotation_id() or "")
+            ev.start_here(track_id(ann) if ann is not None else None)
+            return
+        if not ev.vid:
+            ev.cancel()
+            return
+        if ev.current_type_obj() is None and not self._event_new_type():
+            return
+        ev.finish_here()
+
+    def _event_new_type(self) -> bool:
+        if not self._ctrl.project:
+            return False
+        from annotator.video.events_ui import ask_new_type
+        return ask_new_type(self._events, self)
+
+    def _event_edit(self, event_id: str = ""):
+        ev = self._events
+        e = ev.get(event_id or ev.selected)
+        if e is None:
+            self._status.showMessage(tr("ev_select_first"), 5000)
+            return
+        ev.select(e.id)
+        from annotator.video.events_ui import EventDialog
+        dlg = EventDialog(ev, self._video, e, self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            ev.update(e.id, **dlg.changes())
+
+    def _event_delete(self):
+        if not self._events_panel.delete_selected():
+            self._status.showMessage(tr("ev_select_first"), 5000)
+
+    def _event_types(self):
+        if not self._ctrl.project:
+            QMessageBox.information(self, "No project", "Open or create a project first.")
+            return
+        from annotator.video.events_ui import EventTypesDialog
+        EventTypesDialog(self._events, self).exec()
 
     def _split_dataset(self):
         if not self._ctrl.project:

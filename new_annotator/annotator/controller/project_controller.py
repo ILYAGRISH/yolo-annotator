@@ -763,6 +763,9 @@ class ProjectController(QObject):
         elif format_name == "mot":
             from annotator.exporters.mot import MotExporter
             exp = MotExporter()
+        elif format_name == "video_events":
+            from annotator.exporters.video_events import VideoEventsExporter
+            exp = VideoEventsExporter()
         else:
             raise ValueError(f"Unknown export format: {format_name!r}")
 
