@@ -332,11 +332,21 @@ class AnnotationsPanel(QWidget):
     def _source_hint(ann: Annotation) -> str:
         """'  · 🤖 0.87' for annotations made by a model (meta.source == "model"),
         '  · ✓🤖 0.87' once reviewed."""
+        track = AnnotationsPanel._track_hint(ann)
         if not is_model(ann):
-            return ""
+            return track
         mark = "✓🤖" if is_reviewed(ann) else "🤖"
         conf = ann.meta.get("confidence")
-        return f"  · {mark} {conf:.2f}" if isinstance(conf, (int, float)) else f"  · {mark}"
+        return (f"  · {mark} {conf:.2f}" if isinstance(conf, (int, float))
+                else f"  · {mark}") + track
+
+    @staticmethod
+    def _track_hint(ann: Annotation) -> str:
+        """'  · #3◆' (keyframe) / '  · #3' (interpolated) for video tracks."""
+        tid = ann.meta.get("track_id")
+        if not isinstance(tid, int):
+            return ""
+        return f"  · #{tid}" + ("◆" if ann.meta.get("keyframe", True) else "")
 
     def _on_row(self, row: int):
         if 0 <= row < len(self._annotations):

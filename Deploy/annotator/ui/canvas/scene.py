@@ -117,6 +117,9 @@ class AnnotationScene(QGraphicsScene):
                 color, label = cls.color, cls.name
         if is_unreviewed(ann):
             label += " 🤖"
+        tid = ann.meta.get("track_id")
+        if isinstance(tid, int):                 # video track: "#3", keyframe "#3◆"
+            label += f" #{tid}" + ("◆" if ann.meta.get("keyframe", True) else "")
 
         w, h = self._image_size
         item = None

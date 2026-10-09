@@ -118,13 +118,13 @@ cd new_annotator
 
 **Requirements:** Python 3.12+ (3.13 recommended) · Windows; Linux works from source (tested in CI)
 
-**Tests:** `cd new_annotator && .venv\Scripts\python run_tests.py` runs all 15 suites (~900 checks, headless, a few seconds); `run_tests.py review sam` runs only the suites whose name contains a word. GitHub Actions runs them on every push to `main` on Windows and Ubuntu with Python 3.12 and 3.13 ([`.github/workflows/tests.yml`](.github/workflows/tests.yml)).
+**Tests:** `cd new_annotator && .venv\Scripts\python run_tests.py` runs all 16 suites (~1000 checks, headless, a few seconds); `run_tests.py review sam` runs only the suites whose name contains a word. GitHub Actions runs them on every push to `main` on Windows and Ubuntu with Python 3.12 and 3.13 ([`.github/workflows/tests.yml`](.github/workflows/tests.yml)).
 
 **Optional ML environment** (for model features — YOLO pre-labelling, SAM): `setup_ml_env.bat` creates a separate `.venv-ml` with PyTorch (CUDA build when an NVIDIA GPU is found, `--cpu` otherwise) and Ultralytics. Or point **ML → ML Settings…** at any existing Python / conda environment that has `ultralytics`. The annotator itself never imports PyTorch.
 
 ## Changelog
 
-### Unreleased
+### v2.0 — 2026-10-09
 - **Video and object tracks** — **File / Video → Import Video…** (or drop a video file on the image list) extracts every N-th frame of a chosen time range as JPEG images (default ≈ 5 per second) — every tool, SAM, pre-labelling and review work on them. **T** turns the selected annotation into a track; on a later frame **Shift+T** adds a keyframe (a copy to move onto the object) and the frames in between are **interpolated** — boxes, OBBs, polygons (resampled when the point count differs), points and poses. Editing an in-between frame makes it a keyframe; every edit, delete, undo and redo re-interpolates. **Shift+A / Shift+D** jump between keyframes. A **frame strip** under the canvas shows frames with annotations, the active track and its keyframes (click or drag to go to a frame). Track ids on the canvas and in the panel (`#3`, keyframe `#3◆`). **Split Dataset** keeps all frames of a video in one split. New export format **MOTChallenge**
 - **Automatic tracking** — in **Pre-label Dataset** choose a video (🎞) and **Track objects**: the YOLO model runs with a tracker (**ByteTrack** or **BoT-SORT**) over the frames in order; every object becomes a project track, every detection a keyframe (🤖, to review with R / Shift+R), frames where the model missed the object are interpolated. Works with detect / segment / OBB / pose models and with *Outlines via SAM*. A new run replaces the unreviewed keyframes of the previous one, accepted ones stay. `lap` (needed by the trackers) is added to `requirements-ml.txt`
 - **Select tool: drag the body of an annotation to move it** as a whole (box, OBB, polygon, polyline, point, pose; a crack with its source line) — so far only corners and vertices could be dragged. It stops at the image edge; a click with a small jitter does not move anything. `T` / `Shift+T` switch to Select so a new keyframe can be dragged onto the object right away

@@ -13,6 +13,11 @@ normalises it and maps it onto project classes:
                      "obb": [cx, cy, w, h, angle_rad],     # obb
                      "keypoints": [[x, y, conf], ...]}],   # pose
      "classification": [{"cls": 3, "conf": 0.8}, ...]}    # classify: top-5
+
+yolo.track (8-C) takes the same parameters for ONE frame of a video plus
+"reset" (true on the first frame) and "tracker" ("bytetrack" / "botsort");
+its detections carry "track_id" — the tracker's own number, consistent
+across the frames of one run.
 """
 from __future__ import annotations
 
@@ -23,6 +28,10 @@ from pathlib import Path
 from ml_backend.handlers import BadRequest, handler, import_or_explain, require
 
 _MODELS: dict[str, tuple[float, object]] = {}     # resolved path -> (mtime, YOLO)
+# tracking runs on its OWN model instance: Ultralytics attaches the tracker to
+# the model for good (callbacks), it would alter later yolo.predict calls
+_TRACK: dict = {}                                    # {"key", "mtime", "tracker", "model"}
+TRACKERS = ("bytetrack", "botsort")
 
 
 def get_model(path_str: str):
@@ -104,14 +113,7 @@ def _mask_polygons(mask, min_area: float = 4.0) -> list:
     return polys
 
 
-@handler("yolo.predict")
-def predict(ctx, params):
-    model_path = require(params, "model", str)
-    image = require(params, "image", str)
-    model, _ = get_model(model_path)
-    img = _read_image(image)
-    cv2 = import_or_explain("cv2")
-
+def _kwargs(params) -> dict:
     kwargs = {"conf": float(params.get("conf", 0.25)),
               "iou": float(params.get("iou", 0.7)),
               "max_det": int(params.get("max_det", 300)),
@@ -123,10 +125,58 @@ def predict(ctx, params):
         kwargs["classes"] = [int(c) for c in params["classes"]]
     if params.get("device"):
         kwargs["device"] = str(params["device"])
+    return kwargs
 
+
+@handler("yolo.predict")
+def predict(ctx, params):
+    model_path = require(params, "model", str)
+    image = require(params, "image", str)
+    model, _ = get_model(model_path)
+    img = _read_image(image)
     t0 = time.perf_counter()
-    res = model.predict(img, **kwargs)[0]
-    ms = (time.perf_counter() - t0) * 1000
+    res = model.predict(img, **_kwargs(params))[0]
+    return _result(ctx, model, res, (time.perf_counter() - t0) * 1000)
+
+
+def _track_model(path_str: str, tracker: str, reset: bool):
+    """The tracking instance; a new one (fresh tracker) on reset, other
+    weights or another tracker."""
+    path = Path(path_str)
+    if not path.is_file():
+        raise BadRequest(f"model file not found: {path_str}")
+    key, mtime = str(path.resolve()), path.stat().st_mtime
+    if (reset or _TRACK.get("key") != key or _TRACK.get("mtime") != mtime
+            or _TRACK.get("tracker") != tracker):
+        ultralytics = import_or_explain("ultralytics")
+        _TRACK.clear()
+        _TRACK.update(key=key, mtime=mtime, tracker=tracker, model=ultralytics.YOLO(key))
+    return _TRACK["model"]
+
+
+@handler("yolo.track")
+def track(ctx, params):
+    model_path = require(params, "model", str)
+    image = require(params, "image", str)
+    tracker = str(params.get("tracker", "bytetrack"))
+    if tracker not in TRACKERS:
+        raise BadRequest(f"unknown tracker: {tracker} (use {', '.join(TRACKERS)})")
+    model = _track_model(model_path, tracker, bool(params.get("reset")))
+    if model.task == "classify":
+        raise BadRequest("a classification model can't track objects")
+    img = _read_image(image)
+    t0 = time.perf_counter()
+    res = model.track(img, persist=True, tracker=f"{tracker}.yaml", **_kwargs(params))[0]
+    return _result(ctx, model, res, (time.perf_counter() - t0) * 1000)
+
+
+def _ids(part) -> list | None:
+    ids = getattr(part, "id", None)
+    return None if ids is None else [int(v) for v in ids.cpu().numpy().tolist()]
+
+
+def _result(ctx, model, res, ms: float) -> dict:
+    cv2 = import_or_explain("cv2")
     h, w = (int(v) for v in res.orig_shape)
     out = {"width": w, "height": h, "task": model.task, "ms": round(ms, 1),
            "detections": [], "classification": []}
@@ -139,12 +189,15 @@ def predict(ctx, params):
     if res.obb is not None:
         xywhr = res.obb.xywhr.cpu().numpy()
         corners = res.obb.xyxyxyxy.cpu().numpy()
+        ids = _ids(res.obb)
         for i, (cls, conf) in enumerate(zip(res.obb.cls.cpu().numpy(), res.obb.conf.cpu().numpy())):
             xs, ys = corners[i][:, 0], corners[i][:, 1]
-            out["detections"].append({
-                "cls": int(cls), "conf": float(conf),
-                "box": [float(xs.min()), float(ys.min()), float(xs.max()), float(ys.max())],
-                "obb": [float(v) for v in xywhr[i]]})
+            det = {"cls": int(cls), "conf": float(conf),
+                   "box": [float(xs.min()), float(ys.min()), float(xs.max()), float(ys.max())],
+                   "obb": [float(v) for v in xywhr[i]]}
+            if ids is not None:
+                det["track_id"] = ids[i]
+            out["detections"].append(det)
         return out
 
     boxes = res.boxes
@@ -155,9 +208,12 @@ def predict(ctx, params):
     kpts = res.keypoints
     kxy = kpts.xy.cpu().numpy() if kpts is not None else None
     kconf = kpts.conf.cpu().numpy() if kpts is not None and kpts.conf is not None else None
+    ids = _ids(boxes)
     for i, (cls, conf) in enumerate(zip(boxes.cls.cpu().numpy(), boxes.conf.cpu().numpy())):
         ctx.check_cancel()
         det = {"cls": int(cls), "conf": float(conf), "box": [float(v) for v in xyxy[i]]}
+        if ids is not None:
+            det["track_id"] = ids[i]
         if masks is not None:
             m = masks[i]
             if m.shape != (h, w):                    # safety: retina_masks should match
@@ -173,8 +229,9 @@ def predict(ctx, params):
 
 @handler("yolo.unload")
 def unload(ctx, params):
-    n = len(_MODELS)
+    n = len(_MODELS) + (1 if _TRACK else 0)
     _MODELS.clear()
+    _TRACK.clear()
     try:
         import torch
         if torch.cuda.is_available():

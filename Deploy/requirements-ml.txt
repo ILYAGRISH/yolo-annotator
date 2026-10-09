@@ -2,3 +2,4 @@
 # PyTorch is installed by the script itself (GPU or CPU build), not from here.
 # Verified versions; update together after testing.
 ultralytics==8.4.33
+lap==0.5.13          # object tracking (Video → tracks); Ultralytics would fetch it itself

@@ -48,6 +48,9 @@ class MainWindow(QMainWindow):
         self.resize(1400, 880)
         self._ctrl = ProjectController(self)
         self._ctrl.reviewer = self._reviewer_name
+        from annotator.video.manager import VideoManager
+        self._video = VideoManager(self._ctrl, allowed=lambda: set(self.allowed_image_paths()),
+                                   parent=self)
         self._tools = self._build_tools()
         self._plugin_tool_names: set[str] = set()
         self._user_role: str = "leader"   # "leader" or "client"
@@ -115,6 +118,9 @@ class MainWindow(QMainWindow):
         center_layout.setSpacing(0)
         center_layout.addWidget(self._tool_props)
         center_layout.addWidget(self._view)
+        from annotator.video.timeline import Timeline
+        self._timeline = Timeline(self._video)
+        center_layout.addWidget(self._timeline)
 
         main = QSplitter(Qt.Orientation.Horizontal)
         main.addWidget(left)
@@ -164,6 +170,7 @@ class MainWindow(QMainWindow):
         self._tact(file_m, "act_your_name",        self._change_user_name)
         file_m.addSeparator()
         self._tact(file_m, "act_add_images",       self._add_images)
+        self._tact(file_m, "act_import_video",     self._import_video)
         self._tact(file_m, "act_split_dataset",    self._split_dataset)
         self._tact(file_m, "act_import_dataset",   self._import_dataset)
         self._assign_act = self._tact(file_m, "act_assign_images", self._open_assign_dialog)
@@ -227,6 +234,21 @@ class MainWindow(QMainWindow):
             review_m, "act_review_next", self._review_next_image, "U")
         review_m.addSeparator()
         self._tact(review_m, "act_review_unmark", self._review_unmark_selected)
+
+        # Video: tracks across frames — Phase 8-B
+        video_m = self._tmenu(mb, "menu_video")
+        self._tact(video_m, "act_import_video", self._import_video)
+        video_m.addSeparator()
+        self._act_track_start = self._tact(
+            video_m, "act_track_start", self._track_start, "T")
+        self._act_track_key = self._tact(
+            video_m, "act_track_keyframe", self._track_keyframe, "Shift+T")
+        self._act_track_prev = self._tact(
+            video_m, "act_track_prev_key", lambda: self._video.goto_keyframe(-1), "Shift+A")
+        self._act_track_next = self._tact(
+            video_m, "act_track_next_key", lambda: self._video.goto_keyframe(1), "Shift+D")
+        video_m.addSeparator()
+        self._tact(video_m, "act_track_delete", self._track_delete)
 
         # Help
         help_m = self._tmenu(mb, "menu_help")
@@ -353,6 +375,7 @@ class MainWindow(QMainWindow):
         self._classes_panel.retranslate()
         self._annotations_panel.retranslate()
         self._qc_panel.retranslate()
+        self._timeline.retranslate()
         if getattr(self, "_ml", None):
             self._ml.retranslate()
 
@@ -365,6 +388,10 @@ class MainWindow(QMainWindow):
         self._act_review_accept.setShortcut(QKeySequence(h.get("review_accept", "")))
         self._act_review_all.setShortcut(QKeySequence(h.get("review_accept_all", "")))
         self._act_review_next.setShortcut(QKeySequence(h.get("review_next", "")))
+        self._act_track_start.setShortcut(QKeySequence(h.get("track_start", "")))
+        self._act_track_key.setShortcut(QKeySequence(h.get("track_keyframe", "")))
+        self._act_track_prev.setShortcut(QKeySequence(h.get("track_prev_key", "")))
+        self._act_track_next.setShortcut(QKeySequence(h.get("track_next_key", "")))
         tool_map = {
             "tool_select":   "select",
             "tool_polygon":  "polygon",
@@ -406,6 +433,9 @@ class MainWindow(QMainWindow):
             lambda ann_id, data: self._ctrl.update_annotation_data(
                 ann_id, data, "Edit attributes"))
         self._qc_panel.validate_requested.connect(self._run_validation)
+        self._video.navigate.connect(self._goto_image)
+        self._video.status.connect(lambda key: self._status.showMessage(tr(key), 5000))
+        self._video.frames_written.connect(self._on_frames_written)
         self._qc_panel.navigate_requested.connect(self._on_qc_navigate)
         self._tool_props.params_changed.connect(self._on_tool_params_changed)
         self._tool_props.commit_requested.connect(
@@ -603,6 +633,7 @@ class MainWindow(QMainWindow):
 
     def _on_annotation_selected(self, ann_id: str):
         if ann_id:
+            self._video.set_active_from(self._ctrl.get_annotation(ann_id))
             self._scene.select_by_id(ann_id)
             self._annotations_panel.set_selected(ann_id)
             # After crack edit commits it calls select_annotation — switch back to Select
@@ -843,7 +874,7 @@ class MainWindow(QMainWindow):
         QMessageBox.about(
             self, "About YOLO Annotator",
             "<h3>YOLO Annotator</h3>"
-            "<p><b>Version:</b> 1.9</p>"
+            "<p><b>Version:</b> 2.0</p>"
             "<p><b>Author:</b> Ilya Grishutin</p>"
             "<p><b>License:</b> GPL-3.0</p>"
             "<p>Desktop image annotation tool for preparing<br>"
@@ -1162,7 +1193,59 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "No project",
                                     "Open or create a project first.")
             return
-        self._ctrl.add_images_from_paths(paths)
+        from annotator.video.extract import VIDEO_EXTS
+        videos = [p for p in paths if Path(p).suffix.lower() in VIDEO_EXTS]
+        images = [p for p in paths if p not in videos]
+        if images:
+            self._ctrl.add_images_from_paths(images)
+        for v in videos:
+            self._import_video(str(v))
+
+    # ── video (Phase 8-B) ─────────────────────────────────────────────────────
+
+    def _import_video(self, path: str = ""):
+        if not self._ctrl.project:
+            QMessageBox.information(self, "No project", "Open or create a project first.")
+            return
+        from annotator.video.import_dialog import ImportVideoDialog
+        dlg = ImportVideoDialog(self._ctrl, self, path=path or "")
+        if dlg.exec() == QDialog.DialogCode.Accepted and dlg.first_frame:
+            self._goto_image(dlg.first_frame)
+
+    def _goto_image(self, path: str):
+        """Show `path`: through the image list when it is listed there
+        (keeps the list in step), directly otherwise (filtered out)."""
+        self._images_panel.select_by_path(path)
+        if self._ctrl.current_image != path:
+            self._ctrl.set_image(path)
+
+    def _on_frames_written(self, items: list):
+        for path, anns in items:
+            self._images_panel.set_annotated(path, bool(anns))
+            self._images_panel.set_unreviewed(path, count_unreviewed(anns))
+
+    def _track_start(self):
+        if self._video.start_track(self._selected_annotation_id()) is not None:
+            self._activate_tool("select")      # next: move it / go to a later frame
+
+    def _track_keyframe(self):
+        """Shift+T, then Select at once: the copied keyframe is dragged onto
+        the object (a drawing tool would start a new box instead)."""
+        if self._video.keyframe_here() is not None:
+            self._activate_tool("select")
+
+    def _track_delete(self):
+        tid = self._video.active_track
+        if tid is None:
+            self._status.showMessage(tr("track_none_active"), 5000)
+            return
+        n = len(self._video.track_frames(tid))
+        if QMessageBox.question(self, tr("act_track_delete"),
+                                tr("track_delete_q").format(id=tid, n=n)) \
+                != QMessageBox.StandardButton.Yes:
+            return
+        removed = self._video.delete_track(tid)
+        self._status.showMessage(tr("track_deleted").format(id=tid, n=removed), 5000)
 
     def _split_dataset(self):
         if not self._ctrl.project:
@@ -1177,7 +1260,7 @@ class MainWindow(QMainWindow):
         dlg = SplitDatasetDialog(self._ctrl.project, self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             self._ctrl.split_dataset(
-                dlg.val_pct, dlg.test_pct, dlg.mode, dlg.shuffle)
+                dlg.val_pct, dlg.test_pct, dlg.mode, dlg.shuffle, dlg.by_video)
 
     def _import_dataset(self):
         if not self._ctrl.project:

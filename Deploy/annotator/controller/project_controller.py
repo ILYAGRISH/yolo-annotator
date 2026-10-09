@@ -28,6 +28,7 @@ from annotator.domain.label_class import LabelClass
 from annotator.domain.project import Project
 from annotator.domain.review import (count_unreviewed, drop_unreviewed, is_model,
                                      is_unreviewed, reviewed_meta)
+from annotator.domain.tracks import is_interpolated
 from annotator.storage.project_store import ProjectStore
 from annotator.ui.undo.commands import (AddAnnotationCmd, DeleteAnnotationCmd,
                                         SetMetaCmd, UpdateAnnotationCmd)
@@ -120,11 +121,15 @@ class ProjectController(QObject):
         self.status_message.emit(f"Saved: {self._project.project_path}")
 
     def split_dataset(self, val_pct: int, test_pct: int,
-                      mode: str = "all", shuffle: bool = True) -> None:
+                      mode: str = "all", shuffle: bool = True,
+                      by_video: bool = True) -> None:
         """Assign train/val/test splits to project images proportionally.
 
         mode: "all"        — reassign all images (overwrites existing splits)
               "unassigned" — only images not yet assigned to val or test
+        by_video: all frames of one video go to the same split (neighbouring
+              frames are near-duplicates: spread over train and val they
+              would make validation meaningless)
         """
         if not self._project:
             return
@@ -139,22 +144,24 @@ class ProjectController(QObject):
             self.status_message.emit("No images to split.")
             return
 
-        if shuffle:
-            import random
-            random.shuffle(pool)
-
         n = len(pool)
-        n_val  = min(round(n * val_pct  / 100), n)
-        n_test = min(round(n * test_pct / 100), n - n_val)
-        n_train = n - n_val - n_test
+        if by_video and any(img.video for img in pool):
+            n_train, n_val, n_test = _split_groups(pool, val_pct, test_pct, shuffle)
+        else:
+            if shuffle:
+                import random
+                random.shuffle(pool)
+            n_val  = min(round(n * val_pct  / 100), n)
+            n_test = min(round(n * test_pct / 100), n - n_val)
+            n_train = n - n_val - n_test
 
-        for i, img in enumerate(pool):
-            if i < n_train:
-                img.split = "train"
-            elif i < n_train + n_val:
-                img.split = "val"
-            else:
-                img.split = "test"
+            for i, img in enumerate(pool):
+                if i < n_train:
+                    img.split = "train"
+                elif i < n_train + n_val:
+                    img.split = "val"
+                else:
+                    img.split = "test"
 
         self.save_project()
         parts = "  ".join(
@@ -315,11 +322,26 @@ class ProjectController(QObject):
         ann = self.get_annotation(ann_id)
         if ann:
             old_meta = new_meta = None
-            if is_unreviewed(ann) and new_data != ann.data:   # editing = reviewing it
-                old_meta, new_meta = ann.meta, reviewed_meta(ann.meta, True,
-                                                             self._reviewer_name())
+            if new_data != ann.data:
+                meta = ann.meta
+                if is_unreviewed(ann):            # editing a model annotation = reviewing it
+                    meta = reviewed_meta(meta, True, self._reviewer_name())
+                if is_interpolated(ann):          # editing an in-between frame = new keyframe
+                    meta = dict(meta, keyframe=True,
+                                source="manual" if meta.get("source") == "interpolated"
+                                else meta.get("source", "manual"))
+                if meta is not ann.meta:
+                    old_meta, new_meta = ann.meta, meta
             self._undo_stack.push(UpdateAnnotationCmd(
                 self, ann_id, ann.data, new_data, text, old_meta, new_meta))
+
+    def set_meta(self, metas: dict, text: str = "Change annotation") -> None:
+        """Replace the meta of annotations of the current image ({id: meta}) —
+        one undo step."""
+        old = {aid: a.meta for aid, a in ((i, self.get_annotation(i)) for i in metas) if a}
+        new = {aid: m for aid, m in metas.items() if aid in old}
+        if new:
+            self._undo_stack.push(SetMetaCmd(self, old, new, text))
 
     # ── review status of model annotations (Phase 8-A) ────────────────────────
 
@@ -400,6 +422,57 @@ class ProjectController(QObject):
                 if a.id not in drop] + list(add)
         ProjectStore.save_annotations(self._project, image_path, anns)
         self._export_yolo(image_path, anns)
+
+    def sync_derived(self, image_path: str, upsert: list[Annotation],
+                     remove_ids=()) -> None:
+        """Write DERIVED annotations (interpolated track frames) on any image:
+        `upsert` replaces annotations with the same id or adds new ones.
+        Not an undo step — derived data is recomputed from the keyframes
+        whenever they change (also on undo / redo of a keyframe edit)."""
+        if not self._project or (not upsert and not remove_ids):
+            return
+        drop = set(remove_ids)
+
+        def merged(anns):
+            by_id = {a.id: a for a in upsert}
+            out = [by_id.pop(a.id, a) for a in anns if a.id not in drop]
+            return out + list(by_id.values())
+
+        if image_path == self._current_image:
+            self._annotations = merged(self._annotations)
+            self._mark_dirty()
+            self.annotations_changed.emit(list(self._annotations))
+            return
+        if not self._project.project_path:
+            return
+        anns = merged(ProjectStore.load_annotations(self._project, image_path))
+        ProjectStore.save_annotations(self._project, image_path, anns)
+        self._export_yolo(image_path, anns)
+
+    def new_track_id(self) -> int:
+        tid = self._project.next_track_id
+        self._project.next_track_id = tid + 1
+        if self._project.project_path:          # never hand out the same id twice
+            ProjectStore.save(self._project, self._project.project_path)
+        return tid
+
+    def add_video_frames(self, vid: str, info: dict, frames: list) -> int:
+        """Register an imported video and its extracted frames
+        [(frame_number, image_path)] (see annotator/video/extract.py)."""
+        if not self._project:
+            return 0
+        self._project.videos[vid] = dict(info)
+        w, h = info.get("width", 0), info.get("height", 0)
+        before = len(self._project.images)
+        for fno, path in frames:
+            rec = self._project.add_image(str(path), width=w, height=h)
+            rec.video, rec.frame = vid, int(fno)
+        added = len(self._project.images) - before
+        if self._project.project_path:
+            ProjectStore.save(self._project, self._project.project_path)
+        self.project_changed.emit(self._project)
+        self.status_message.emit(f"Video {vid}: {added} frames added")
+        return added
 
     def select_annotation(self, ann_id: str):
         self.annotation_selected.emit(ann_id)
@@ -687,6 +760,9 @@ class ProjectController(QObject):
         elif format_name == "coco_panoptic":
             from annotator.exporters.coco_panoptic import CocoPanopticExporter
             exp = CocoPanopticExporter()
+        elif format_name == "mot":
+            from annotator.exporters.mot import MotExporter
+            exp = MotExporter()
         else:
             raise ValueError(f"Unknown export format: {format_name!r}")
 
@@ -865,3 +941,27 @@ class ProjectController(QObject):
         self.save_project()
         self.project_changed.emit(self._project)
         self.status_message.emit(f"Imported {len(resolved)} classes")
+
+
+def _split_groups(pool, val_pct: int, test_pct: int, shuffle: bool) -> tuple[int, int, int]:
+    """Split keeping each video's frames together: groups (a video, or one
+    plain image) go, largest first, to the split furthest below its target."""
+    groups: dict = {}
+    for img in pool:
+        groups.setdefault(img.video or ("img", img.path), []).append(img)
+    units = list(groups.values())
+    if shuffle:
+        import random
+        random.shuffle(units)
+    units.sort(key=len, reverse=True)            # stable: shuffled within a size
+    n = len(pool)
+    target = {"val": n * val_pct / 100, "test": n * test_pct / 100}
+    target["train"] = n - target["val"] - target["test"]
+    got = {"train": 0, "val": 0, "test": 0}
+    for unit in units:
+        split = max((k for k in got if target[k] > 0),
+                    key=lambda k: (target[k] - got[k]) / target[k], default="train")
+        for img in unit:
+            img.split = split
+        got[split] += len(unit)
+    return got["train"], got["val"], got["test"]
