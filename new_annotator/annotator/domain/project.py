@@ -1,3 +1,4 @@
+import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -43,6 +44,27 @@ _DEFAULT_COLORS = [
 DEFAULT_CLASS_NAME = "object"   # the one class a new project starts with
 
 
+def unique_stem(path: str, taken: set[str]) -> str:
+    """
+    A file stem for `path` not yet in `taken` (compared case-insensitively —
+    Windows file names are), and add it there. The plain stem when free, else
+    "<parent folder>_<stem>", else that with "_2", "_3", …
+    road_a/frame.jpg → "frame", then road_b/frame.jpg → "road_b_frame".
+    """
+    stem = Path(path).stem
+    parent = re.sub(r"[^\w\-]+", "_", Path(path).parent.name).strip("_")
+    candidates = [stem] + ([f"{parent}_{stem}"] if parent else [])
+    for c in candidates:
+        if c.casefold() not in taken:
+            taken.add(c.casefold())
+            return c
+    base, n = candidates[-1], 2
+    while f"{base}_{n}".casefold() in taken:
+        n += 1
+    taken.add(f"{base}_{n}".casefold())
+    return f"{base}_{n}"
+
+
 @dataclass
 class ImageRecord:
     path: str
@@ -51,19 +73,30 @@ class ImageRecord:
     split: str = "train"
     video: str = ""         # id in Project.videos when the image is a video frame
     frame: int = -1         # frame number in that video (0-based)
+    # Unique name of the image inside the project: annotations/<key>.json,
+    # multi-user assignments, exported file names. The file stem unless another
+    # image already has it (same name in another folder) — see unique_stem().
+    key: str = ""
+
+    @property
+    def ann_key(self) -> str:
+        return self.key or Path(self.path).stem
 
     def to_dict(self) -> dict:
         d = {"path": self.path, "width": self.width,
              "height": self.height, "split": self.split}
         if self.video:                       # plain images keep the old layout
             d["video"], d["frame"] = self.video, self.frame
+        if self.key and self.key != Path(self.path).stem:
+            d["key"] = self.key              # only for renamed duplicates
         return d
 
     @classmethod
     def from_dict(cls, d: dict) -> "ImageRecord":
         return cls(path=d["path"], width=d.get("width", 0),
                    height=d.get("height", 0), split=d.get("split", "train"),
-                   video=d.get("video", ""), frame=d.get("frame", -1))
+                   video=d.get("video", ""), frame=d.get("frame", -1),
+                   key=d.get("key", ""))
 
 
 @dataclass
@@ -113,6 +146,10 @@ class Project:
 
     # Runtime-only
     project_path: Path | None = field(default=None, repr=False)
+    _keys: dict | None = field(default=None, repr=False, compare=False)   # path → key
+    # images that got a new key when this (old) project was opened: they had
+    # shared an annotation file with a same-named image (see ensure_image_keys)
+    dup_renamed: list = field(default_factory=list, repr=False, compare=False)
 
     @classmethod
     def create(cls, name: str) -> "Project":
@@ -140,11 +177,43 @@ class Project:
     # ── image management ──────────────────────────────────────────────────────
 
     def add_image(self, path: str, width: int = 0, height: int = 0) -> ImageRecord:
-        if any(r.path == path for r in self.images):
+        keys = self._key_index()
+        if path in keys:
             return next(r for r in self.images if r.path == path)
-        rec = ImageRecord(path=path, width=width, height=height)
+        taken = {k.casefold() for k in keys.values()}
+        rec = ImageRecord(path=path, width=width, height=height,
+                          key=unique_stem(path, taken))
         self.images.append(rec)
+        keys[path] = rec.key
         return rec
+
+    def image_key(self, path: str) -> str:
+        """Unique name of a project image (file stem for paths not in the project)."""
+        return self._key_index().get(path) or Path(path).stem
+
+    def ensure_image_keys(self) -> list[str]:
+        """
+        Give every image without a key one (images.json written before keys
+        existed). The first image with a name keeps it, later ones with the
+        same name get "<folder>_<name>". Returns the paths that got such a new
+        name — in an old project they shared one annotation file with another image.
+        """
+        taken = {r.key.casefold() for r in self.images if r.key}
+        renamed = []
+        for r in self.images:
+            if not r.key:
+                r.key = unique_stem(r.path, taken)
+                if r.key != Path(r.path).stem:
+                    renamed.append(r.path)
+        self._keys = None
+        return renamed
+
+    def _key_index(self) -> dict:
+        if self._keys is None or len(self._keys) != len(self.images):
+            if any(not r.key for r in self.images):
+                self.ensure_image_keys()
+            self._keys = {r.path: r.key for r in self.images}
+        return self._keys
 
     # ── event types (Phase 8-D) ───────────────────────────────────────────────
 

@@ -39,6 +39,12 @@ _ANN_MAP: dict[str, tuple[AnnotationType, str]] = {
 }
 
 
+def _norm(p: Path) -> str:
+    """Comparable form of a file path (absolute, case-insensitive on Windows)."""
+    import os
+    return os.path.normcase(os.path.abspath(str(p)))
+
+
 @dataclass
 class ImportResult:
     images_found: int = 0
@@ -294,9 +300,7 @@ class YoloImporter:
                 continue
 
             result.labels_found += 1
-            stem = img_path.stem
-
-            if stem in existing_with_anns and conflict_mode == "skip":
+            if self._has_annotations(project, img_path, existing_with_anns)                     and conflict_mode == "skip":
                 result.images_skipped += 1
                 continue
 
@@ -357,7 +361,7 @@ class YoloImporter:
                         continue
                     result.images_found += 1
 
-                    if img_path.stem in existing_with_anns and conflict_mode == "skip":
+                    if self._has_annotations(project, img_path, existing_with_anns)                             and conflict_mode == "skip":
                         result.images_skipped += 1
                         continue
 
@@ -402,7 +406,7 @@ class YoloImporter:
         return class_id_map, created
 
     def _images_with_annotations(self, project) -> set[str]:
-        """Return stems of images that already have annotation files."""
+        """Return image keys (casefolded) of images that already have annotation files."""
         if not project.project_path:
             return set()
         ann_dir = project.project_path / "annotations"
@@ -411,16 +415,34 @@ class YoloImporter:
         stems = set()
         for f in ann_dir.glob("*.json"):
             if f.stat().st_size > 5:  # non-empty
-                stems.add(f.stem)
+                stems.add(f.stem.casefold())
         return stems
+
+    def _has_annotations(self, project, img_path: Path, existing: set[str]) -> bool:
+        rec = self._find_image(project, img_path)
+        return rec is not None and rec.ann_key.casefold() in existing
+
+    @staticmethod
+    def _find_image(project, img_path: Path):
+        """
+        The project image this dataset file stands for: the same file, else
+        the one project image with that file name (labels re-imported for
+        images added from another folder). Several same-named project images
+        → none: guessing would put labels on the wrong image.
+        """
+        target = _norm(img_path)
+        same = next((r for r in project.images if _norm(Path(r.path)) == target), None)
+        if same is not None:
+            return same
+        named = [r for r in project.images
+                 if Path(r.path).stem.casefold() == img_path.stem.casefold()]
+        return named[0] if len(named) == 1 else None
 
     def _ensure_image(self, project, img_path: Path, split: str) -> str | None:
         """Register image in project if not already present. Returns project image path."""
         from PyQt6.QtGui import QImageReader
-        stem = img_path.stem
 
-        existing = next((r for r in project.images
-                         if Path(r.path).stem == stem), None)
+        existing = self._find_image(project, img_path)
         if existing:
             return existing.path
 

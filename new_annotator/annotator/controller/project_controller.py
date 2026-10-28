@@ -90,6 +90,9 @@ class ProjectController(QObject):
         self.leave_current_image()
         self._flush_current_image()
         project = ProjectStore.load(project_dir)
+        if project.dup_renamed:                # new unique image keys — keep them
+            ProjectStore.copy_shared_annotations(project, project.dup_renamed)
+            ProjectStore.save(project, project_dir)
         self._activate_project(project)
         self.status_message.emit(f"Opened: {project_dir}")
         if project.project_path:

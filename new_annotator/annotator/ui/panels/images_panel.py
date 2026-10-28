@@ -32,7 +32,7 @@ class ImagesPanel(QWidget):
         self._unreviewed: dict[str, int] = {}       # path → unreviewed 🤖 annotations
         self._user_filter: set[str] | None = None  # None = no filter (leader)
         self._displayed: list[ImageRecord] = []     # currently visible records
-        self._stem_assignee: dict[str, str] = {}    # stem → username (leader view)
+        self._stem_assignee: dict[str, str] = {}    # image key → username (leader view)
         self._setup_ui()
 
     def _setup_ui(self):
@@ -98,7 +98,7 @@ class ImagesPanel(QWidget):
         self._refresh()
 
     def set_user_filter(self, allowed_stems: set[str] | None):
-        """None = leader (no filter). A set of stems = client sees only those."""
+        """None = leader (no filter). A set of image keys = client sees only those."""
         self._user_filter = allowed_stems
         self._refresh()
 
@@ -184,10 +184,10 @@ class ImagesPanel(QWidget):
         ann_dir = project.project_path / "annotations"
         if not ann_dir.exists():
             return annotated
-        stem_to_path = {Path(rec.path).stem: rec.path for rec in project.images}
+        key_to_path = {rec.ann_key.casefold(): rec.path for rec in project.images}
         for ann_file in ann_dir.glob("*.json"):
             if ann_file.stat().st_size > 5:  # non-empty: more than just "[]"
-                img_path = stem_to_path.get(ann_file.stem)
+                img_path = key_to_path.get(ann_file.stem.casefold())
                 if img_path:
                     annotated.add(img_path)
         return annotated
@@ -201,7 +201,7 @@ class ImagesPanel(QWidget):
         if not ann_dir.exists():
             return found
         for rec in project.images:
-            n = count_unreviewed_in_file(ann_dir / (Path(rec.path).stem + ".json"))
+            n = count_unreviewed_in_file(ann_dir / (rec.ann_key + ".json"))
             if n:
                 found[rec.path] = n
         return found
@@ -217,7 +217,7 @@ class ImagesPanel(QWidget):
         is_leader = self._user_filter is None
         base = (self._project.images if is_leader
                 else [r for r in self._project.images
-                      if Path(r.path).stem in self._user_filter])
+                      if r.ann_key in self._user_filter])
         total = len(base)
 
         # Step 2: split filter
@@ -257,11 +257,13 @@ class ImagesPanel(QWidget):
         if unrev:
             check += f"  🤖{unrev}"
 
-        stem = Path(rec.path).stem
-        assignee = self._stem_assignee.get(stem, "") if self._user_filter is None else ""
+        assignee = self._stem_assignee.get(rec.ann_key, "") if self._user_filter is None else ""
         assign_tag = f" ▸{assignee}" if assignee else ""
 
-        item = QListWidgetItem(Path(rec.path).name + split_tag + assign_tag + check)
+        shown = Path(rec.path).name
+        if rec.ann_key != Path(rec.path).stem:            # same name in another folder
+            shown = f"{Path(rec.path).parent.name}/{shown}"
+        item = QListWidgetItem(shown + split_tag + assign_tag + check)
         tooltip = f"{rec.path}\nSplit: {split}"
         if assignee:
             tooltip += f"\nAssigned to: {assignee}"

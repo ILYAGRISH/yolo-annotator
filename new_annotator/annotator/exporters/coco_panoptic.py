@@ -33,7 +33,7 @@ import numpy as np
 from PIL import Image as PilImage
 
 from annotator.domain.project import Project
-from annotator.exporters.base import BaseExporter
+from annotator.exporters.base import BaseExporter, export_name
 from annotator.exporters.raster import RASTER_CLASS_TYPES, bbox_xywh, rasterize
 
 
@@ -178,13 +178,13 @@ class CocoPanopticExporter(BaseExporter):
                 iw, ih = _image_size(img_rec, img_path)
                 if iw <= 0 or ih <= 0:
                     continue
-                coco_images.append({"id": img_id, "file_name": img_path.name,
+                coco_images.append({"id": img_id, "file_name": export_name(img_rec),
                                     "width": iw, "height": ih})
 
                 seg, segments = render_panoptic(
                     all_annotations.get(img_rec.path, []), iw, ih, project,
                     seed=img_id)
-                png_name = f"{img_path.stem}.png"
+                png_name = f"{img_rec.ann_key}.png"
                 PilImage.fromarray(id_to_rgb(seg), mode="RGB").save(png_dir / png_name)
                 coco_anns.append({"image_id": img_id, "file_name": png_name,
                                   "segments_info": segments})
@@ -192,7 +192,7 @@ class CocoPanopticExporter(BaseExporter):
                 if copy_images and img_path.exists():
                     img_out = output_dir / "images" / split
                     img_out.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(img_path, img_out / img_path.name)
+                    shutil.copy2(img_path, img_out / export_name(img_rec))
 
             (ann_dir / f"panoptic_{split}.json").write_text(
                 json.dumps({

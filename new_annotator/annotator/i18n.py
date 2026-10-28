@@ -91,6 +91,13 @@ _EN: dict[str, str] = {
         "Brush: drag=paint · Enter=commit · Esc=discard   Fill: outline=fill   "
         "Wheel=zoom · MMB=pan   A/D=prev/next"
     ),
+    "dup_title": "Images with the same name",
+    "dup_text": ("This project has {n} image(s) whose file name repeats a name from another folder:\n\n"
+                 "{paths}\n\n"
+                 "Earlier versions kept ONE annotation file for same-named images, so their annotations "
+                 "got mixed. Now every image has its own file; each listed image starts with a copy "
+                 "of that shared file. Please check these images and the same-named ones and delete "
+                 "annotations that belong to the other image."),
     "brush_unsaved": "Brush: the mask is not saved yet — Enter = save · Esc = discard"
                      " (switching the image or tool saves it too)",
 
@@ -299,6 +306,13 @@ _RU: dict[str, str] = {
         "Кисть: тянуть=рисовать · Enter=принять · Esc=отменить   Заливка: обвести=залить   "
         "Колесо=зум · ССК=пан   A/D=пред/след"
     ),
+    "dup_title": "Изображения с одинаковыми именами",
+    "dup_text": ("В проекте {n} изображений, имя файла которых совпадает с именем из другой папки:\n\n"
+                 "{paths}\n\n"
+                 "Прежние версии хранили для одинаковых имён ОДИН файл разметки, поэтому их разметка "
+                 "смешалась. Теперь у каждого изображения свой файл; перечисленные получили копию "
+                 "общего файла. Проверьте их и одноимённые изображения и удалите разметку, "
+                 "которая относится к другому изображению."),
     "brush_unsaved": "Кисть: маска ещё не сохранена — Enter = сохранить · Esc = отменить"
                      " (переход к другому изображению или инструменту тоже сохранит)",
 

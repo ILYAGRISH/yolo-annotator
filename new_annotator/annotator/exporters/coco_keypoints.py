@@ -29,7 +29,7 @@ from pathlib import Path
 
 from annotator.domain.annotation import Annotation, AnnotationType
 from annotator.domain.project import Project
-from annotator.exporters.base import BaseExporter
+from annotator.exporters.base import BaseExporter, export_name
 
 _MARGIN = 0.05   # fraction of image dimension used as bbox padding
 
@@ -148,7 +148,7 @@ class CocoKeypointsExporter(BaseExporter):
                 iw, ih = _image_size(img_rec, img_path)
                 coco_images.append({
                     "id": img_id,
-                    "file_name": img_path.name,
+                    "file_name": export_name(img_rec),
                     "width": iw,
                     "height": ih,
                 })
@@ -165,7 +165,7 @@ class CocoKeypointsExporter(BaseExporter):
                 if copy_images and img_path.exists():
                     img_out = output_dir / "images" / split
                     img_out.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(img_path, img_out / img_path.name)
+                    shutil.copy2(img_path, img_out / export_name(img_rec))
 
             coco_data = {
                 "info": {"description": project.name, "version": "1.0"},

@@ -12,7 +12,7 @@ import shutil
 from pathlib import Path
 
 from annotator.domain.annotation import AnnotationType
-from annotator.exporters.base import BaseExporter
+from annotator.exporters.base import BaseExporter, export_name
 
 
 class YoloClassifyExporter(BaseExporter):
@@ -43,5 +43,5 @@ class YoloClassifyExporter(BaseExporter):
                 class_dir = output_dir / split / cls.name
                 class_dir.mkdir(parents=True, exist_ok=True)
                 if img_path.exists():
-                    shutil.copy2(img_path, class_dir / img_path.name)
+                    shutil.copy2(img_path, class_dir / export_name(img_rec))
                     exported += 1

@@ -80,9 +80,8 @@ class MainWindow(QMainWindow):
         project = self._ctrl.project
         if project is None:
             return []
-        paths = [r.path for r in project.images]
-        stems = self._images_panel.user_filter()
-        return paths if stems is None else [p for p in paths if Path(p).stem in stems]
+        keys = self._images_panel.user_filter()
+        return [r.path for r in project.images if keys is None or r.ann_key in keys]
 
     def _install_ml(self):
         """Optional ML extension (annotator/ml): menu + backend process.
@@ -1186,11 +1185,20 @@ class MainWindow(QMainWindow):
     def _open_project_path(self, path: Path):
         try:
             self._reset_multiuser()
-            self._ctrl.open_project(path)
+            project = self._ctrl.open_project(path)
             self._apply_multiuser_role()
             recent_projects.add(path)
+            if project.dup_renamed:
+                self._warn_dup_renamed(project)
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
+
+    def _warn_dup_renamed(self, project):
+        """Old project with same-named images: they had shared one annotation file."""
+        paths = project.dup_renamed
+        shown = "\n".join(paths[:15]) + (f"\n… (+{len(paths) - 15})" if len(paths) > 15 else "")
+        QMessageBox.warning(self, tr("dup_title"), tr("dup_text").format(n=len(paths), paths=shown))
+        project.dup_renamed = []
 
     # ── recent projects ───────────────────────────────────────────────────────
 
