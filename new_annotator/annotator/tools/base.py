@@ -24,6 +24,10 @@ class BaseTool(ABC):
     def deactivate(self):
         """Called when switching to another tool."""
 
+    def leave_image(self):
+        """Called before another image (or project) is opened, while the
+        controller still points to the current image — save unsaved work."""
+
     @abstractmethod
     def on_press(self, pos, modifiers, button): ...
 

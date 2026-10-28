@@ -22,6 +22,7 @@ from annotator.tools.obb_tool import OBBTool
 from annotator.tools.polygon_tool import PolygonTool, PolylineTool
 from annotator.tools.brush_tool import BrushTool
 from annotator.tools.semantic_tool import SemanticBrushTool
+from annotator.tools.fill_tool import FillTool
 from annotator.tools.point_tool import PointTool
 from annotator.tools.pose_tool import PoseTool
 from annotator.tools.select_tool import SelectTool
@@ -215,6 +216,7 @@ class MainWindow(QMainWindow):
         self._menu_tool_acts["point"]      = self._add_action(tools_m, "Point  [.]",    lambda: self._activate_tool("point"))
         self._menu_tool_acts["brush"]      = self._add_action(tools_m, "Brush  [M]",    lambda: self._activate_tool("brush"))
         self._menu_tool_acts["semantic_brush"] = self._add_action(tools_m, "Semantic brush  [S]", lambda: self._activate_tool("semantic_brush"))
+        self._menu_tool_acts["fill"]       = self._add_action(tools_m, "Fill  [G]",     lambda: self._activate_tool("fill"))
 
         # Export (alias, no retranslation needed)
         mb.addMenu("&Export")
@@ -334,6 +336,7 @@ class MainWindow(QMainWindow):
         self._act_point      = _tool_action("• Point",    "point",      ".")
         self._act_brush      = _tool_action("⬤ Brush",    "brush",      "M")
         self._act_semantic   = _tool_action("▦ Semantic", "semantic_brush", "S")
+        self._act_fill       = _tool_action("◉ Fill",     "fill",       "G")
 
         self._tools_end = tb.addSeparator()          # register_tool() inserts before it
         act_fit = QAction("⊞ Fit  [F]", self)
@@ -356,6 +359,7 @@ class MainWindow(QMainWindow):
             "point":      self._act_point,
             "brush":      self._act_brush,
             "semantic_brush": self._act_semantic,
+            "fill":       self._act_fill,
         }
 
     # ── shortcuts ─────────────────────────────────────────────────────────────
@@ -431,6 +435,7 @@ class MainWindow(QMainWindow):
             "tool_point":    "point",
             "tool_brush":    "brush",
             "tool_semantic": "semantic_brush",
+            "tool_fill":     "fill",
         }
         for hk_key, tool_name in tool_map.items():
             act = self._tool_act_map.get(tool_name)
@@ -441,6 +446,7 @@ class MainWindow(QMainWindow):
 
     def _connect_signals(self):
         self._ctrl.project_changed.connect(self._on_project_changed)
+        self._ctrl.image_about_to_change.connect(self._on_image_leaving)
         self._ctrl.image_changed.connect(self._on_image_changed)
         self._ctrl.annotations_changed.connect(self._on_annotations_changed)
         self._ctrl.annotation_selected.connect(self._on_annotation_selected)
@@ -527,6 +533,7 @@ class MainWindow(QMainWindow):
             "point":      PointTool(),
             "brush":      BrushTool(),
             "semantic_brush": SemanticBrushTool(),
+            "fill":       FillTool(),
         }
 
     def _activate_tool(self, name: str):
@@ -588,6 +595,11 @@ class MainWindow(QMainWindow):
             self._status.showMessage("Ready  —  File › New Project to get started")
             from annotator.domain.project import DEFAULT_HOTKEYS
             self._apply_hotkeys(DEFAULT_HOTKEYS)
+
+    def _on_image_leaving(self, _path: str):
+        leave = getattr(self._scene.active_tool, "leave_image", None)   # plugin tools may lack it
+        if leave is not None:
+            leave()
 
     def _on_image_changed(self, path: str, annotations: list):
         self._scene.load_image(path)
@@ -1125,6 +1137,7 @@ class MainWindow(QMainWindow):
     def _close_project(self):
         if not self._ctrl.project:
             return
+        self._ctrl.leave_current_image()          # unsaved Brush strokes count as changes
         if self._ctrl.is_dirty:
             ret = QMessageBox.question(
                 self, "Unsaved changes",
@@ -1377,6 +1390,7 @@ class MainWindow(QMainWindow):
     # ── close ─────────────────────────────────────────────────────────────────
 
     def closeEvent(self, event):
+        self._ctrl.leave_current_image()
         self._ctrl.save_project()
         if self._ml:
             self._ml.shutdown()

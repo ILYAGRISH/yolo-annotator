@@ -137,7 +137,7 @@ check("SEMANTIC round-trip",
       == AnnotationType.SEMANTIC)
 check("'semantic' class type registered", "semantic" in ANNOTATION_TYPES)
 check("semantic -> semantic_brush tool",
-      ANNOTATION_TYPE_TOOLS["semantic"] == ["semantic_brush"]
+      ANNOTATION_TYPE_TOOLS["semantic"][0] == "semantic_brush"
       and ANNOTATION_TYPE_DEFAULT_TOOL["semantic"] == "semantic_brush")
 check("hotkey S", DEFAULT_HOTKEYS.get("tool_semantic") == "S")
 

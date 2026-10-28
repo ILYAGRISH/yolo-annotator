@@ -46,14 +46,18 @@ class MaskStorage:
 
     # ── PNG save / load ───────────────────────────────────────────────────────
 
-    def save_mask(self, ann_id: str, image_stem: str, bitmap) -> str:
+    def save_mask(self, ann_id: str, image_stem: str, bitmap, revision: bool = False) -> str:
         """
         Save (H,W) uint8 numpy array as PNG. Returns relative path: "masks/<...>.png".
+        revision=True — fresh file name for an edit of an existing annotation, so
+        undo can restore the previous data dict with its still-existing file.
         """
         import numpy as np
         from PIL import Image
 
         fname = f"{image_stem}_{ann_id}.png"
+        if revision:
+            fname = f"{image_stem}_{ann_id}_{uuid.uuid4().hex[:12]}.png"
         arr = np.asarray(bitmap, dtype=np.uint8)
         Image.fromarray(arr, mode="L").save(self._masks_dir / fname)
         return f"masks/{fname}"

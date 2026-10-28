@@ -19,8 +19,8 @@ ANNOTATION_TYPE_TOOLS: dict[str, list[str]] = {
     "obb":            ["obb"],
     "keypoints":      ["pose"],
     "point":          ["point"],
-    "mask":           ["brush"],
-    "semantic":       ["semantic_brush"],
+    "mask":           ["brush", "fill"],
+    "semantic":       ["semantic_brush", "fill"],
     "classification": [],
 }
 

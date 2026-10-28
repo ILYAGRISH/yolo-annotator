@@ -88,9 +88,11 @@ _EN: dict[str, str] = {
     "toolbar_hint": (
         "  Polygon/Polyline/Crack/Pose: click=add · RMB=undo · dbl-click or Enter=finish · Esc=cancel   "
         "BBox/OBB: drag   Select: click=pick · drag handle=move vertex · Del=delete   "
-        "Brush: drag=paint · Enter=commit · Esc=discard   "
+        "Brush: drag=paint · Enter=commit · Esc=discard   Fill: outline=fill   "
         "Wheel=zoom · MMB=pan   A/D=prev/next"
     ),
+    "brush_unsaved": "Brush: the mask is not saved yet — Enter = save · Esc = discard"
+                     " (switching the image or tool saves it too)",
 
     # Project settings dialog
     "dlg_project_settings": "Project Settings",
@@ -294,9 +296,11 @@ _RU: dict[str, str] = {
     "toolbar_hint": (
         "  Полигон/Полилиния/Трещина/Поза: клик=точка · ПКМ=отмена · 2×клик или Enter=завершить · Esc=отмена   "
         "BBox/OBB: тянуть   Выбор: клик=выбрать · тянуть=двигать · Del=удалить   "
-        "Кисть: тянуть=рисовать · Enter=принять · Esc=отменить   "
+        "Кисть: тянуть=рисовать · Enter=принять · Esc=отменить   Заливка: обвести=залить   "
         "Колесо=зум · ССК=пан   A/D=пред/след"
     ),
+    "brush_unsaved": "Кисть: маска ещё не сохранена — Enter = сохранить · Esc = отменить"
+                     " (переход к другому изображению или инструменту тоже сохранит)",
 
     # Project settings dialog
     "dlg_project_settings": "Настройки проекта",

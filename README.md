@@ -57,6 +57,7 @@ A desktop image annotation tool for preparing training datasets for computer vis
 | Classification   | —      | Image-level label with no geometry               |
 | Brush mask       | `M`    | Pixel-painted binary mask → polygon on commit    |
 | Semantic region  | `S`    | Class-painted region; one layer per class/image  |
+| Fill (lasso)     | `G`    | Outline an area → it is filled; mask or semantic |
 
 ## Export Formats
 
@@ -119,11 +120,16 @@ cd new_annotator
 
 **Requirements:** Python 3.12+ (3.13 recommended) · Windows; Linux works from source (tested in CI)
 
-**Tests:** `cd new_annotator && .venv\Scripts\python run_tests.py` runs all 17 suites (~1100 checks, headless, a few seconds); `run_tests.py review sam` runs only the suites whose name contains a word. GitHub Actions runs them on every push to `main` on Windows and Ubuntu with Python 3.12 and 3.13 ([`.github/workflows/tests.yml`](.github/workflows/tests.yml)).
+**Tests:** `cd new_annotator && .venv\Scripts\python run_tests.py` runs all 18 suites (~1200 checks, headless, a few seconds); `run_tests.py review sam` runs only the suites whose name contains a word. GitHub Actions runs them on every push to `main` on Windows and Ubuntu with Python 3.12 and 3.13 ([`.github/workflows/tests.yml`](.github/workflows/tests.yml)).
 
 **Optional ML environment** (for model features — YOLO pre-labelling, SAM): `setup_ml_env.bat` creates a separate `.venv-ml` with PyTorch (CUDA build when an NVIDIA GPU is found, `--cpu` otherwise) and Ultralytics. Or point **ML → ML Settings…** at any existing Python / conda environment that has `ultralytics`. The annotator itself never imports PyTorch.
 
 ## Changelog
+
+### Unreleased
+- **Fill tool (`G`)** — outline an object and the whole enclosed area is filled, like a lasso: the end of the contour is joined to its start, so a small gap does not matter (a dashed line shows the closing while you draw). Every contour is saved on release (one undo step, no Enter). Works with **mask** classes (each contour is a new mask; with a mask selected the contour is added to it) and **semantic** classes (the contour goes into the class layer). *Erase* mode cuts the outlined area out. Requested by users
+- **Fix: masks are drawn from their PNG** — the canvas showed only the outer outline of a mask, so holes (erased with Brush or Fill) and extra pieces were invisible although they were saved. Masks are now drawn pixel-exact like semantic layers, the outline follows the holes too, and a click into a hole does not select the mask
+- **Fix: Brush lost unsaved strokes** — switching the image or the tool silently dropped strokes not committed with Enter, and a mask loaded for editing could vanish from its image and land on the next one. Unsaved strokes are now saved into the image they were painted on (switching the tool or class saves them too; Esc still discards), and the status line says when a mask is not saved yet
 
 ### v2.1 — 2026-10-09
 - **Time events on video** — mark *"from frame A to frame B — event X"* (lane change, fall, goal…): **E** on the first frame, **E** again on the last one (**Shift+E** cancels). Project-wide event types with colours (**Video → Event Types…**, or *+ New event type…* under the frame strip). An **event strip** under the frame strip shows the events of the video (overlapping ones in separate rows; click selects, double click edits), a new **Events** tab lists them — type, frames, time, object track, note — with *Start here / End here*, edit and delete; Ctrl+Z undoes. An event can be about an object track (select its annotation before the first E). New export format **Video Events** — `events.csv` + `activitynet.json` (ActivityNet 1.3, segments in seconds)
