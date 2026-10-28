@@ -126,7 +126,7 @@ cd new_annotator
 
 ## Changelog
 
-### Unreleased
+### v2.2.1 — 2026-10-28
 - **The default `object` class gives way to your own classes** — a new project starts with one `object` (bbox, id 0); while it is unused, the first class added in the schema editor, a class schema import and a YOLO dataset import now replace it (pre-labelling already did). Your classes are numbered from 0 and exports get no empty extra class: no `object` first in YOLO `names`, no shift of Semantic Masks values, YOLO datasets keep their class indices after import. A renamed, retyped or used `object` is kept
 
 ### v2.2 — 2026-10-28

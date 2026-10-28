@@ -14,7 +14,7 @@ from pathlib import Path
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 
 from annotator.domain.label_class import LabelClass, SkeletonKeypoint
-from annotator.domain.project import DEFAULT_CLASS_NAME
+from annotator.domain.project import unused_placeholder as _unused_placeholder
 from annotator.ml.client import (BACKEND_EXITED, NOT_CONFIGURED, START_FAILED,
                                  STOPPED_ERR, MLBackend, Reply)
 from annotator.domain.tracks import keyframe_meta, plan_track, track_id
@@ -74,14 +74,8 @@ def make_skeleton(n_kpts: int) -> list[SkeletonKeypoint]:
 def unused_placeholder(ctrl, keep_ids=()) -> LabelClass | None:
     """The default class of a new project ("object") when it is still the only
     class, has no annotations and is not in `keep_ids` — classes created from a
-    model replace it (a project can't be left with no classes otherwise)."""
-    classes = ctrl.project.classes
-    if len(classes) != 1:
-        return None
-    c = classes[0]
-    if c.name != DEFAULT_CLASS_NAME or c.id in keep_ids or ctrl.count_annotations_for_class(c.id):
-        return None
-    return c
+    model replace it (see annotator.domain.project.unused_placeholder)."""
+    return _unused_placeholder(ctrl.project.classes, ctrl.count_annotations_for_class, keep_ids)
 
 
 def create_classes(ctrl, specs: list[tuple[str, str]], kpt_count: int | None = None,

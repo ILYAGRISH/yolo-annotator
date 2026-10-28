@@ -528,6 +528,13 @@ class ProjectController(QObject):
 
     # ── class schema management ───────────────────────────────────────────────
 
+    def unused_placeholder(self):
+        """The untouched default class of a new project (see domain.project.unused_placeholder)."""
+        if not self._project:
+            return None
+        from annotator.domain.project import unused_placeholder
+        return unused_placeholder(self._project.classes, self.count_annotations_for_class)
+
     def count_annotations_for_class(self, class_id: int) -> int:
         """Count annotations referencing class_id across all saved images."""
         if not self._project:
@@ -630,8 +637,11 @@ class ProjectController(QObject):
         with open(src_path, "r", encoding="utf-8") as f:
             raw = json.load(f)
         schema = ClassSchema.from_dict(raw)
-        existing_by_id = {c.id: c for c in self._project.classes}
-        existing_by_name = {c.name.lower(): c for c in self._project.classes}
+        # the untouched "object" of a new project is replaced, not a conflict
+        ph = self.unused_placeholder()
+        own = [c for c in self._project.classes if c is not ph]
+        existing_by_id = {c.id: c for c in own}
+        existing_by_name = {c.name.lower(): c for c in own}
         report = []
         for inc in schema.classes:
             conflict_type = None
@@ -863,6 +873,9 @@ class ProjectController(QObject):
 
         from annotator.importers.yolo_importer import YoloImporter
         importer = YoloImporter()
+        ph = self.unused_placeholder()
+        if ph is not None and class_names:     # dataset classes keep their indices
+            self._project.remove_class(ph.id)
 
         if ann_type == "classify":
             result = importer.import_classify(
@@ -918,6 +931,9 @@ class ProjectController(QObject):
         if not self._project:
             return
         self._flush_current_image()
+        ph = self.unused_placeholder()
+        if ph is not None and resolved:
+            self._project.remove_class(ph.id)
 
         # Apply ID remap to all annotation files
         if remap:
