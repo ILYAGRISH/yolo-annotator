@@ -44,6 +44,23 @@ _DEFAULT_COLORS = [
 DEFAULT_CLASS_NAME = "object"   # the one class a new project starts with
 
 
+def unused_placeholder(classes: list[LabelClass], count_fn, keep_ids=()) -> LabelClass | None:
+    """
+    The class a new project starts with ("object", bbox) while it is still the
+    only class and has no annotations (count_fn(class_id) -> int). The first
+    classes the user creates — schema editor, schema / YOLO import,
+    pre-labelling — replace it, so their ids and export indices start from 0
+    and exports get no empty extra class.
+    """
+    if len(classes) != 1:
+        return None
+    c = classes[0]
+    if (c.name != DEFAULT_CLASS_NAME or c.annotation_type != "bbox"
+            or c.id in keep_ids or count_fn(c.id)):
+        return None
+    return c
+
+
 def unique_stem(path: str, taken: set[str]) -> str:
     """
     A file stem for `path` not yet in `taken` (compared case-insensitively —

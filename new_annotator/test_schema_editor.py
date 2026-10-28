@@ -1,5 +1,5 @@
 """
-Class Schema Editor tests — deleting / reordering classes
+Class Schema Editor tests — deleting / reordering classes, the default class
 Run: .venv/Scripts/python test_schema_editor.py
 """
 import os
@@ -188,6 +188,87 @@ check("no class of the same type -> nothing to reassign to", _FakeDeleteDialog.l
 d3 = ClassSchemaEditorDialog([box(0)])
 d3._class_list.setCurrentRow(0)
 check("no count function -> existing types stay fixed", d3._type_combo.isHidden())
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+section("6. The default 'object' class of a new project")
+# ═════════════════════════════════════════════════════════════════════════════
+import json
+import shutil
+from annotator.ui.dialogs import class_schema_editor as cse
+from annotator.domain.project import DEFAULT_CLASS_NAME, Project, unused_placeholder
+
+
+class _FakeNewClass:
+    """Stands in for the modal _NewClassDialog."""
+    answers = []
+
+    def __init__(self, parent=None):
+        self.class_name, self.annotation_type = _FakeNewClass.answers.pop(0)
+
+    def exec(self):
+        return QDialog.DialogCode.Accepted
+
+
+cse._NewClassDialog = _FakeNewClass
+
+fresh = Project.create("p").classes
+check("a new project starts with 'object' (bbox, id 0)",
+      [(c.id, c.name, c.annotation_type) for c in fresh] == [(0, DEFAULT_CLASS_NAME, "bbox")])
+check("rule: unused 'object' is a placeholder", unused_placeholder(fresh, lambda cid: 0) is fresh[0])
+check("rule: with annotations it is kept", unused_placeholder(fresh, lambda cid: 1) is None)
+renamed = [LabelClass(id=0, name="car", color="#f00")]
+check("rule: a renamed class is kept", unused_placeholder(renamed, lambda cid: 0) is None)
+retyped = [LabelClass(id=0, name=DEFAULT_CLASS_NAME, color="#f00", annotation_type="mask")]
+check("rule: a class whose type was changed is kept", unused_placeholder(retyped, lambda cid: 0) is None)
+
+_FakeNewClass.answers = [("road", "semantic"), ("car", "mask")]
+dlg = ClassSchemaEditorDialog(Project.create("p").classes, count_fn=lambda cid: 0)
+dlg._add_class()
+check("first own class replaces 'object' and gets id 0",
+      [(c.id, c.name, c.annotation_type) for c in dlg._classes] == [(0, "road", "semantic")])
+dlg._add_class()
+check("the next one is simply added (id 1)", [c.id for c in dlg._classes] == [0, 1])
+dlg._accept()
+check("saved: road=0, car=1", [(c.id, c.name) for c in dlg.result_classes] == [(0, "road"), (1, "car")])
+
+_FakeNewClass.answers = [("road", "semantic")]
+dlg = ClassSchemaEditorDialog(Project.create("p").classes, count_fn=lambda cid: 5)
+dlg._add_class()
+check("'object' with annotations stays", [c.name for c in dlg._classes] == [DEFAULT_CLASS_NAME, "road"])
+
+# schema import and YOLO import through the controller
+from annotator.controller.project_controller import ProjectController
+from annotator.domain.class_schema import ClassSchema, SCHEMA_VERSION
+
+tmp = Path(tempfile.mkdtemp())
+ctrl = ProjectController()
+ctrl.create_project("s", tmp / "p1")
+schema_file = tmp / "schema.json"
+schema_file.write_text(json.dumps(ClassSchema(schema_version=SCHEMA_VERSION, classes=[
+    LabelClass(id=0, name="road", color="#888888", annotation_type="semantic"),
+    LabelClass(id=1, name="car", color="#ff0000", annotation_type="mask")]).to_dict()), encoding="utf-8")
+report = ctrl.import_class_schema(schema_file)
+check("schema import: 'object' is not reported as a conflict",
+      all(r["conflict_type"] is None for r in report))
+ctrl.apply_import_schema([r["incoming"] for r in report], {})
+check("schema import replaces 'object'",
+      [(c.id, c.name) for c in ctrl.project.classes] == [(0, "road"), (1, "car")])
+
+ds = tmp / "ds"
+(ds / "images" / "train").mkdir(parents=True)
+(ds / "labels" / "train").mkdir(parents=True)
+from PIL import Image
+Image.new("RGB", (40, 30)).save(ds / "images" / "train" / "a.jpg")
+(ds / "labels" / "train" / "a.txt").write_text("1 0.5 0.5 0.2 0.2\n", encoding="utf-8")
+c2 = ProjectController()
+c2.create_project("y", tmp / "p2")
+c2.import_yolo_dataset(ds, ["person", "car"], "detect", "skip")
+check("YOLO import: dataset classes keep their indices (person=0, car=1)",
+      [(c.id, c.name) for c in c2.project.classes] == [(0, "person"), (1, "car")])
+c2.set_image(c2.project.images[0].path)
+check("YOLO import: the box is class car (1)", [a.class_id for a in c2.current_annotations] == [1])
+shutil.rmtree(tmp, ignore_errors=True)
 
 
 # ═════════════════════════════════════════════════════════════════════════════

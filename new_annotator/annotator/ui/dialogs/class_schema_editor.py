@@ -24,6 +24,7 @@ from annotator.domain.label_class import (
     ANNOTATION_TYPES, PANOPTIC_ROLES, ClassAttribute, DisplayStyle,
     LabelClass, SkeletonKeypoint,
 )
+from annotator.domain.project import unused_placeholder
 
 
 def _color_icon(color: str) -> QIcon:
@@ -279,6 +280,12 @@ class ClassSchemaEditorDialog(QDialog):
         dlg = _NewClassDialog(self)
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
+        # the untouched "object" of a new project gives way to the first own
+        # class, which then gets id 0 (no empty class in exports)
+        if self._count_fn is not None and not self._new_class_ids:
+            ph = unused_placeholder(self._classes, self._count_fn)
+            if ph is not None:
+                self._classes.remove(ph)
         next_id = max((c.id for c in self._classes), default=-1) + 1
         color = LabelClass.default_color(next_id)
         new_cls = LabelClass(

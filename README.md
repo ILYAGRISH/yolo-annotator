@@ -126,6 +126,9 @@ cd new_annotator
 
 ## Changelog
 
+### Unreleased
+- **The default `object` class gives way to your own classes** — a new project starts with one `object` (bbox, id 0); while it is unused, the first class added in the schema editor, a class schema import and a YOLO dataset import now replace it (pre-labelling already did). Your classes are numbered from 0 and exports get no empty extra class: no `object` first in YOLO `names`, no shift of Semantic Masks values, YOLO datasets keep their class indices after import. A renamed, retyped or used `object` is kept
+
 ### v2.2 — 2026-10-28
 - **Fix: images with the same file name in different folders** (`road_a/frame.jpg`, `road_b/frame.jpg`) shared one annotation file — annotations of one appeared on the other — and overwrote each other in every export format. Every image now has its own unique key in the project: the file name, or `<folder>_<name>` for a repeated name (case-insensitive). Exports name such files `road_b_frame.jpg` (label, mask, XML and JSON entry alike); projects without repeated names export exactly as before. Old projects get the keys when opened, each renamed image starts with a copy of the shared file, and a message lists them for checking. The image list shows the folder of a renamed image; multi-user assignments and YOLO import tell such images apart too. Reported by a reader on Habr
 - **Fill tool (`G`)** — outline an object and the whole enclosed area is filled, like a lasso: the end of the contour is joined to its start, so a small gap does not matter (a dashed line shows the closing while you draw). Every contour is saved on release (one undo step, no Enter). Works with **mask** classes (each contour is a new mask; with a mask selected the contour is added to it) and **semantic** classes (the contour goes into the class layer). *Erase* mode cuts the outlined area out. Requested by users

@@ -1176,3 +1176,16 @@ C:\miniconda3\envs\yolo_hard\python.exe -c "from ultralytics import YOLO; YOLO('
 
 1. Файл → Назначить изображения…: изображения с одинаковым именем показаны отдельно (`frame.jpg`, `road_b/frame.jpg`), назначаются разным людям независимо.
 
+---
+
+## 22. Класс «object» нового проекта
+
+1. Создать новый проект → в классах один `0: object [bbox]`.
+2. Schema… → **+ Add** → имя `road`, тип **semantic** → OK. **Получаем:** `object` исчез из списка, `road` с id 0. Добавить `car` (mask) → id 1. OK.
+3. Нарисовать road и car, Export → **Semantic Masks** (index). **Получаем:** в `classes.txt` `0: background`, `1: road`, `2: car` — без `object`.
+4. Новый проект: нарисовать одну рамку классом `object`, затем добавить класс в Schema… → `object` **остаётся** (у него есть разметка).
+5. Новый проект: переименовать `object` в `person` → добавить класс → `person` остаётся.
+6. Новый проект → Import YOLO dataset (с `classes.txt` / `data.yaml`) → классы датасета с id 0, 1, … в том же порядке, что в датасете; `object` нет. Экспорт YOLO Detect → в `data.yaml` `names` как в исходном датасете.
+7. Новый проект → Схема → Импорт class_schema.json… → `object` не предлагается как конфликт и исчезает.
+8. Старый проект с ненужным `object`: Schema… → выделить `object` → **− Delete** → экспорт YOLO / Semantic Masks начинается с вашего первого класса.
+
