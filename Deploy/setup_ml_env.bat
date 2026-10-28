@@ -60,6 +60,15 @@ if defined CLEAN if exist ".venv-ml" (
     echo Removing old .venv-ml ...
     rmdir /s /q ".venv-ml"
 )
+rem A .venv-ml copied from another computer points to a Python that is not here
+rem ("did not find executable at ...") - it can't be repaired, only re-created.
+if exist ".venv-ml\Scripts\python.exe" (
+    ".venv-ml\Scripts\python.exe" -c "import sys" >nul 2>&1 || (
+        echo The existing .venv-ml does not work on this computer - it was made on another
+        echo computer or with a Python that is no longer installed. Creating it again ...
+        rmdir /s /q ".venv-ml"
+    )
+)
 if not exist ".venv-ml\Scripts\python.exe" (
     echo Creating ML environment in .venv-ml ...
     %PY% -m venv .venv-ml || goto :fail

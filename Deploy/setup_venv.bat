@@ -41,6 +41,15 @@ if defined CLEAN if exist ".venv" (
     echo Removing old .venv ...
     rmdir /s /q ".venv"
 )
+rem A .venv copied from another computer points to a Python that is not here
+rem ("did not find executable at ...") - it can't be repaired, only re-created.
+if exist ".venv\Scripts\python.exe" (
+    ".venv\Scripts\python.exe" -c "import sys" >nul 2>&1 || (
+        echo The existing .venv does not work on this computer - it was made on another
+        echo computer or with a Python that is no longer installed. Creating it again ...
+        rmdir /s /q ".venv"
+    )
+)
 if not exist ".venv\Scripts\python.exe" (
     echo Creating virtual environment in .venv ...
     %PY% -m venv .venv || goto :fail

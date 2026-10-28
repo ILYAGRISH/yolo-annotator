@@ -72,11 +72,17 @@ An existing Python / conda environment with `ultralytics` can be chosen there in
 Projects (`*.annproj`) are stored wherever you create them, not inside `Deploy` — updating the app does not touch them.
 Проекты (`*.annproj`) хранятся там, где вы их создали, а не внутри `Deploy`, — обновление программы их не затрагивает.
 
+## Giving the app to someone / Передать программу другому
+
+Give the release ZIP, or copy the folder **without** `.venv` and `.venv-ml`: an environment remembers the path of the Python it was made with and does not work on another computer. `run.bat` / `setup_venv.bat` / `setup_ml_env.bat` notice a copied environment and create it again, which takes a few minutes.
+Отдайте ZIP из релиза или скопируйте папку **без** `.venv` и `.venv-ml`: окружение помнит путь к Python, с которым создано, и на другом компьютере не работает. `run.bat` / `setup_venv.bat` / `setup_ml_env.bat` замечают перенесённое окружение и создают его заново — это займёт несколько минут.
+
 ## Troubleshooting / Если что-то не так
 
 | Problem / Проблема | Fix / Решение |
 |---|---|
 | `Python 3.12 or newer was not found` | Install Python 3.13 with "Add python.exe to PATH" / установить Python 3.13 с галкой «Add to PATH» |
+| `did not find executable at 'C:\...\python.exe'` | `.venv` was copied from another computer. Delete it and run `run.bat` (current versions do this by themselves) / `.venv` скопирован с другого компьютера — удалите его и запустите `run.bat` (новые версии делают это сами) |
 | Setup failed half-way / установка прервалась | `setup_venv.bat --clean` — recreates `.venv` from scratch / пересоздаёт `.venv` с нуля |
 | The app closes with an error / программа закрывается с ошибкой | The console window stays open — copy the error text / окно консоли остаётся открытым — скопируйте текст ошибки |
 
