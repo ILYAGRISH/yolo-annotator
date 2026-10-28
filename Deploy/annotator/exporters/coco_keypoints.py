@@ -29,7 +29,7 @@ from pathlib import Path
 
 from annotator.domain.annotation import Annotation, AnnotationType
 from annotator.domain.project import Project
-from annotator.exporters.base import BaseExporter, export_name
+from annotator.exporters.base import BaseExporter, coco_category_ids, export_name
 
 _MARGIN = 0.05   # fraction of image dimension used as bbox padding
 
@@ -112,6 +112,7 @@ class CocoKeypointsExporter(BaseExporter):
         (output_dir / "annotations").mkdir(parents=True, exist_ok=True)
 
         # Build categories and keypoint-count map for keypoints classes only
+        cat_ids = coco_category_ids(project)
         categories: list[dict] = []
         kp_counts: dict[int, int] = {}
         for cls in sorted(project.classes, key=lambda c: c.id):
@@ -125,7 +126,7 @@ class CocoKeypointsExporter(BaseExporter):
                 if i < j
             ]
             categories.append({
-                "id": cls.id,
+                "id": cat_ids[cls.id],
                 "name": cls.name,
                 "supercategory": "",
                 "keypoints": kp_names,
@@ -159,6 +160,7 @@ class CocoKeypointsExporter(BaseExporter):
                         continue
                     entry = _ann_to_coco_kpt(ann, img_id, ann_id, iw, ih, n)
                     if entry is not None:
+                        entry["category_id"] = cat_ids[ann.class_id]
                         coco_anns.append(entry)
                         ann_id += 1
 

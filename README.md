@@ -142,7 +142,7 @@ cd new_annotator
 
 ## Changelog
 
-### Unreleased
+### v2.2.2 — 2026-10-28
 - **COCO `category_id` now counts from 1** — COCO Instances, Keypoints and Panoptic used the class id, so the first class had `category_id` 0, which torchvision detection models take for the background. Categories are now numbered **1 … N** in class-id order (the YOLO index + 1), the same in every COCO file and without gaps after deleted classes. **Re-exported COCO datasets get new category ids** — retrain or remap if you trained on an earlier COCO export. YOLO is unchanged; Semantic Masks now also numbers classes by id (it followed the order of the class list, which differed only after moving classes up / down). README → *Class numbers and the background* lists how every format numbers the classes
 
 ### v2.2.1 — 2026-10-28
