@@ -29,7 +29,7 @@ from pathlib import Path
 
 from annotator.domain.annotation import Annotation, AnnotationType
 from annotator.domain.project import Project
-from annotator.exporters.base import BaseExporter, export_name
+from annotator.exporters.base import BaseExporter, coco_category_ids, export_name
 from annotator.exporters.raster import bbox_xywh, rasterize, rle_encode
 from annotator.storage.mask_storage import MaskStorage
 
@@ -157,8 +157,9 @@ class CocoExporter(BaseExporter):
         ann_dir = output_dir / "annotations"
         ann_dir.mkdir(parents=True, exist_ok=True)
 
+        cat_ids = coco_category_ids(project)
         categories = [
-            {"id": cls.id, "name": cls.name, "supercategory": ""}
+            {"id": cat_ids[cls.id], "name": cls.name, "supercategory": ""}
             for cls in sorted(project.classes, key=lambda c: c.id)
         ]
 
@@ -185,7 +186,8 @@ class CocoExporter(BaseExporter):
                 for ann in all_annotations.get(img_rec.path, []):
                     coco_ann = _ann_to_coco(ann, img_id, ann_id,
                                             iw, ih, project, seg_format)
-                    if coco_ann is not None:
+                    if coco_ann is not None and ann.class_id in cat_ids:
+                        coco_ann["category_id"] = cat_ids[ann.class_id]
                         coco_anns.append(coco_ann)
                         ann_id += 1
 

@@ -33,7 +33,7 @@ import numpy as np
 from PIL import Image as PilImage
 
 from annotator.domain.project import Project
-from annotator.exporters.base import BaseExporter, export_name
+from annotator.exporters.base import BaseExporter, coco_category_ids, export_name
 from annotator.exporters.raster import RASTER_CLASS_TYPES, bbox_xywh, rasterize
 
 
@@ -155,8 +155,9 @@ class CocoPanopticExporter(BaseExporter):
         ann_dir = output_dir / "annotations"
         ann_dir.mkdir(parents=True, exist_ok=True)
 
+        cat_ids = coco_category_ids(project)
         categories = [
-            {"id": c.id, "name": c.name, "supercategory": "",
+            {"id": cat_ids[c.id], "name": c.name, "supercategory": "",
              "isthing": 0 if c.is_stuff else 1,
              "color": list(_hex_to_rgb(c.color))}
             for c in sorted(project.classes, key=lambda c: c.id)
@@ -184,6 +185,8 @@ class CocoPanopticExporter(BaseExporter):
                 seg, segments = render_panoptic(
                     all_annotations.get(img_rec.path, []), iw, ih, project,
                     seed=img_id)
+                for s in segments:               # class id -> COCO category_id
+                    s["category_id"] = cat_ids[s["category_id"]]
                 png_name = f"{img_rec.ann_key}.png"
                 PilImage.fromarray(id_to_rgb(seg), mode="RGB").save(png_dir / png_name)
                 coco_anns.append({"image_id": img_id, "file_name": png_name,

@@ -156,22 +156,29 @@ out = tmp / "out"
 # ═════════════════════════════════════════════════════════════════════════════
 section("3. COCO Instances polygon / RLE")
 
+from annotator.exporters.base import coco_category_ids
+C = coco_category_ids(ctrl.project)          # class id -> COCO category_id
+
 def coco(fmt):
     ctrl.export_dataset(out / f"coco_{fmt}", "coco", seg_format=fmt)
     return json.loads((out / f"coco_{fmt}" / "annotations" / "instances_train.json")
                       .read_text(encoding="utf-8"))
 
 cp = coco("polygon")
-cars = [a for a in cp["annotations"] if a["category_id"] == car.id]
+check("COCO categories numbered 1..N in class-id order",
+      [c["id"] for c in cp["categories"]] == list(range(1, len(ctrl.project.classes) + 1))
+      and [c["name"] for c in cp["categories"]]
+      == [c.name for c in sorted(ctrl.project.classes, key=lambda c: c.id)])
+cars = [a for a in cp["annotations"] if a["category_id"] == C[car.id]]
 check("MASK is exported to COCO (was skipped before)", len(cars) == 3)
 car2 = max(cars, key=lambda a: len(a["segmentation"]))
 check("polygon mode: every blob of a MASK", len(car2["segmentation"]) == 2)
 check("polygon mode: area = pixel count", car2["area"] == float((car2_bm > 0).sum()))
-sky_p = next(a for a in cp["annotations"] if a["category_id"] == sky.id)
+sky_p = next(a for a in cp["annotations"] if a["category_id"] == C[sky.id])
 check("polygon mode: sky segmentation is a list", isinstance(sky_p["segmentation"], list))
 
 cr = coco("rle")
-sky_r = next(a for a in cr["annotations"] if a["category_id"] == sky.id)
+sky_r = next(a for a in cr["annotations"] if a["category_id"] == C[sky.id])
 seg = sky_r["segmentation"]
 check("rle mode: segmentation is RLE dict",
       isinstance(seg, dict) and seg["size"] == [H, W] and isinstance(seg["counts"], str))
@@ -179,10 +186,32 @@ check("rle mode: decodes to the exact PNG (hole kept)",
       np.array_equal(rle_decode(seg), sky_bm > 0))
 check("rle mode: bbox [x,y,w,h]", sky_r["bbox"] == [0.0, 0.0, 200.0, 50.0])
 check("rle mode: area", sky_r["area"] == float((sky_bm > 0).sum()))
-pers = next(a for a in cr["annotations"] if a["category_id"] == person.id)
+pers = next(a for a in cr["annotations"] if a["category_id"] == C[person.id])
 check("rle mode: polygons stay polygons", isinstance(pers["segmentation"], list))
-obb = next(a for a in cr["annotations"] if a["category_id"] == box.id)
+obb = next(a for a in cr["annotations"] if a["category_id"] == C[box.id])
 check("OBB rotation now applied (angle_deg)", abs(obb["bbox"][2] - obb["bbox"][3]) < 1.0)
+
+
+ctrl.export_dataset(out / "kpt", "coco_keypoints")
+kj = json.loads((out / "kpt" / "annotations" / "keypoints_train.json").read_text(encoding="utf-8"))
+check("COCO Keypoints: same category id as in Instances",
+      [c["id"] for c in kj["categories"]] == [C[kp.id]]
+      and next(c for c in cp["categories"] if c["id"] == C[kp.id])["name"] == kp.name)
+
+from annotator.domain.project import Project as _P
+gap = _P.create("gap")
+gap.add_class("b"); gap.add_class("c")
+gap.remove_class(0)                              # ids 1, 2 left
+check("deleted class: COCO ids stay 1..N without gaps",
+      coco_category_ids(gap) == {1: 1, 2: 2})
+
+order = list(ctrl.project.classes)
+ctrl.project.classes = order[::-1]               # classes moved up / down in the editor
+ctrl.export_dataset(out / "sm_rev", "semantic_masks", mask_mode="index")
+legend = (out / "sm_rev" / "classes.txt").read_text(encoding="utf-8").splitlines()[2:]
+ctrl.project.classes = order
+check("Semantic Masks numbers classes by id like YOLO / COCO (order in the list ignored)",
+      legend == [f"{C[c.id]}: {c.name}" for c in sorted(order, key=lambda c: c.id)])
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -199,11 +228,11 @@ png = png.astype(np.int64)
 ids = png[..., 0] + 256 * png[..., 1] + 65536 * png[..., 2]
 
 cats = {c["id"]: c for c in pj["categories"]}
-check("categories: keypoints class excluded", kp.id not in cats)
+check("categories: keypoints class excluded", C[kp.id] not in cats)
 check("isthing flags",
-      cats[road.id]["isthing"] == 0 and cats[sky.id]["isthing"] == 0
-      and cats[veg.id]["isthing"] == 0 and cats[car.id]["isthing"] == 1
-      and cats[person.id]["isthing"] == 1)
+      cats[C[road.id]]["isthing"] == 0 and cats[C[sky.id]]["isthing"] == 0
+      and cats[C[veg.id]]["isthing"] == 0 and cats[C[car.id]]["isthing"] == 1
+      and cats[C[person.id]]["isthing"] == 1)
 check("images copied", (out / "pan" / "images" / "train" / "street.png").exists())
 
 entry = pj["annotations"][0]
@@ -212,27 +241,27 @@ check("annotation file_name", entry["file_name"] == "street.png")
 by_cat = {}
 for s in segs:
     by_cat.setdefault(s["category_id"], []).append(s)
-check("stuff: one segment per class (vegetation has 2 polygons)", len(by_cat[veg.id]) == 1)
-check("things: fully hidden instance dropped", len(by_cat[car.id]) == 2)
-check("things: person segment", len(by_cat[person.id]) == 1)
-check("OBB class exported as thing", len(by_cat[box.id]) == 1)
+check("stuff: one segment per class (vegetation has 2 polygons)", len(by_cat[C[veg.id]]) == 1)
+check("things: fully hidden instance dropped", len(by_cat[C[car.id]]) == 2)
+check("things: person segment", len(by_cat[C[person.id]]) == 1)
+check("OBB class exported as thing", len(by_cat[C[box.id]]) == 1)
 
 seg_ids = {s["id"] for s in segs}
 png_ids = set(np.unique(ids).tolist()) - {0}
 check("PNG ids == segments_info ids", seg_ids == png_ids)
 check("ids unique", len(seg_ids) == len(segs))
 check("areas match PNG", all(int((ids == s["id"]).sum()) == s["area"] for s in segs))
-check("stuff id = class color", by_cat[road.id][0]["id"] == rgb_to_id(0x80, 0x40, 0x80))
+check("stuff id = class color", by_cat[C[road.id]][0]["id"] == rgb_to_id(0x80, 0x40, 0x80))
 
 sid = lambda y, x: int(ids[y, x])
 cat_of = {s["id"]: s["category_id"] for s in segs}
-check("thing over stuff (car over road)", cat_of[sid(70, 30)] == car.id)
+check("thing over stuff (car over road)", cat_of[sid(70, 30)] == C[car.id])
 check("later thing wins overlap (car2 over car1)",
-      sid(70, 55) != sid(70, 30) and cat_of[sid(70, 55)] == car.id)
+      sid(70, 55) != sid(70, 30) and cat_of[sid(70, 55)] == C[car.id])
 check("second blob of car2 in the same segment", sid(7, 7) == sid(70, 55))
 check("sky hole is void", sid(15, 152) == 0)
-check("stuff pixel", cat_of[sid(30, 100)] == sky.id)
-car1_seg = next(s for s in by_cat[car.id] if s["id"] == sid(70, 30))
+check("stuff pixel", cat_of[sid(30, 100)] == C[sky.id])
+car1_seg = next(s for s in by_cat[C[car.id]] if s["id"] == sid(70, 30))
 check("bbox of visible part",
       car1_seg["bbox"] == [20.0, 60.0, 40.0, 20.0])
 

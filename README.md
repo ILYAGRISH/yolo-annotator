@@ -78,6 +78,22 @@ A desktop image annotation tool for preparing training datasets for computer vis
 | MOTChallenge     | `<video>/gt/gt.txt` + `seqinfo.ini` + `img1/` | object tracks of imported videos: `frame,id,left,top,w,h,conf,class,vis` in pixels |
 | Video Events     | `events.csv` + `activitynet.json`           | time events of videos: type, first / last frame, seconds, track, note; ActivityNet 1.3 segments |
 
+### Class numbers and the background
+
+The class id inside the project (0, 1, …) is not the number written to an export. Each format numbers the classes in class-id order, without gaps left by deleted classes:
+
+| Format | Background | Classes |
+|--------|------------|---------|
+| YOLO (all variants) | — (no background class) | **0 … N-1**, the order of `names` in `data.yaml` |
+| Semantic Masks, *index* | pixel **0** | pixel **1 … N**, listed in `classes.txt` (`0: background`, `1: road`, …) |
+| Semantic Masks, *color* | `(0, 0, 0)` | the class colour |
+| Semantic Masks, *binary* | **0** | **255** for every class |
+| COCO Instances / Keypoints / Panoptic | — (Panoptic PNG: segment id **0** = unlabeled) | `category_id` **1 … N** — the YOLO index + 1, the same number in all COCO files |
+
+So with classes `road` (id 0) and `car` (id 1): YOLO 0 / 1, Semantic Masks 1 / 2, COCO 1 / 2, background 0. COCO counts from 1 because some trainers (torchvision Faster / Mask R-CNN) take label 0 for the background.
+
+A new project starts with one class `object`; while it is unused, the first class you create replaces it, so your classes start at id 0 and exports have no empty extra class.
+
 ## Import
 
 Re-annotate or extend an existing labeled dataset without re-creating it from scratch.
@@ -125,6 +141,9 @@ cd new_annotator
 **Optional ML environment** (for model features — YOLO pre-labelling, SAM): `setup_ml_env.bat` creates a separate `.venv-ml` with PyTorch (CUDA build when an NVIDIA GPU is found, `--cpu` otherwise) and Ultralytics. Or point **ML → ML Settings…** at any existing Python / conda environment that has `ultralytics`. The annotator itself never imports PyTorch.
 
 ## Changelog
+
+### Unreleased
+- **COCO `category_id` now counts from 1** — COCO Instances, Keypoints and Panoptic used the class id, so the first class had `category_id` 0, which torchvision detection models take for the background. Categories are now numbered **1 … N** in class-id order (the YOLO index + 1), the same in every COCO file and without gaps after deleted classes. **Re-exported COCO datasets get new category ids** — retrain or remap if you trained on an earlier COCO export. YOLO is unchanged; Semantic Masks now also numbers classes by id (it followed the order of the class list, which differed only after moving classes up / down). README → *Class numbers and the background* lists how every format numbers the classes
 
 ### v2.2.1 — 2026-10-28
 - **The default `object` class gives way to your own classes** — a new project starts with one `object` (bbox, id 0); while it is unused, the first class added in the schema editor, a class schema import and a YOLO dataset import now replace it (pre-labelling already did). Your classes are numbered from 0 and exports get no empty extra class: no `object` first in YOLO `names`, no shift of Semantic Masks values, YOLO datasets keep their class indices after import. A renamed, retyped or used `object` is kept

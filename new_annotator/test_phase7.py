@@ -82,7 +82,7 @@ try:
     check("has 'annotations' key", "annotations" in data)
 
     check("categories count = 2", len(data["categories"]) == 2)
-    check("first category id = 0", data["categories"][0]["id"] == 0)
+    check("first category id = 1 (COCO counts from 1)", data["categories"][0]["id"] == 1)
     check("first category name = crack", data["categories"][0]["name"] == "crack")
     check("images count = 1", len(data["images"]) == 1)
     check("image width = 200", data["images"][0]["width"] == 200)
@@ -132,7 +132,7 @@ try:
     check("SEGMENT: bbox w ~ 80", abs(bw - 80.0) < 0.01)
     check("SEGMENT: has area", "area" in cann)
     check("SEGMENT: area ~ 6400", abs(cann["area"] - 6400.0) < 1.0)
-    check("SEGMENT: category_id = 0", cann["category_id"] == 0)
+    check("SEGMENT: category_id = 1 (class 0)", cann["category_id"] == 1)
     check("SEGMENT: iscrowd = 0", cann["iscrowd"] == 0)
 
 finally:
@@ -259,7 +259,7 @@ try:
           "tool_params" not in raw)
     cann = data["annotations"][0]
     check("crack: has segmentation", "segmentation" in cann)
-    check("crack: category_id = 0", cann["category_id"] == 0)
+    check("crack: category_id = 1 (class 0)", cann["category_id"] == 1)
 
 finally:
     shutil.rmtree(tmp)

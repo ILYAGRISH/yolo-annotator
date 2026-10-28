@@ -14,6 +14,14 @@ def yolo_class_index(project: Project) -> dict[int, int]:
     return {c.id: i for i, c in enumerate(sorted(project.classes, key=lambda c: c.id))}
 
 
+def coco_category_ids(project: Project) -> dict[int, int]:
+    """Project class id -> COCO category_id: the YOLO class index + 1, so 1..N.
+    COCO counts categories from 1, and some trainers (torchvision Faster /
+    Mask R-CNN) take label 0 for the background. Every COCO file of the
+    project (Instances, Keypoints, Panoptic) uses the same numbers."""
+    return {cid: i + 1 for cid, i in yolo_class_index(project).items()}
+
+
 def image_size(img_rec) -> tuple[int, int]:
     """(width, height) in pixels from the image record, else read from the
     file header; (0, 0) if unknown."""

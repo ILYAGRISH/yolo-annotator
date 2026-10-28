@@ -62,37 +62,40 @@ class SemanticMasksExporter(BaseExporter):
         if mask_mode not in _MASK_MODES:
             mask_mode = "index"
 
+        # same order as YOLO names / COCO categories: by class id
+        classes = sorted(project.classes, key=lambda c: c.id)
+
         # Build fill map: class_id → pixel value (int or RGB tuple)
         if mask_mode == "binary":
             pil_mode = "L"
             background = 0
-            class_fill: dict[int, int | tuple] = {c.id: 255 for c in project.classes}
+            class_fill: dict[int, int | tuple] = {c.id: 255 for c in classes}
         elif mask_mode == "color":
             pil_mode = "RGB"
             background = (0, 0, 0)
-            class_fill = {c.id: _hex_to_rgb(c.color) for c in project.classes}
+            class_fill = {c.id: _hex_to_rgb(c.color) for c in classes}
         else:  # index
             pil_mode = "L"
             background = 0
-            class_fill = {c.id: idx + 1 for idx, c in enumerate(project.classes)}
+            class_fill = {c.id: idx + 1 for idx, c in enumerate(classes)}
 
         # Write classes.txt legend
         output_dir.mkdir(parents=True, exist_ok=True)
         with open(output_dir / "classes.txt", "w", encoding="utf-8") as f:
             if mask_mode == "binary":
                 f.write("# binary mode: 0 = background, 255 = annotation\n")
-                for c in project.classes:
+                for c in classes:
                     f.write(f"255: {c.name}\n")
             elif mask_mode == "color":
                 f.write("# color mode: RGB value per class\n")
                 f.write("(0,0,0): background\n")
-                for c in project.classes:
+                for c in classes:
                     rgb = _hex_to_rgb(c.color)
                     f.write(f"({rgb[0]},{rgb[1]},{rgb[2]}): {c.name}\n")
             else:
                 f.write("# index mode: pixel value = class index (0 = background)\n")
                 f.write("0: background\n")
-                for idx, c in enumerate(project.classes):
+                for idx, c in enumerate(classes):
                     f.write(f"{idx + 1}: {c.name}\n")
 
         for img_rec in project.images:
