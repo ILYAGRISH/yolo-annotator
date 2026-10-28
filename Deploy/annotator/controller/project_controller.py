@@ -39,6 +39,7 @@ IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"}
 class ProjectController(QObject):
     project_changed = pyqtSignal(object)        # Project
     image_changed = pyqtSignal(str, list)        # image_path, [Annotation]
+    image_about_to_change = pyqtSignal(str)      # image being left — tools save unsaved work into it
     annotations_changed = pyqtSignal(list)       # [Annotation] for current image
     annotation_selected = pyqtSignal(str)        # ann.id  (empty string = none)
     status_message = pyqtSignal(str)             # human-readable status line
@@ -77,6 +78,7 @@ class ProjectController(QObject):
     # ── project management ────────────────────────────────────────────────────
 
     def create_project(self, name: str, project_dir: Path) -> Project:
+        self.leave_current_image()
         self._flush_current_image()
         project = Project.create(name)
         ProjectStore.save(project, project_dir)
@@ -85,8 +87,12 @@ class ProjectController(QObject):
         return project
 
     def open_project(self, project_dir: Path) -> Project:
+        self.leave_current_image()
         self._flush_current_image()
         project = ProjectStore.load(project_dir)
+        if project.dup_renamed:                # new unique image keys — keep them
+            ProjectStore.copy_shared_annotations(project, project.dup_renamed)
+            ProjectStore.save(project, project_dir)
         self._activate_project(project)
         self.status_message.emit(f"Opened: {project_dir}")
         if project.project_path:
@@ -105,6 +111,7 @@ class ProjectController(QObject):
         self.project_changed.emit(self._project)
 
     def close_project(self):
+        self.leave_current_image()
         self._project = None
         self._current_image = None
         self._annotations = []
@@ -229,6 +236,7 @@ class ProjectController(QObject):
     def set_image(self, image_path: str):
         if image_path == self._current_image:
             return
+        self.leave_current_image()
         self._flush_current_image()
         self._current_image = image_path
         self._annotations = []
@@ -238,6 +246,11 @@ class ProjectController(QObject):
         self._undo_stack.clear()
         self.image_changed.emit(image_path, list(self._annotations))
         self.annotations_changed.emit(list(self._annotations))
+
+    def leave_current_image(self):
+        """Let tools save unsaved work (Brush strokes…) into the current image."""
+        if self._current_image:
+            self.image_about_to_change.emit(self._current_image)
 
     def _flush_current_image(self):
         if not self._current_image or not self._project:

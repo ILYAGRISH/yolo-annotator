@@ -34,7 +34,7 @@ from PIL import Image as PilImage, ImageDraw
 
 from annotator.domain.annotation import Annotation, AnnotationType
 from annotator.domain.project import ImageRecord, Project
-from annotator.exporters.base import BaseExporter
+from annotator.exporters.base import BaseExporter, export_name
 
 _MASK_MODES = ("binary", "index", "color")
 
@@ -102,17 +102,16 @@ class SemanticMasksExporter(BaseExporter):
             masks_dir = output_dir / "masks" / split
             masks_dir.mkdir(parents=True, exist_ok=True)
 
-            stem = Path(img_rec.path).stem
             mask = _render_mask(img_rec, anns, class_fill,
                                 pil_mode, background, project.project_path)
-            mask.save(masks_dir / f"{stem}.png")
+            mask.save(masks_dir / f"{img_rec.ann_key}.png")
 
             if copy_images:
                 img_dest_dir = output_dir / "images" / split
                 img_dest_dir.mkdir(parents=True, exist_ok=True)
                 src = Path(img_rec.path)
                 if src.exists():
-                    shutil.copy2(src, img_dest_dir / src.name)
+                    shutil.copy2(src, img_dest_dir / export_name(img_rec))
 
 
 # ── rendering ─────────────────────────────────────────────────────────────────

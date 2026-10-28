@@ -138,7 +138,10 @@ class AssignImagesDialog(QDialog):
     # ── helpers ───────────────────────────────────────────────────────────────
 
     def _stem_to_name(self) -> dict[str, str]:
-        return {Path(r.path).stem: Path(r.path).name for r in self._images}
+        """Image key → shown name (a renamed duplicate shows its folder too)."""
+        return {r.ann_key: (Path(r.path).name if r.ann_key == Path(r.path).stem
+                            else f"{Path(r.path).parent.name}/{Path(r.path).name}")
+                for r in self._images}
 
     def _assigned_stems(self) -> set[str]:
         out: set[str] = set()
@@ -148,10 +151,7 @@ class AssignImagesDialog(QDialog):
 
     def _unassigned_stems(self) -> list[str]:
         assigned = self._assigned_stems()
-        return sorted(
-            Path(r.path).stem for r in self._images
-            if Path(r.path).stem not in assigned
-        )
+        return sorted(r.ann_key for r in self._images if r.ann_key not in assigned)
 
     def _current_user(self) -> str | None:
         row = self._user_list.currentRow()

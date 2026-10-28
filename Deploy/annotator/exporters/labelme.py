@@ -28,7 +28,7 @@ from pathlib import Path
 
 from annotator.domain.annotation import Annotation, AnnotationType
 from annotator.domain.project import Project
-from annotator.exporters.base import BaseExporter
+from annotator.exporters.base import BaseExporter, export_name
 
 
 def _image_size(img_rec, img_path: Path) -> tuple[int, int]:
@@ -156,15 +156,15 @@ class LabelMeExporter(BaseExporter):
                 "version": "5.0.1",
                 "flags": {},
                 "shapes": shapes,
-                "imagePath": img_path.name,
+                "imagePath": export_name(img_rec),
                 "imageData": None,
                 "imageHeight": ih,
                 "imageWidth": iw,
             }
-            (out_split / (img_path.stem + ".json")).write_text(
+            (out_split / (img_rec.ann_key + ".json")).write_text(
                 json.dumps(lm, indent=2, ensure_ascii=False),
                 encoding="utf-8",
             )
 
             if copy_images and img_path.exists():
-                shutil.copy2(img_path, out_split / img_path.name)
+                shutil.copy2(img_path, out_split / export_name(img_rec))

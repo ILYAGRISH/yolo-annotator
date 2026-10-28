@@ -7,7 +7,8 @@ Directory layout:
   ├── class_schema.json     # all class definitions (since v3)
   ├── images.json           # image inventory
   ├── annotations/
-  │   ├── <image_stem>.json # per-image annotations
+  │   ├── <image key>.json  # per-image annotations; key = file stem, or
+  │   │                     # "<folder>_<stem>" for a duplicate name (ImageRecord.key)
   │   └── ...
   ├── events/
   │   └── <video_id>.json   # time events of an imported video (Phase 8-D)
@@ -99,6 +100,9 @@ class ProjectStore:
         if images_file.exists():
             with open(images_file, "r", encoding="utf-8") as f:
                 project.images = [ImageRecord.from_dict(r) for r in json.load(f)]
+        # images.json from before image keys: same-named images got one shared
+        # annotation file — they get their own names now (see Project.dup_renamed)
+        project.dup_renamed = project.ensure_image_keys()
 
         return project
 
@@ -106,8 +110,7 @@ class ProjectStore:
     def load_annotations(project: Project, image_path: str) -> list[Annotation]:
         if project.project_path is None:
             return []
-        stem = Path(image_path).stem
-        ann_file = project.project_path / ANNOTS_DIR / f"{stem}.json"
+        ann_file = project.project_path / ANNOTS_DIR / f"{project.image_key(image_path)}.json"
         if not ann_file.exists():
             return []
         with open(ann_file, "r", encoding="utf-8") as f:
@@ -119,8 +122,7 @@ class ProjectStore:
             return
         ann_dir = project.project_path / ANNOTS_DIR
         ann_dir.mkdir(exist_ok=True)
-        stem = Path(image_path).stem
-        with open(ann_dir / f"{stem}.json", "w", encoding="utf-8") as f:
+        with open(ann_dir / f"{project.image_key(image_path)}.json", "w", encoding="utf-8") as f:
             json.dump([a.to_dict() for a in annotations], f,
                       indent=2, ensure_ascii=False)
 
@@ -133,14 +135,31 @@ class ProjectStore:
         ann_dir = project.project_path / ANNOTS_DIR
         if not ann_dir.exists():
             return result
-        stem_to_path = {Path(img.path).stem: img.path for img in project.images}
+        key_to_path = {img.ann_key.casefold(): img.path for img in project.images}
         for ann_file in ann_dir.glob("*.json"):
-            img_path = stem_to_path.get(ann_file.stem)
+            img_path = key_to_path.get(ann_file.stem.casefold())
             if img_path is None:
                 continue
             with open(ann_file, "r", encoding="utf-8") as f:
                 result[img_path] = [Annotation.from_dict(d) for d in json.load(f)]
         return result
+
+    @staticmethod
+    def copy_shared_annotations(project: Project, paths: list[str]) -> None:
+        """
+        Images renamed by Project.ensure_image_keys() used annotations/<stem>.json,
+        a file shared with a same-named image (one file on Windows). Give each
+        a copy, so nothing that was drawn on it disappears; an existing
+        annotations/<key>.json is never overwritten.
+        """
+        if project.project_path is None:
+            return
+        ann_dir = project.project_path / ANNOTS_DIR
+        for path in paths:
+            src = ann_dir / f"{Path(path).stem}.json"
+            dst = ann_dir / f"{project.image_key(path)}.json"
+            if src.exists() and not dst.exists():
+                shutil.copy2(src, dst)
 
     # ── time events of videos (Phase 8-D) ─────────────────────────────────────
 
@@ -229,7 +248,7 @@ class ProjectStore:
 
     @staticmethod
     def load_assignments(path: Path) -> dict:
-        """Return {"version": 1, "users": {"name": [stem, ...]}} or empty structure."""
+        """Return {"version": 1, "users": {"name": [image key, ...]}} or empty structure."""
         f = path / ASSIGNMENTS_FILE
         if not f.exists():
             return {"version": 1, "users": {}}

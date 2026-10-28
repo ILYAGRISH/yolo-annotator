@@ -7,6 +7,8 @@ Workflow:
                          of the current mask (dashed guide while Shift is held)
   - Enter / double-click → commit mask as new MASK annotation
   - Esc                  → discard all current strokes
+  Unsaved strokes are never lost silently: switching the tool, the class or
+  the image commits them (leave_image() runs while the old image is current).
 
 ToolProps:
   brush_size  (int px)       — brush radius in image pixels
@@ -61,6 +63,7 @@ class BrushTool(BaseTool):
         self._has_content: bool = False
         self._img_size: tuple[int, int] = (1, 1)      # (W, H)
         self._editing_ann = None                       # original Annotation being re-edited; restored on Esc
+        self._dirty: bool = False                      # painted since the canvas was (re)loaded
         self._ring = BrushRing()                       # brush-size circle under the cursor
         self._shift = ShiftLine()                      # Shift+click straight lines
 
@@ -82,9 +85,7 @@ class BrushTool(BaseTool):
         self._try_load_selected_mask()   # load selected MASK annotation if any
 
     def deactivate(self):
-        if self._editing_ann is not None and self._ctrl is not None:
-            self._ctrl.add_annotation(self._editing_ann)
-            self._editing_ann = None
+        self._save_pending()
         self._remove_overlay()
         self._ring.remove()
         self._shift.reset()
@@ -96,11 +97,16 @@ class BrushTool(BaseTool):
         self._ctrl = None
 
     def set_class(self, class_id: int):
+        if class_id != self._class_id and self._dirty:
+            self._save_pending()             # strokes keep the class they were painted with
         self._class_id = class_id
-        old = self._class_color
         self._refresh_class_color()
-        if old != self._class_color and self._has_content:
-            self._reset_canvas()
+        self._flush_overlay()
+
+    def leave_image(self):
+        self._save_pending()
+        self._remove_overlay()               # the next image may have another size
+        self._mask_bitmap = None
 
     def get_params_schema(self) -> dict:
         return {
@@ -122,6 +128,7 @@ class BrushTool(BaseTool):
     def on_press(self, pos, modifiers, button):
         if not self._scene or button != Qt.MouseButton.LeftButton:
             return
+        self._ensure_canvas()
         self._painting = True
         clamped = self._clamp(pos)
         start = self._shift.start_point(clamped, modifiers, self._image_key())
@@ -176,6 +183,12 @@ class BrushTool(BaseTool):
         self._flush_overlay()   # set initial transparent pixmap
         self._has_content = False
 
+    def _ensure_canvas(self):
+        """(Re)create the canvas after leave_image() — the image size may differ."""
+        if self._mask_bitmap is None or self._mask_bitmap.shape != self._scene.image_size[::-1]:
+            self._remove_overlay()
+            self._init_canvas()
+
     def _remove_overlay(self):
         if self._overlay_item is not None and self._scene is not None:
             if self._overlay_item.scene() is self._scene:
@@ -190,9 +203,16 @@ class BrushTool(BaseTool):
             self._mask_bitmap[:] = 0
         self._flush_overlay()
         self._has_content = False
+        self._dirty = False
         self._painting = False
         self._last_pos = None
         self._shift.reset()          # a new mask never continues the previous one
+
+    def _save_pending(self):
+        """Commit unsaved strokes; a mask loaded for editing but untouched goes back as is."""
+        if self._dirty and self._has_content:
+            self._commit()
+        self._reset_canvas()         # puts back _editing_ann when nothing was committed
 
     # ── painting (cv2 + numpy) ────────────────────────────────────────────────
 
@@ -217,6 +237,13 @@ class BrushTool(BaseTool):
 
         self._flush_overlay()
         self._has_content = bool(self._mask_bitmap.any())
+        self._mark_dirty()
+
+    def _mark_dirty(self):
+        if not self._dirty and self._has_content and self._ctrl is not None:
+            from annotator.i18n import tr
+            self._ctrl.status_message.emit(tr("brush_unsaved"))
+        self._dirty = True
 
     @staticmethod
     def _stroke_steps(from_pos: QPointF, to_pos: QPointF,

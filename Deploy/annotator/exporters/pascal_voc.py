@@ -23,7 +23,7 @@ from pathlib import Path
 
 from annotator.domain.annotation import Annotation, AnnotationType
 from annotator.domain.project import Project
-from annotator.exporters.base import BaseExporter
+from annotator.exporters.base import BaseExporter, export_name
 
 
 def _image_size(img_rec, img_path: Path) -> tuple[int, int]:
@@ -86,10 +86,10 @@ def _bbox_pixels(ann: Annotation, w: int, h: int) -> tuple[int, int, int, int] |
 
 
 def _make_xml(img_path: Path, w: int, h: int,
-              anns: list[Annotation], project: Project) -> str:
+              anns: list[Annotation], project: Project, file_name: str = "") -> str:
     root = ET.Element("annotation")
     ET.SubElement(root, "folder").text = "JPEGImages"
-    ET.SubElement(root, "filename").text = img_path.name
+    ET.SubElement(root, "filename").text = file_name or img_path.name
     ET.SubElement(root, "path").text = str(img_path)
     src = ET.SubElement(root, "source")
     ET.SubElement(src, "database").text = "Unknown"
@@ -155,15 +155,15 @@ class PascalVocExporter(BaseExporter):
             iw, ih = _image_size(img_rec, img_path)
             anns = all_annotations.get(img_rec.path, [])
 
-            xml_content = _make_xml(img_path, iw, ih, anns, project)
-            (ann_dir / (img_path.stem + ".xml")).write_text(
+            xml_content = _make_xml(img_path, iw, ih, anns, project, export_name(img_rec))
+            (ann_dir / (img_rec.ann_key + ".xml")).write_text(
                 xml_content, encoding="utf-8")
 
             if copy_images and img_path.exists():
-                shutil.copy2(img_path, img_dir / img_path.name)
+                shutil.copy2(img_path, img_dir / export_name(img_rec))
 
             split = img_rec.split or "train"
-            split_stems.setdefault(split, []).append(img_path.stem)
+            split_stems.setdefault(split, []).append(img_rec.ann_key)
 
         for split, stems in split_stems.items():
             (sets_dir / f"{split}.txt").write_text(

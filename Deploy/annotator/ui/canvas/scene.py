@@ -166,7 +166,13 @@ class AnnotationScene(QGraphicsScene):
         elif ann.ann_type == AnnotationType.MASK:
             from annotator.ui.canvas.items.mask_item import MaskAnnotationItem
             pts = [(x * w, y * h) for x, y in ann.data.get("polygon", [])]
-            item = MaskAnnotationItem(ann.id, pts, color, label)
+            rel = ann.data.get("mask_png_path", "")
+            bitmap = None
+            if project and project.project_path and rel:
+                from annotator.storage.mask_storage import MaskStorage
+                bitmap = MaskStorage(project.project_path).load_mask_cached(rel)
+            item = MaskAnnotationItem(ann.id, pts, color, label,
+                                      bitmap=bitmap, cache_key=rel, image_size=(w, h))
 
         elif ann.ann_type == AnnotationType.SEMANTIC:
             from annotator.ui.canvas.items.semantic_item import SemanticAnnotationItem

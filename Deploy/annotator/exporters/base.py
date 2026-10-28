@@ -52,6 +52,16 @@ def yolo_label_lines(anns, ann_to_line_fn, class_index: dict[int, int],
 
 # ── shared YOLO-style dataset writer ─────────────────────────────────────────
 
+def export_name(img_rec) -> str:
+    """
+    File name of an image in an exported dataset: the project image key plus
+    the original extension — the original name, unless another image of the
+    project has the same name (then "<folder>_<name>", see ImageRecord.key).
+    Labels / masks / XML use the same stem, so they always match the image.
+    """
+    return img_rec.ann_key + Path(img_rec.path).suffix
+
+
 def write_yolo_dataset(project: Project,
                         all_annotations: dict,
                         output_dir: Path,
@@ -78,13 +88,13 @@ def write_yolo_dataset(project: Project,
         labels_dir = output_dir / "labels" / split
         labels_dir.mkdir(parents=True, exist_ok=True)
         lines = yolo_label_lines(anns, ann_to_line_fn, class_index, img_rec)
-        (labels_dir / (img_path.stem + ".txt")).write_text(
+        (labels_dir / (img_rec.ann_key + ".txt")).write_text(
             "\n".join(lines), encoding="utf-8")
 
         if copy_images and img_path.exists():
             images_dir = output_dir / "images" / split
             images_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(img_path, images_dir / img_path.name)
+            shutil.copy2(img_path, images_dir / export_name(img_rec))
 
     _write_data_yaml(project, output_dir)
 
@@ -133,13 +143,13 @@ def write_yolo_multitask(project: Project,
             labels_dir = output_dir / labels_dir_name / split
             labels_dir.mkdir(parents=True, exist_ok=True)
             lines = yolo_label_lines(anns, ann_fn, class_index, img_rec)
-            (labels_dir / (img_path.stem + ".txt")).write_text(
+            (labels_dir / (img_rec.ann_key + ".txt")).write_text(
                 "\n".join(lines), encoding="utf-8")
 
         if copy_images and img_path.exists():
             images_dir = output_dir / "images" / split
             images_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(img_path, images_dir / img_path.name)
+            shutil.copy2(img_path, images_dir / export_name(img_rec))
 
     splits = sorted({r.split or "train" for r in project.images})
     names = [c.name for c in sorted(project.classes, key=lambda c: c.id)]
