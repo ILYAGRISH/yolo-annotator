@@ -88,7 +88,7 @@ _EN: dict[str, str] = {
     "toolbar_hint": (
         "  Polygon/Polyline/Crack/Pose: click=add · RMB=undo · dbl-click or Enter=finish · Esc=cancel   "
         "BBox/OBB: drag   Select: click=pick · drag handle=move vertex · Del=delete   "
-        "Brush: drag=paint · Enter=commit · Esc=discard   Fill: outline=fill   "
+        "Brush: drag=paint · Enter=commit · Esc=discard   Fill: outline=fill · Shift+click=straight lines   "
         "Wheel=zoom · MMB=pan   A/D=prev/next"
     ),
     "dup_title": "Images with the same name",
@@ -303,7 +303,7 @@ _RU: dict[str, str] = {
     "toolbar_hint": (
         "  Полигон/Полилиния/Трещина/Поза: клик=точка · ПКМ=отмена · 2×клик или Enter=завершить · Esc=отмена   "
         "BBox/OBB: тянуть   Выбор: клик=выбрать · тянуть=двигать · Del=удалить   "
-        "Кисть: тянуть=рисовать · Enter=принять · Esc=отменить   Заливка: обвести=залить   "
+        "Кисть: тянуть=рисовать · Enter=принять · Esc=отменить   Заливка: обвести=залить · Shift+клик=прямые линии   "
         "Колесо=зум · ССК=пан   A/D=пред/след"
     ),
     "dup_title": "Изображения с одинаковыми именами",

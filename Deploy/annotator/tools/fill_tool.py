@@ -6,7 +6,13 @@ Workflow:
                          closed. On release the end is joined to the start
                          with a straight line and everything inside is filled
                          (erased in Erase mode).
-  - Esc while dragging → cancel the current contour
+  - Shift+click        → straight segments (polygonal lasso): Shift+click puts
+                         the first point, every further Shift+click adds a
+                         straight line from the last point (a dashed line
+                         follows the cursor), a click without Shift or Enter
+                         adds the last point and fills. Dragging in between
+                         draws freehand, so both can be mixed.
+  - Esc                → cancel the current contour
 
 Every contour is saved on release — one undo step, no Enter needed.
 Works with two class types (one toolbar button, the class decides):
@@ -20,8 +26,8 @@ ToolProps:
   mode        (draw | erase)
   overlap     (overwrite | keep)  — semantic classes only
 
-Shift+click straight lines of the brushes are not used here: a single
-straight line encloses nothing.
+Unlike the brushes, Shift+click does not continue the previous stroke (that
+contour is already filled): it builds the contour itself from straight lines.
 """
 from __future__ import annotations
 
@@ -30,10 +36,10 @@ from pathlib import Path
 import numpy as np
 from PyQt6.QtCore import Qt, QPointF
 from PyQt6.QtGui import QColor, QPainterPath, QPen
-from PyQt6.QtWidgets import QGraphicsLineItem, QGraphicsPathItem
+from PyQt6.QtWidgets import QGraphicsLineItem
 
 from annotator.domain.annotation import Annotation, AnnotationType
-from annotator.tools.base import BaseTool, BrushRing
+from annotator.tools.base import BaseTool, BrushRing, PreviewPath, ShiftLine
 from annotator.tools.semantic_tool import SemanticBrushTool
 
 _PREVIEW_ALPHA = 140
@@ -81,10 +87,7 @@ class _Contour:
         pen = QPen(c, 2 * radius + 1)                    # image-pixel width, not cosmetic
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-        self._path = QPainterPath(self.start)
-        self._path.lineTo(self.start + QPointF(0.01, 0))  # zero-length segment → dot
-        self._item = QGraphicsPathItem(self._path)
-        self._item.setPen(pen)
+        self._item = PreviewPath(self.start, pen)
         self._item.setZValue(5)
         scene.addItem(self._item)
 
@@ -92,16 +95,25 @@ class _Contour:
         self._guide.setPen(BaseTool._cosmetic_pen("#FFFFFF", 1.0, Qt.PenStyle.DashLine))
         self._guide.setZValue(6)
         scene.addItem(self._guide)
+        self._rubber = None                              # dashed line last point → cursor
         self._paint(self.start, self.start)
 
     def add(self, pos: QPointF):
         self._paint(self.last, pos)
-        self._path.lineTo(pos)
-        self._item.setPath(self._path)
+        self._item.line_to(pos)
         self._guide.setLine(pos.x(), pos.y(), self.start.x(), self.start.y())
         self.last = QPointF(pos)
         d = pos - self.start
         self.moved = self.moved or abs(d.x()) + abs(d.y()) > max(3, self._r)
+
+    def rubber(self, pos: QPointF):
+        """Dashed line from the last point to the cursor (straight-segment mode)."""
+        if self._rubber is None:
+            self._rubber = QGraphicsLineItem()
+            self._rubber.setPen(BaseTool._cosmetic_pen("#FFFFFF", 1.0, Qt.PenStyle.DashLine))
+            self._rubber.setZValue(6)
+            self._scene.addItem(self._rubber)
+        self._rubber.setLine(self.last.x(), self.last.y(), pos.x(), pos.y())
 
     def finish(self) -> np.ndarray:
         """Close the contour, remove the preview; returns the filled area (bool)."""
@@ -110,10 +122,10 @@ class _Contour:
         return fill_enclosed(self.bitmap)
 
     def remove(self):
-        for item in (self._item, self._guide):
+        for item in (self._item, self._guide, self._rubber):
             if item is not None and item.scene() is self._scene:
                 self._scene.removeItem(item)
-        self._item = self._guide = None
+        self._item = self._guide = self._rubber = None
 
     def _paint(self, a: QPointF, b: QPointF):
         import cv2
@@ -130,6 +142,8 @@ class _ContourMixin:
     """Mouse handling shared by both fills; subclasses implement _apply_fill()."""
 
     _contour: _Contour | None = None
+    _pending: bool = False       # contour kept open between Shift+clicks
+    _down: bool = False          # left button is held
 
     def _radius(self) -> int:
         return max(1, int(self._params.get("brush_size", 3)))
@@ -144,34 +158,64 @@ class _ContourMixin:
     def on_press(self, pos, modifiers, button):
         if not self._scene or button != Qt.MouseButton.LeftButton:
             return
+        p = self._clamp(pos)
+        if self._contour is not None and self._pending:
+            self._contour.add(p)                 # straight line from the last point
+            self._down = True
+            return
         if not self._can_start():
             return
         self._cancel_contour()
-        self._contour = _Contour(self._scene, self._clamp(pos),
-                                 self._radius(), self._preview_color())
+        self._contour = _Contour(self._scene, p, self._radius(), self._preview_color())
+        self._down = True
 
     def on_move(self, pos, modifiers):
         if not self._scene:
             return
         self._ring.update(self._scene, pos, self._radius())
-        if self._contour is not None:
-            self._contour.add(self._clamp(pos))
+        if self._contour is None:
+            return
+        if self._down:
+            self._contour.add(self._clamp(pos))  # freehand
+        elif self._pending:
+            self._contour.rubber(self._clamp(pos))
 
     def on_release(self, pos, modifiers, button):
-        if button != Qt.MouseButton.LeftButton or self._contour is None:
+        if button != Qt.MouseButton.LeftButton or self._contour is None or not self._down:
             return
+        self._down = False
         self._contour.add(self._clamp(pos))
-        if not self._contour.moved:              # click / double click: nothing to save
+        if ShiftLine.held(modifiers):            # Shift: keep the contour open
+            self._pending = True
+            return
+        self._finish_contour()
+
+    def _handle_key(self, key) -> bool:
+        """Esc cancels, Enter fills a contour kept open by Shift+clicks."""
+        if key == Qt.Key.Key_Escape:
+            self._cancel_contour()
+            return True
+        if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and self._pending:
+            self._finish_contour()
+            return True
+        return False
+
+    def _finish_contour(self):
+        contour = self._contour
+        if contour is None:
+            return
+        if not contour.moved:                    # click / double click: nothing to save
             self._cancel_contour()
             return
-        filled = self._contour.finish()
         self._contour = None
-        self._apply_fill(filled)
+        self._pending = self._down = False
+        self._apply_fill(contour.finish())
 
     def _cancel_contour(self):
         if self._contour is not None:
             self._contour.remove()
             self._contour = None
+        self._pending = self._down = False
 
     def _apply_fill(self, filled: np.ndarray): ...
 
@@ -208,6 +252,7 @@ class _MaskFill(_ContourMixin, BaseTool):
         self._cancel_contour()
 
     def set_class(self, class_id: int):
+        self._cancel_contour()                   # an open contour belongs to the old class
         self._class_id = class_id
         self._refresh_class_color()
 
@@ -215,8 +260,7 @@ class _MaskFill(_ContourMixin, BaseTool):
         self._params.update(params)
 
     def on_key_press(self, key, modifiers):
-        if key == Qt.Key.Key_Escape:
-            self._cancel_contour()
+        self._handle_key(key)
 
     def _apply_fill(self, filled: np.ndarray):
         ctrl = self._ctrl
@@ -316,9 +360,12 @@ class _SemanticFill(_ContourMixin, SemanticBrushTool):
         self._cancel_contour()
         super().deactivate()
 
+    def set_class(self, class_id: int):
+        self._cancel_contour()
+        super().set_class(class_id)
+
     def on_key_press(self, key, modifiers):
-        if key == Qt.Key.Key_Escape:
-            self._cancel_contour()
+        self._handle_key(key)
 
     def leave_image(self):
         self._cancel_contour()
