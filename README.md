@@ -142,6 +142,10 @@ cd new_annotator
 
 ## Changelog
 
+### Unreleased
+- **Fill tool: Shift+click draws straight lines** — like a polygonal lasso: Shift+click puts the first point, further Shift+clicks add straight sides (a dashed line follows the cursor), a click without Shift or Enter closes and fills the shape. Dragging in between draws freehand, so straight and free parts mix in one contour; Esc cancels it
+- **Faster drawing on large photos** — masks and semantic layers are now redrawn only where the screen changes (they used to rescale a whole photo-sized layer on every mouse move), and the Fill contour preview no longer slows down as the contour gets longer — the brush ring keeps up with the cursor again. Zoomed-in masks show crisp pixels
+
 ### v2.2.2 — 2026-10-28
 - **COCO `category_id` now counts from 1** — COCO Instances, Keypoints and Panoptic used the class id, so the first class had `category_id` 0, which torchvision detection models take for the background. Categories are now numbered **1 … N** in class-id order (the YOLO index + 1), the same in every COCO file and without gaps after deleted classes. **Re-exported COCO datasets get new category ids** — retrain or remap if you trained on an earlier COCO export. YOLO is unchanged; Semantic Masks now also numbers classes by id (it followed the order of the class list, which differed only after moving classes up / down). README → *Class numbers and the background* lists how every format numbers the classes
 
@@ -260,6 +264,10 @@ Deploy/               ← ready-to-run copy for other computers
 ├── run.bat           ← starts the app
 └── About.md          ← user guide (RU)
 ```
+
+## Support the project
+
+If YOLO Annotator saved you time, a ⭐ at the top of the page helps other people find it. Found a bug, or a format or workflow you are missing? [Open an issue](https://github.com/ILYAGRISH/yolo-annotator/issues) — most of the recent releases (Fill tool, same-named images, COCO ids) came from user feedback.
 
 ## License
 

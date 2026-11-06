@@ -41,6 +41,31 @@ def _colored_pixmap(key: tuple[str, str], bitmap: np.ndarray, color: str) -> QPi
     return pix
 
 
+def draw_layer(painter: QPainter, option, pixmap: QPixmap, w: int, h: int,
+               area: QRectF | None = None) -> None:
+    """
+    Draw an image-sized layer pixmap, but only the part that is repainted.
+    Called on every cursor move (brush ring, previews); drawing — and with
+    SmoothPixmapTransform, rescaling — a whole photo-sized pixmap per layer
+    each time made the cursor lag. Nearest-neighbour scaling also keeps the
+    mask pixels exact when zoomed in.
+    area — the layer's own bounds (scene coords), to skip empty parts.
+    """
+    r = QRectF(0, 0, w, h)
+    if area is not None:
+        r = r.intersected(area)
+    exposed = getattr(option, "exposedRect", None)
+    if exposed is not None and not exposed.isEmpty():
+        r = r.intersected(exposed)
+    r = QRectF(r.toAlignedRect()).intersected(QRectF(0, 0, w, h))   # whole pixels
+    if r.isEmpty():
+        return
+    sx, sy = pixmap.width() / max(1, w), pixmap.height() / max(1, h)
+    src = QRectF(r.x() * sx, r.y() * sy, r.width() * sx, r.height() * sy)
+    painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+    painter.drawPixmap(r, pixmap, src)
+
+
 class SemanticAnnotationItem(BaseAnnotationItem):
 
     def __init__(self, annotation_id: str, bitmap: np.ndarray | None,
@@ -48,6 +73,7 @@ class SemanticAnnotationItem(BaseAnnotationItem):
                  polygons_scene: list[list[tuple[float, float]]],
                  class_color: str, label: str = "", parent=None):
         super().__init__(annotation_id, class_color, parent)
+        self.setFlag(self.GraphicsItemFlag.ItemUsesExtendedStyleOption)   # exposedRect for paint()
         self.label = label
         self._w, self._h = image_size
         self._bitmap = bitmap
@@ -95,8 +121,7 @@ class SemanticAnnotationItem(BaseAnnotationItem):
         selected = self.isSelected()
         painter.save()
         painter.setOpacity(min(1.0, self.fill_opacity * (1.8 if selected else 1.0)))
-        painter.drawPixmap(QRectF(0, 0, self._w, self._h), self._pixmap,
-                           QRectF(self._pixmap.rect()))
+        draw_layer(painter, option, self._pixmap, self._w, self._h)
         painter.restore()
 
         color = QColor(self.class_color)

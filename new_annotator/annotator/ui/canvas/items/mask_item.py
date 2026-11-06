@@ -14,7 +14,7 @@ from PyQt6.QtCore import QRectF, QPointF, Qt
 from PyQt6.QtGui import (QPainter, QBrush, QColor, QPolygonF,
                           QPainterPath)
 from annotator.ui.canvas.items.base_item import BaseAnnotationItem, _cpen, _draw_label
-from annotator.ui.canvas.items.semantic_item import _colored_pixmap
+from annotator.ui.canvas.items.semantic_item import _colored_pixmap, draw_layer
 
 _BOUNDING_MARGIN = 20.0
 
@@ -47,6 +47,7 @@ class MaskAnnotationItem(BaseAnnotationItem):
                  bitmap: np.ndarray | None = None, cache_key: str = "",
                  image_size: tuple[int, int] = (0, 0)):
         super().__init__(annotation_id, class_color, parent)
+        self.setFlag(self.GraphicsItemFlag.ItemUsesExtendedStyleOption)   # exposedRect for paint()
         self._points = [QPointF(x, y) for x, y in polygon_scene]
         self.label = label
         self._bitmap = bitmap if bitmap is not None and bitmap.any() else None
@@ -120,8 +121,8 @@ class MaskAnnotationItem(BaseAnnotationItem):
         if self._pixmap is not None:
             painter.save()
             painter.setOpacity(min(1.0, self.fill_opacity * (1.5 if selected else 1.0)))
-            painter.drawPixmap(QRectF(0, 0, self._w, self._h), self._pixmap,
-                               QRectF(self._pixmap.rect()))
+            draw_layer(painter, option, self._pixmap, self._w, self._h,
+                       self._outline.boundingRect())
             painter.restore()
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.setPen(_cpen(color, lw, self.outline_style))

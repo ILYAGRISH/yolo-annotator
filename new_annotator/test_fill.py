@@ -147,8 +147,11 @@ def sem_anns():
 def bitmap(ann):
     return MaskStorage(ctrl.project.project_path).load_mask(ann.data["mask_png_path"])
 
+from annotator.tools.fill_tool import _PreviewPath
+
 def previews():
-    return [i for i in scene.items() if isinstance(i, (QGraphicsPathItem, QGraphicsLineItem))
+    return [i for i in scene.items()
+            if isinstance(i, (QGraphicsPathItem, QGraphicsLineItem, _PreviewPath))
             and i.zValue() >= 5]
 
 fill = FillTool()
@@ -260,6 +263,87 @@ scene.set_tool(SelectTool(), ctrl)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+# §3c  Shift+click: straight segments
+# ═════════════════════════════════════════════════════════════════════════════
+section("3c. Shift+click straight segments")
+
+SHIFT = Qt.KeyboardModifier.ShiftModifier
+
+def click(tool, x, y, mod=NOMOD):
+    tool.on_press(QPointF(x, y), mod, LB)
+    tool.on_release(QPointF(x, y), mod, LB)
+
+fill = FillTool()
+fill.set_params({"brush_size": 1, "mode": "draw"})
+activate(fill, 0)
+n = len(masks())
+n_undo = ctrl.undo_stack.index()          # index, not count(): earlier undo left a redo tail
+click(fill, 10, 10, SHIFT)
+check("first Shift+click: nothing saved, contour kept open",
+      len(masks()) == n and fill._active._pending and len(previews()) == 2)
+fill._active.on_move(QPointF(80, 10), SHIFT)
+check("dashed line follows the cursor", len(previews()) == 3)
+click(fill, 80, 10, SHIFT)
+click(fill, 80, 60, SHIFT)
+check("still open after several Shift+clicks", len(masks()) == n and fill._active._pending)
+click(fill, 10, 60)                                    # no Shift: last point + fill
+check("click without Shift closes and fills", len(masks()) == n + 1 and not fill._active._pending)
+check("one undo step", ctrl.undo_stack.index() == n_undo + 1)
+bm = bitmap(masks()[-1])
+check("rectangle from straight lines is filled", bm[35, 45] == 255 and bm[10, 40] == 255)
+check("outside stays empty", bm[70, 45] == 0 and bm[35, 90] == 0)
+check("previews removed", previews() == [])
+
+# triangle closed with Enter
+click(fill, 100, 10, SHIFT)
+click(fill, 160, 10, SHIFT)
+click(fill, 160, 70, SHIFT)
+fill.on_key_press(Qt.Key.Key_Return, NOMOD)
+check("Enter fills an open contour", len(masks()) == n + 2 and previews() == [])
+check("triangle: inside filled, far corner not",
+      bitmap(masks()[-1])[30, 150] == 255 and bitmap(masks()[-1])[60, 105] == 0)
+
+# Esc cancels
+click(fill, 20, 20, SHIFT)
+click(fill, 60, 20, SHIFT)
+fill.on_key_press(Qt.Key.Key_Escape, NOMOD)
+check("Esc drops the open contour", len(masks()) == n + 2 and previews() == []
+      and not fill._active._pending)
+click(fill, 120, 90)
+check("a plain click after that still does nothing", len(masks()) == n + 2)
+
+# freehand drag between Shift+clicks
+click(fill, 10, 80, SHIFT)
+fill._active.on_press(QPointF(60, 80), SHIFT, LB)
+fill._active.on_move(QPointF(60, 95), SHIFT)
+fill._active.on_release(QPointF(30, 95), NOMOD, LB)   # released without Shift: fills
+check("drag mixes freehand into the contour and Shift-less release fills",
+      len(masks()) == n + 3 and bitmap(masks()[-1])[90, 40] == 255)
+
+# open contour dropped by leave_image / class change
+click(fill, 20, 20, SHIFT)
+fill.leave_image()
+check("leaving the image drops it", previews() == [] and not fill._active._pending)
+click(fill, 20, 20, SHIFT)
+fill.set_class(0)
+check("class change drops it", previews() == [] and not fill._active._pending)
+fill.leave_image()
+
+# erase with a straight-line contour cuts the selected mask
+fill.set_params({"mode": "erase"})
+box = masks()[n]
+scene.select_item(scene._ann_items[box.id])
+click(fill, 30, 30, SHIFT); click(fill, 60, 30, SHIFT); click(fill, 60, 50, SHIFT)
+click(fill, 30, 50)
+check("erase works with straight lines too",
+      bitmap(next(a for a in masks() if a.id == box.id))[40, 45] == 0
+      and bitmap(next(a for a in masks() if a.id == box.id))[15, 45] == 255)
+fill.set_params({"mode": "draw"})
+scene.set_tool(SelectTool(), ctrl)
+check("tool switch leaves no preview", previews() == [])
+
+
+# ═════════════════════════════════════════════════════════════════════════════
 # §3b  Brush never drops unsaved work
 # ═════════════════════════════════════════════════════════════════════════════
 section("3b. Brush: unsaved strokes")
@@ -362,6 +446,24 @@ contour(fill, [(160, 10), (190, 10), (190, 40)], release=False)
 fill.on_key_press(Qt.Key.Key_Escape, NOMOD)
 fill.on_release(QPointF(190, 40), NOMOD, LB)
 check("Esc cancels the contour", ctrl.undo_stack.count() == n_undo and previews() == [])
+
+# Shift+click straight segments with a semantic class
+SH = Qt.KeyboardModifier.ShiftModifier
+fill.set_class(road_cls.id)
+fill.set_params({"mode": "draw", "overlap": "overwrite"})
+before = len(sem_anns())
+n_undo = ctrl.undo_stack.index()
+for pt in ((120, 10), (190, 10), (190, 40)):
+    fill.on_press(QPointF(*pt), SH, LB); fill.on_release(QPointF(*pt), SH, LB)
+check("semantic: open contour saves nothing yet", ctrl.undo_stack.index() == n_undo and fill._active._pending)
+fill.on_press(QPointF(120, 40), NOMOD, LB); fill.on_release(QPointF(120, 40), NOMOD, LB)
+check("semantic: click without Shift fills, one undo step",
+      ctrl.undo_stack.index() == n_undo + 1 and not fill._active._pending)
+check("semantic: straight-line rectangle is in the layer",
+      bitmap(next(a for a in sem_anns() if a.class_id == road_cls.id))[25, 155] == 255)
+fill.on_press(QPointF(10, 95), SH, LB); fill.on_release(QPointF(10, 95), SH, LB)
+fill.set_class(sky_cls.id)
+check("semantic: class change drops an open contour", not fill._active._pending and previews() == [])
 
 # switching class type swaps the fill
 fill.set_class(0)
