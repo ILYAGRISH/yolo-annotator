@@ -31,11 +31,10 @@ from pathlib import Path
 
 import numpy as np
 from PyQt6.QtCore import Qt, QPointF
-from PyQt6.QtGui import QColor, QPainterPath, QPen
-from PyQt6.QtWidgets import QGraphicsPathItem
+from PyQt6.QtGui import QColor, QPen
 
 from annotator.domain.annotation import Annotation, AnnotationType
-from annotator.tools.base import BaseTool, BrushRing, ShiftLine
+from annotator.tools.base import BaseTool, BrushRing, PreviewPath, ShiftLine
 
 _PREVIEW_ALPHA = 140
 _ERASE_PREVIEW = "#FFFFFF"
@@ -104,8 +103,7 @@ class SemanticBrushTool(BaseTool):
         self._params: dict = dict(self._DEFAULT_PARAMS)
 
         self._stroke: np.ndarray | None = None        # (H, W) uint8, 255 = brushed
-        self._preview: QGraphicsPathItem | None = None
-        self._path: QPainterPath | None = None
+        self._preview: PreviewPath | None = None
         self._ring = BrushRing()
         self._shift = ShiftLine()                     # Shift+click straight lines
         self._last_pos: QPointF | None = None
@@ -215,9 +213,8 @@ class SemanticBrushTool(BaseTool):
         cv2.line(self._stroke, p0, p1, 255, thickness=2 * r + 1)
         cv2.circle(self._stroke, p0, r, 255, -1)
         cv2.circle(self._stroke, p1, r, 255, -1)
-        if self._path is not None and self._preview is not None:
-            self._path.lineTo(b)
-            self._preview.setPath(self._path)
+        if self._preview is not None:
+            self._preview.line_to(b)
 
     def _start_preview(self, pos: QPointF):
         erasing = self._params.get("mode", "draw") == "erase"
@@ -226,10 +223,7 @@ class SemanticBrushTool(BaseTool):
         pen = QPen(color, 2 * self._radius() + 1)     # image-pixel width, not cosmetic
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-        self._path = QPainterPath(pos)
-        self._path.lineTo(pos + QPointF(0.01, 0))     # zero-length segment → dot
-        self._preview = QGraphicsPathItem(self._path)
-        self._preview.setPen(pen)
+        self._preview = PreviewPath(pos, pen)
         self._preview.setZValue(5)
         self._scene.addItem(self._preview)
 
@@ -238,7 +232,6 @@ class SemanticBrushTool(BaseTool):
             if self._preview.scene() is self._scene:
                 self._scene.removeItem(self._preview)
         self._preview = None
-        self._path = None
         self._stroke = None
         self._last_pos = None
 

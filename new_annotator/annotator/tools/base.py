@@ -1,5 +1,9 @@
 from abc import ABC, abstractmethod
 
+from PyQt6.QtCore import QPointF, QRectF, Qt
+from PyQt6.QtGui import QPainterPath, QPen
+from PyQt6.QtWidgets import QGraphicsItem
+
 
 class BaseTool(ABC):
     """
@@ -152,3 +156,43 @@ class ShiftLine:
         self._anchor = None
         self._image = None
         self.hide_guide()
+
+
+class PreviewPath(QGraphicsItem):
+    """
+    A stroke / contour line while it is drawn (Fill, Semantic brush).
+    QGraphicsPathItem recomputes the stroked outline of the whole path on
+    every setPath(), so each mouse move got slower the longer the line was;
+    splitting it into several items showed darker spots where the
+    semi-transparent pieces overlapped. This item keeps one path (so the line
+    is even) and grows its bounds per segment.
+    """
+
+    def __init__(self, start: QPointF, pen: QPen):
+        super().__init__()
+        self._pen = pen
+        self._pad = pen.widthF() / 2 + 2
+        self._path = QPainterPath(start)
+        self._path.lineTo(start + QPointF(0.01, 0))      # zero-length segment → dot
+        self._rect = self._seg_rect(start, start)
+        self._last = QPointF(start)
+
+    def _seg_rect(self, a: QPointF, b: QPointF) -> QRectF:
+        return QRectF(a, b).normalized().adjusted(-self._pad, -self._pad, self._pad, self._pad)
+
+    def line_to(self, pos: QPointF):
+        r = self._seg_rect(self._last, pos)
+        if not self._rect.contains(r):
+            self.prepareGeometryChange()
+            self._rect = self._rect.united(r)
+        self._path.lineTo(pos)
+        self._last = QPointF(pos)
+        self.update(r)
+
+    def boundingRect(self) -> QRectF:
+        return self._rect
+
+    def paint(self, painter, option, widget=None):
+        painter.setPen(self._pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawPath(self._path)

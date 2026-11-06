@@ -147,11 +147,11 @@ def sem_anns():
 def bitmap(ann):
     return MaskStorage(ctrl.project.project_path).load_mask(ann.data["mask_png_path"])
 
-from annotator.tools.fill_tool import _PreviewPath
+from annotator.tools.base import PreviewPath
 
 def previews():
     return [i for i in scene.items()
-            if isinstance(i, (QGraphicsPathItem, QGraphicsLineItem, _PreviewPath))
+            if isinstance(i, (QGraphicsPathItem, QGraphicsLineItem, PreviewPath))
             and i.zValue() >= 5]
 
 fill = FillTool()

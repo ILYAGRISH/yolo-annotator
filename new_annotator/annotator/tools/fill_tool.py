@@ -34,12 +34,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
-from PyQt6.QtCore import Qt, QPointF, QRectF
+from PyQt6.QtCore import Qt, QPointF
 from PyQt6.QtGui import QColor, QPainterPath, QPen
-from PyQt6.QtWidgets import QGraphicsItem, QGraphicsLineItem
+from PyQt6.QtWidgets import QGraphicsLineItem
 
 from annotator.domain.annotation import Annotation, AnnotationType
-from annotator.tools.base import BaseTool, BrushRing, ShiftLine
+from annotator.tools.base import BaseTool, BrushRing, PreviewPath, ShiftLine
 from annotator.tools.semantic_tool import SemanticBrushTool
 
 _PREVIEW_ALPHA = 140
@@ -70,45 +70,6 @@ def fill_enclosed(contour: np.ndarray) -> np.ndarray:
     return padded[1:-1, 1:-1] != 128
 
 
-class _PreviewPath(QGraphicsItem):
-    """
-    The contour line while it is drawn. QGraphicsPathItem recomputes the
-    stroked outline of the whole path on every setPath(), so each mouse move
-    got slower the longer the contour was; splitting it into several items
-    showed darker spots where the semi-transparent pieces overlapped. This
-    item keeps one path (so the line is even) and grows its bounds per segment.
-    """
-
-    def __init__(self, start: QPointF, pen: QPen):
-        super().__init__()
-        self._pen = pen
-        self._pad = pen.widthF() / 2 + 2
-        self._path = QPainterPath(start)
-        self._path.lineTo(start + QPointF(0.01, 0))      # zero-length segment → dot
-        self._rect = self._seg_rect(start, start)
-        self._last = QPointF(start)
-
-    def _seg_rect(self, a: QPointF, b: QPointF) -> QRectF:
-        return QRectF(a, b).normalized().adjusted(-self._pad, -self._pad, self._pad, self._pad)
-
-    def line_to(self, pos: QPointF):
-        r = self._seg_rect(self._last, pos)
-        if not self._rect.contains(r):
-            self.prepareGeometryChange()
-            self._rect = self._rect.united(r)
-        self._path.lineTo(pos)
-        self._last = QPointF(pos)
-        self.update(r)
-
-    def boundingRect(self) -> QRectF:
-        return self._rect
-
-    def paint(self, painter, option, widget=None):
-        painter.setPen(self._pen)
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawPath(self._path)
-
-
 class _Contour:
     """A contour being drawn: brushed pixels + preview path + closing guide."""
 
@@ -126,7 +87,7 @@ class _Contour:
         pen = QPen(c, 2 * radius + 1)                    # image-pixel width, not cosmetic
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-        self._item = _PreviewPath(self.start, pen)
+        self._item = PreviewPath(self.start, pen)
         self._item.setZValue(5)
         scene.addItem(self._item)
 
