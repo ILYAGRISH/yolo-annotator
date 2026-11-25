@@ -296,6 +296,24 @@ check("unique name elsewhere -> that image (labels re-import)",
       find(cu.project, _TMP / "ds" / "cat.jpg").path == str(uniq / "cat.jpg"))
 check("unknown name -> none", find(proj, _TMP / "ds" / "zzz.jpg") is None)
 
+# Import with unlabeled images: images without label files should still be imported
+ds_unlabeled = _TMP / "ds_unlabeled"
+(ds_unlabeled / "images").mkdir(parents=True); (ds_unlabeled / "labels").mkdir()
+Image.new("RGB", (50, 50)).save(ds_unlabeled / "images" / "labeled.jpg")
+Image.new("RGB", (50, 50)).save(ds_unlabeled / "images" / "unlabeled.jpg")
+(ds_unlabeled / "labels" / "labeled.txt").write_text("0 0.5 0.5 0.4 0.4\n")
+# unlabeled.txt does not exist
+cu_unlabeled = ProjectController()
+p_unlabeled = cu_unlabeled.create_project("unlabeled_test", ds_unlabeled / "proj")
+p_unlabeled.add_class("obj")
+imp = YoloImporter()
+res = imp.import_detect(p_unlabeled, ds_unlabeled, ["obj"], "detect", "skip")
+check("import finds all images, labeled and unlabeled", res.images_found == 2)
+check("import finds only 1 label file", res.labels_found == 1)
+check("both images are in project", len(p_unlabeled.images) == 2)
+check("image names are correct",
+      sorted([Path(i.path).stem for i in p_unlabeled.images]) == ["labeled", "unlabeled"])
+
 
 shutil.rmtree(_TMP, ignore_errors=True)
 

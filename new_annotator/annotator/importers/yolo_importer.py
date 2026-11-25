@@ -295,8 +295,15 @@ class YoloImporter:
         existing_with_anns = self._images_with_annotations(project)
 
         for img_path, split in image_files:
+            # Always add the image to the project, even if it has no label file
+            img_proj_path = self._ensure_image(project, img_path, split)
+            if img_proj_path is None:
+                result.warnings.append(f"Could not register image: {img_path.name}")
+                continue
+
             label_path = find_label_file(img_path, dataset_root)
             if label_path is None:
+                # No label file — image stays unlabeled
                 continue
 
             result.labels_found += 1
@@ -306,11 +313,7 @@ class YoloImporter:
 
             anns = parse_label_file(label_path, ann_type, class_id_map)
             if not anns:
-                continue
-
-            img_proj_path = self._ensure_image(project, img_path, split)
-            if img_proj_path is None:
-                result.warnings.append(f"Could not register image: {img_path.name}")
+                # Empty or invalid label file — image stays unlabeled
                 continue
 
             if conflict_mode == "merge":

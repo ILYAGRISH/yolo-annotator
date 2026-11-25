@@ -142,6 +142,9 @@ cd new_annotator
 
 ## Changelog
 
+### Unreleased
+- **Fix: YOLO import now includes unlabeled images** — when importing a YOLO dataset, images without a corresponding label file are now added to the project (they stay unlabeled and can be annotated later). Previously such images were silently skipped
+
 ### v2.3 — 2026-11-07
 - **Fill tool: Shift+click draws straight lines** — like a polygonal lasso: Shift+click puts the first point, further Shift+clicks add straight sides (a dashed line follows the cursor), a click without Shift or Enter closes and fills the shape. Dragging in between draws freehand, so straight and free parts mix in one contour; Esc cancels it
 - **Faster drawing on large photos** — masks and semantic layers are now redrawn only where the screen changes (they used to rescale a whole photo-sized layer on every mouse move), and the stroke / contour preview of the Semantic brush and Fill no longer slows down as the line gets longer — the brush ring keeps up with the cursor again. Zoomed-in masks show crisp pixels
