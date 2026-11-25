@@ -142,7 +142,7 @@ cd new_annotator
 
 ## Changelog
 
-### Unreleased
+### v2.3.1 — 2026-11-25
 - **Fix: YOLO import now includes unlabeled images** — when importing a YOLO dataset, images without a corresponding label file are now added to the project (they stay unlabeled and can be annotated later). Previously such images were silently skipped
 
 ### v2.3 — 2026-11-07
